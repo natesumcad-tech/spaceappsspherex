@@ -1,0 +1,12 @@
+.mv-ir-presets { display: flex; gap: 5px; margin: 9px 0; }
+.mv-ir-presets button, .mv-ir-steps button, .mv-ir-clear { border: 1px solid #cfc0a9; border-radius: 8px; padding: 7px 9px; background: #faf3e8; color: #272329; font: 600 .72rem var(--font-body), sans-serif; cursor: pointer; }
+.mv-ir-presets button { flex: 1; }
+.mv-ir-presets button[aria-pressed="true"] { background: #272329; color: #faf3e8; border-color: #272329; }
+.mv-ir-presets button:focus-visible, .mv-ir-steps button:focus-visible, .mv-ir-select select:focus-visible, .mv-ir-clear:focus-visible { outline: 2px solid #6f7dff; outline-offset: 2px; }
+.mv-ir-status { margin: 8px 0; font-size: .7rem; font-weight: 600; color: #514456; }
+.mv-ir-select { display: grid; gap: 5px; font-size: .7rem; color: #625b50; }
+.mv-ir-select select { width: 100%; min-width: 0; border: 1px solid #cfc0a9; border-radius: 8px; padding: 7px; background: #faf3e8; color: #272329; font: inherit; }
+.mv-ir-steps { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.mv-ir-steps button:disabled { opacity: .4; cursor: default; }
+.mv-ir-clear { width: 100%; margin-top: 8px; }
+.mv-minicard .cl-inner { max-height: min(70vh, 640px); overflow-y: auto; }

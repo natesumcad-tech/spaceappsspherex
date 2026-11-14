@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import "./infrared-isolation.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { SkyData } from "@/lib/explorer/astro";
 import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
@@ -754,47 +755,81 @@ function ImageryControl({ settings, set }: { settings: Settings; set: (k: keyof 
   const mode = settings.layer === "2mass" ? "2mass" : settings.band >= 0 ? "band" : "color";
   const [band, setBand] = useState(settings.band >= 0 ? settings.band : 46);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const available = SPHEREX_WL.map((_, i) => i).filter((i) => !BLANK_FRAMES.has(i));
+  const cancelPending = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
   useEffect(() => {
     if (settings.band >= 0) setBand(settings.band);
   }, [settings.band]);
-  const commit = (b: number) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => set("band", b), 250); // wait until the slider settles
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const isolate = (b: number, deferred = false) => {
+    cancelPending();
+    setBand(b);
+    const apply = () => {
+      set("layer", "spherex");
+      set("overlays", []);
+      set("band", b);
+      timer.current = null;
+    };
+    if (deferred) timer.current = setTimeout(apply, 180);
+    else apply();
   };
+  const switchMode = (layer: Settings["layer"], b: number) => {
+    cancelPending();
+    set("layer", layer);
+    set("band", b);
+  };
+  const stepBand = (direction: number) => {
+    const index = available.indexOf(band);
+    const next = available[Math.max(0, Math.min(available.length - 1, index + direction))];
+    isolate(next);
+  };
+
   return (
     <div className="mv-imagery">
       <div className="mv-imagery-seg" role="radiogroup" aria-label="Map imagery">
-        <button role="radio" aria-checked={mode === "color"} onClick={() => { set("layer", "spherex"); set("band", -1); }}>
-          SPHEREx color
-        </button>
-        <button role="radio" aria-checked={mode === "band"} onClick={() => { set("layer", "spherex"); set("band", band); }}>
-          One wavelength
-        </button>
-        <button role="radio" aria-checked={mode === "2mass"} onClick={() => set("layer", "2mass")}>
-          2MASS
-        </button>
+        <button role="radio" aria-checked={mode === "color"} onClick={() => switchMode("spherex", -1)}>SPHEREx color</button>
+        <button role="radio" aria-checked={mode === "band"} onClick={() => isolate(band)}>Isolate infrared</button>
+        <button role="radio" aria-checked={mode === "2mass"} onClick={() => switchMode("2mass", -1)}>2MASS</button>
+      </div>
+      <div className="mv-ir-presets" role="group" aria-label="Isolate an infrared layer">
+        {[12, 46, 62].map((frame) => (
+          <button key={frame} type="button" aria-pressed={mode === "band" && settings.band === frame && settings.overlays.length === 0}
+            onClick={() => isolate(frame)} title={`Isolate ${SPHEREX_WL[frame].toFixed(3)} micrometers`}>
+            {SPHEREX_WL[frame].toFixed(1)} µm
+          </button>
+        ))}
       </div>
       {mode === "band" && (
-        <label className="mv-band">
-          <span>
-            <b>{SPHEREX_WL[band].toFixed(2)} µm</b> · band {Math.floor(band / 17) + 1}, channel {(band % 17) + 1}
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={101}
-            value={band}
-            onChange={(e) => {
-              let b = +e.target.value;
-              if (BLANK_FRAMES.has(b)) b = b === 50 ? 49 : 52; // the two dichroic channels are empty in DR1
-              setBand(b);
-              commit(b);
-            }}
-            aria-label="SPHEREx wavelength"
-          />
-        </label>
+        <div className="mv-ir-isolation">
+          <p className="mv-ir-status" aria-live="polite">
+            {settings.overlays.length ? "Overlay blend active" : "Infrared layer isolated"} · {SPHEREX_WL[settings.band].toFixed(3)} µm
+          </p>
+          <label className="mv-band">
+            <span><b>{SPHEREX_WL[band].toFixed(3)} µm</b> · channel {band + 1} of 102</span>
+            <input type="range" min={0} max={available.length - 1} value={Math.max(0, available.indexOf(band))}
+              onChange={(e) => isolate(available[Number(e.target.value)], true)} aria-label="SPHEREx wavelength"
+              aria-valuetext={`${SPHEREX_WL[band].toFixed(3)} micrometers, channel ${band + 1}`} />
+          </label>
+          <label className="mv-ir-select">Choose a wavelength
+            <select value={band} onChange={(e) => isolate(Number(e.target.value))}>
+              {SPHEREX_WL.map((w, i) => <option key={i} value={i} disabled={BLANK_FRAMES.has(i)}>
+                {w.toFixed(3)} µm · channel {i + 1}{BLANK_FRAMES.has(i) ? " — no DR1 data" : ""}
+              </option>)}
+            </select>
+          </label>
+          <div className="mv-ir-steps">
+            <button type="button" disabled={band === available[0]} onClick={() => stepBand(-1)}>← Previous</button>
+            <button type="button" disabled={band === available[available.length - 1]} onClick={() => stepBand(1)}>Next →</button>
+          </div>
+          {settings.overlays.length > 0 && <button type="button" className="mv-ir-clear" onClick={() => isolate(band)}>Remove overlays and isolate</button>}
+          <p className="mv-imagery-note">One wavelength only; survey overlays are removed. Display colors are artificial. Channels 51–52 have no DR1 data.</p>
+        </div>
       )}
-      {mode === "color" && <p className="mv-imagery-note">Blue 1.0 µm · green 2.2 µm · red 3.3 µm (glowing dust)</p>}
+      {mode === "color" && <p className="mv-imagery-note">Blue 1.0 µm · green 2.2 µm · red 3.3 µm. Use the presets above to isolate one layer.</p>}
     </div>
   );
 }
