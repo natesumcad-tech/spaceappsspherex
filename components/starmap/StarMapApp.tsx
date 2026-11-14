@@ -8,6 +8,7 @@ import { raToX } from "@/lib/starmap/coords";
 import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById } from "@/lib/starmap/hips";
 import { DEFAULT_SETTINGS, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
 import SphereView from "@/components/explorer/Explorer";
+import Collapsible from "@/components/ui/Collapsible";
 import { byId } from "@/lib/explorer/landmarks";
 import { waypointStop } from "@/lib/explorer/dynamic";
 
@@ -299,11 +300,11 @@ export default function StarMapApp() {
             </svg>
           </button>
         </div>
-        <div className="mv-glass mv-minicard">
+        <Collapsible id="map-overview" className="mv-glass mv-minicard" title={<span className="cl-label">Overview</span>} summary={layerById(settings.layer).name}>
           <Minimap ref={minimapRef} onMove={(x, y) => viewerRef.current?.setTarget(x, y)} />
           <div ref={readoutRef} className="mv-readout" />
           <ImageryControl settings={settings} set={set} />
-        </div>
+        </Collapsible>
         <div ref={loadingRef} className="mv-glass mv-loadpill" aria-live="polite" />
       </div>
 
@@ -321,11 +322,8 @@ export default function StarMapApp() {
       </div>
 
       {/* Controls help */}
-      <div className={`mv-glass mv-help ${help ? "open" : ""}`}>
-        <button className="mv-help-toggle" onClick={() => setHelp((h) => !h)} aria-expanded={help}>
-          {help ? "Hide controls" : "Controls"}
-        </button>
-        {help && (
+      <Collapsible id="map-controls" className="mv-glass mv-help" title={<span className="cl-label">Controls</span>} defaultOpen={help}>
+        {(
           <ul>
             <li><b>Pan</b> middle-drag · left-drag · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></li>
             <li><b>Orbit</b> <kbd>Shift</kbd> + middle-drag · right-drag · <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
@@ -335,7 +333,7 @@ export default function StarMapApp() {
             <li><b>Waypoint</b> <kbd>Shift</kbd>+<kbd>G</kbd> · <b>Home</b> <kbd>H</kbd></li>
           </ul>
         )}
-      </div>
+      </Collapsible>
 
       {/* Waypoint details slide in from the left on hover */}
       <aside
@@ -372,14 +370,22 @@ export default function StarMapApp() {
       </aside>
 
       {/* Timeline */}
-      <div className="mv-glass mv-timeline">
-        <div className="mv-tl-head">
-          <strong>{ep.label}</strong>
-          <span>{ep.note}</span>
-          {!planetsValid(epochYear(ep)) && settings.planets && <em>Planets hidden: too far from today to calculate reliably.</em>}
-        </div>
+      <Collapsible
+        id="map-timeline"
+        className="mv-glass mv-timeline"
+        title={
+          <div className="mv-tl-head">
+            <span className="cl-label">Timeline</span>
+            <strong>{ep.label}</strong>
+          </div>
+        }
+      >
+        <p className="mv-tl-note">
+          {ep.note}
+          {!planetsValid(epochYear(ep)) && settings.planets && <em> Planets hidden: too far from today to calculate reliably.</em>}
+        </p>
         <Timeline value={epoch} onChange={setEpoch} />
-      </div>
+      </Collapsible>
 
       {travel && !sphere && <div className="mv-travel">Traveling to {travel}…</div>}
 

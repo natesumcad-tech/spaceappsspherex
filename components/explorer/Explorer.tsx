@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { LANDMARKS, SECTIONS, byId } from "@/lib/explorer/landmarks";
 import type { NavMode, NavState, SkyEngine } from "@/lib/explorer/engine";
 import type { SkyData } from "@/lib/explorer/astro";
+import Collapsible from "@/components/ui/Collapsible";
 
 const LANGS = [
   ["en", "English"],
@@ -38,6 +39,22 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
   const [lang, setLang] = useState("en");
   const [toast, setToast] = useState<string | null>(null);
   const [nav, setNav] = useState<NavState | null>(null);
+  const [hintHidden, setHintHidden] = useState(false);
+  useEffect(() => {
+    try {
+      setHintHidden(localStorage.getItem("ui.hint.hidden") === "1");
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
+  const hideHint = () => {
+    setHintHidden(true);
+    try {
+      localStorage.setItem("ui.hint.hidden", "1");
+    } catch {
+      /* storage unavailable */
+    }
+  };
 
   // Start the engine once
   useEffect(() => {
@@ -195,9 +212,16 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
 
         {ready && current && (
           <>
-            <section className="xp-card" aria-live="polite">
-              <p className="xp-eyebrow">{idx >= 0 ? `Stop ${idx + 1} of ${LANDMARKS.length} · ${current.section}` : current.section}</p>
-              <h1>{current.title}</h1>
+            <Collapsible
+              id="sphere-info"
+              className="xp-card"
+              title={
+                <>
+                  <p className="xp-eyebrow">{idx >= 0 ? `Stop ${idx + 1} of ${LANDMARKS.length} · ${current.section}` : current.section}</p>
+                  <h1>{current.title}</h1>
+                </>
+              }
+            >
               <p className="xp-sub">{current.subtitle}</p>
               <p>{current.description}</p>
               <dl className="xp-facts">
@@ -221,7 +245,8 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
               <button className="xp-back" onClick={onExit}>
                 Back to the map (Esc)
               </button>
-            </section>
+            </Collapsible>
+            {!hintHidden && (
             <div className="xp-hint top">
               {nav?.mode === "orbit" ? (
                 <>
@@ -246,7 +271,11 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
                   <kbd>D</kbd> to look around · click a name with ↗ to travel there
                 </>
               )}
+              <button className="xp-hint-x" onClick={hideHint} aria-label="Hide key hints">
+                ×
+              </button>
             </div>
+            )}
             {nav && (
               <MoveControls nav={nav} engine={engineRef.current} constellation={current.kind === "constellation"} />
             )}
@@ -297,7 +326,7 @@ function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: S
   const az = orbiting ? nav.az : -nav.yaw;
   const kx = 60 + Math.sin(az) * R, ky = 60 - Math.cos(az) * R;
   return (
-    <div className="xp-move">
+    <Collapsible id="sphere-move" className="xp-move" title={<span className="cl-label">Move</span>} summary={MODES.find(([m]) => m === nav.mode)?.[1]}>
       <div className="xp-move-seg" role="radiogroup" aria-label="How to move">
         {MODES.filter(([m]) => m === "look" || (m === "orbit" ? nav.canOrbit : nav.canFly)).map(([m, label]) => (
           <button key={m} role="radio" aria-checked={nav.mode === m} onClick={() => engine?.setNavMode(m)}>
@@ -378,6 +407,6 @@ function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: S
             : "From Earth these stars look like a flat pattern. Orbit or fly away to see their real distances."}
         </p>
       )}
-    </div>
+    </Collapsible>
   );
 }

@@ -42,21 +42,19 @@ export default function Home() {
         <div className="h-hero-copy">
           <p className="h-kicker">NASA Space Apps · Planet X & SPHEREx</p>
           <h1>
-            Step inside the sky
-            <br />
-            <em>SPHEREx</em> is mapping
+            Explore the infrared sky mapped by <em>SPHEREx</em>
           </h1>
           <p className="h-lede">
-            Fly over SPHEREx&apos;s brand-new all-sky map in 2D or 3D, scroll through its 102 infrared colors, travel back in
-            time, then step inside stars, planets and the Milky Way in 360°.
+            An interactive map built on SPHEREx Data Release 1. Pan across the whole sky in 2D or 3D, scan its 102 infrared
+            bands, rewind the sky 14,000 years, and open 360° views of stars, planets, galaxies and all 88 constellations.
           </p>
           <div className="h-ctas">
             <Link href="/map" className="h-btn">
-              <span aria-hidden="true">◎</span> Launch the Sky Explorer
+              <span aria-hidden="true">◎</span> Open the Sky Explorer
             </Link>
-            <Link href="/map" className="h-btn-ghost">
-              Open the Star Map →
-            </Link>
+            <a href="#how" className="h-btn-ghost">
+              How it works ↓
+            </a>
           </div>
         </div>
 
@@ -70,7 +68,7 @@ export default function Home() {
               <span />
               <span />
               <span />
-              <div className="h-url">spaceappsspherex.vercel.app/explore</div>
+              <div className="h-url">spaceappsspherex.vercel.app/map</div>
             </div>
             <Image
               src="/shots/explorer-saturn.jpg"
@@ -88,14 +86,15 @@ export default function Home() {
         {/* ── How it works: two cards ── */}
         <section id="how" className="h-section">
           <h2 className="h-split">
-            How the Sky Explorer <span>takes you there</span>
+            Built on real SPHEREx data <span>01 · How it works</span>
           </h2>
           <div className="h-cards">
             <article className="h-card h-card-color">
-              <h3>
-                SPHEREx <span className="h-chip">◉ sees</span> 102 colors of light
-              </h3>
-              <p>Every point on the sky, split into infrared colors our eyes can't see. We turned that idea into a place you can visit.</p>
+              <h3>102 infrared bands for every point on the sky</h3>
+              <p>
+                SPHEREx DR1 imagery streams straight from NASA/IPAC&apos;s archive. View it in color, one wavelength at a time, or
+                switch to 2MASS.
+              </p>
               <div className="h-counter">
                 <strong>102</strong>
                 <span>infrared bands</span>
@@ -111,12 +110,10 @@ export default function Home() {
             </article>
 
             <article className="h-card h-card-light">
-              <h3>
-                When you&apos;re curious, hover and it <span className="h-chip light">✦ explains</span> instantly
-              </h3>
+              <h3>Find a diamond, fly there, step inside</h3>
               <p>
-                Diamonds mark the good stuff. Hover one to unfold a fact card, or press <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd>{" "}
-                <kbd>D</kbd> to fly around a planet.
+                Diamonds mark notable objects. Click once to fly there, again to open a 360° view, then orbit it or fly with{" "}
+                <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>.
               </p>
               <div className="h-mini" aria-hidden="true">
                 <Image src="/shots/explorer-orion.jpg" alt="" width={2560} height={1520} sizes="420px" />
@@ -128,7 +125,7 @@ export default function Home() {
         {/* ── Showcase panel ── */}
         <section className="h-section">
           <h2 className="h-split center">
-            The whole sky <span>as a map you can fly</span>
+            One map of the whole sky <span>02 · Star Map</span>
           </h2>
           <p className="h-sub">
             SPHEREx Data Release 1, streamed live from NASA/IPAC&apos;s Infrared Science Archive. Pan, orbit and zoom like Google
@@ -182,7 +179,7 @@ export default function Home() {
         {/* ── Spectrum explorer ── */}
         <section id="spectrum" className="h-section">
           <h2 className="h-split center">
-            See light <span>the way SPHEREx does</span>
+            How SPHEREx splits light <span>03 · Spectrum lab</span>
           </h2>
           <p className="h-sub">
             Each dot is one of SPHEREx&apos;s 102 bands. Push a galaxy farther away and watch its light stretch, or switch to an
@@ -196,7 +193,7 @@ export default function Home() {
         {/* ── Mission ── */}
         <section id="mission" className="h-section">
           <h2 className="h-split center">
-            The mission <span>behind the map</span>
+            SPHEREx at a glance <span>04 · The mission</span>
           </h2>
           <p className="h-sub">
             NASA&apos;s SPHEREx splits near-infrared light into 102 colors for every point on the sky, building the first all-sky
@@ -232,7 +229,7 @@ export default function Home() {
         {/* ── Project ── */}
         <section id="project" className="h-section">
           <h2 className="h-split center">
-            Our project <span>{project.challenge}</span>
+            {project.challenge} <span>05 · Our project</span>
           </h2>
           <div className="h-project">
             <div className="h-box">
@@ -261,7 +258,7 @@ export default function Home() {
         {/* ── Team ── */}
         <section id="team" className="h-section">
           <h2 className="h-split center">
-            Made by <span>{site.teamName}</span>
+            {site.teamName} <span>06 · Team</span>
           </h2>
           <ul className="h-team">
             {team.map((m, i) => (
@@ -283,7 +280,7 @@ export default function Home() {
         {/* ── Resources + final CTA ── */}
         <section className="h-section">
           <h2 className="h-split center">
-            Data <span>& references</span>
+            Data & references <span>07 · Sources</span>
           </h2>
           <ul className="h-resources">
             {resources.map((r) => (
@@ -298,11 +295,12 @@ export default function Home() {
         </section>
 
         <section className="h-final">
+          <p className="h-final-label">Runs in your browser · no install · live data from IRSA</p>
           <h2>
-            Ready to <em>step inside?</em>
+            Open the <em>Sky Explorer</em>
           </h2>
           <Link href="/map" className="h-btn">
-            <span aria-hidden="true">◎</span> Launch the Sky Explorer
+            <span aria-hidden="true">◎</span> Start at the origin
           </Link>
         </section>
       </main>

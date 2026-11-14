@@ -37,7 +37,7 @@
 }
 .xp-home { color: var(--text); text-decoration: none; font-size: 1.15rem; padding: 4px 9px; border-radius: 10px; }
 .xp-home:hover { background: var(--bg); }
-.xp-title { font-family: var(--font-serif), Georgia, serif; font-size: 1.35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.xp-title { font-family: var(--font-display), system-ui, sans-serif; font-size: 1.35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .xp-title strong { font-weight: 400; }
 .xp-title span { color: var(--faint); }
 .xp-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -100,7 +100,7 @@
   place-items: center;
   padding: 24px;
   text-align: center;
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-display), system-ui, sans-serif;
   font-size: 1.6rem;
   color: var(--text);
   background: linear-gradient(180deg, #b8c6ff 0%, #d4c6ff 50%, #ffdbe8 100%);
@@ -120,7 +120,7 @@
 }
 .lbl-con { color: rgba(196, 204, 255, 0.85); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
 .lbl-star { font-size: 11px; margin-top: 12px; }
-.lbl-fg { font-family: var(--font-serif), Georgia, serif; font-size: 18px; letter-spacing: 0.01em; }
+.lbl-fg { font-family: var(--font-display), system-ui, sans-serif; font-size: 18px; letter-spacing: 0.01em; }
 .lbl-link {
   pointer-events: auto;
   cursor: pointer;
@@ -209,7 +209,7 @@
   box-shadow: var(--shadow);
   z-index: 3;
 }
-.xp-card h1 { font-family: var(--font-serif), Georgia, serif; font-weight: 400; font-size: 2rem; line-height: 1.05; margin: 0 0 4px; color: var(--text); }
+.xp-card h1 { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 2rem; line-height: 1.05; margin: 0 0 4px; color: var(--text); }
 .xp-card p { color: var(--muted); font-size: 0.9rem; margin: 10px 0 0; }
 .xp-eyebrow {
   display: inline-block;
@@ -360,7 +360,7 @@ kbd {
   pointer-events: auto;
   clip-path: inset(0 0 0 0 round 16px);
 }
-.hs-card strong { display: block; font-family: var(--font-serif), Georgia, serif; font-weight: 400; font-size: 1.3rem; line-height: 1.1; margin-bottom: 6px; }
+.hs-card strong { display: block; font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 1.3rem; line-height: 1.1; margin-bottom: 6px; }
 .hs-card p { margin: 0; font-size: 0.85rem; line-height: 1.45; color: var(--muted); }
 .hs-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .hs-actions button {
@@ -452,3 +452,28 @@ kbd {
   .xp-ring { width: 84px; height: 84px; }
   .xp-move-note { display: none; }
 }
+
+/* Collapsible panels in the 360° view */
+.xp-card .cl-head { align-items: flex-start; }
+.xp-card .cl-inner > :first-child { margin-top: 0 !important; }
+.xp-card.closed { width: auto; max-width: min(380px, calc(100% - 32px)); }
+.xp-card.closed h1 { margin-bottom: 0; }
+.xp-card .xp-sub { margin-top: 4px !important; }
+.xp-move .cl-head { margin-bottom: 8px; }
+.xp-move.closed .cl-head { margin-bottom: 0; }
+.xp-move.closed { width: auto; min-width: 170px; }
+.xp-hint.top { pointer-events: auto; display: flex; align-items: center; gap: 4px; padding-right: 6px; }
+.xp-hint-x {
+  margin-left: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 0;
+  background: #f3f0ff;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.xp-hint-x:hover { background: var(--accent); color: #fff; }
+@media (max-width: 799px) { .xp-card.closed { left: auto; right: 8px; } }

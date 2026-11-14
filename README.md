@@ -2,6 +2,10 @@
 
 Team website for our NASA Space Apps Challenge SPHEREx project. Built with Next.js and deployed on Vercel.
 
+## Design
+
+Headings use Space Grotesk; labels, coordinates and readouts use JetBrains Mono. Panels in the map and 360° views (Overview, Controls, Timeline, the info card and Move) collapse with their chevron and remember their state in the browser.
+
 ## Run locally
 
 ```bash
