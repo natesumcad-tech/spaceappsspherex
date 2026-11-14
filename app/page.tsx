@@ -5,6 +5,7 @@ import { site, project, team, mission, resources } from "@/content/site";
 import "./home.css";
 
 const NAV = [
+  ["/map", "Star Map"],
   ["#how", "How it works"],
   ["#spectrum", "Spectrum"],
   ["#mission", "Mission"],
@@ -46,16 +47,16 @@ export default function Home() {
             <em>SPHEREx</em> is mapping
           </h1>
           <p className="h-lede">
-            Walk a map of 14 landmarks, then step into each one: real stars, planets and the Milky Way in 360°. Hover to
-            learn, fly around with WASD.
+            Fly over a map of the whole sky in 2D or 3D, travel back in time, then step inside real stars, planets and the
+            Milky Way in 360°.
           </p>
           <div className="h-ctas">
             <Link href="/explore" className="h-btn">
               <span aria-hidden="true">◎</span> Launch the Sky Explorer
             </Link>
-            <a href="#how" className="h-btn-ghost">
-              See how it works
-            </a>
+            <Link href="/map" className="h-btn-ghost">
+              Open the Star Map →
+            </Link>
           </div>
         </div>
 
@@ -105,7 +106,7 @@ export default function Home() {
                 ))}
               </div>
               <div className="h-mini h-mini-blur" aria-hidden="true">
-                <Image src="/shots/explorer-map.jpg" alt="" width={2560} height={1520} sizes="420px" />
+                <Image src="/shots/starmap-3d.jpg" alt="" width={2560} height={1520} sizes="420px" />
               </div>
             </article>
 
@@ -127,20 +128,23 @@ export default function Home() {
         {/* ── Showcase panel ── */}
         <section className="h-section">
           <h2 className="h-split center">
-            A map of the sky <span>you can walk through</span>
+            The whole sky <span>as a map you can fly</span>
           </h2>
-          <p className="h-sub">Fourteen stops along one route, from Earth orbit to the edge of the galaxy.</p>
+          <p className="h-sub">
+            Pan, orbit and zoom like Google Maps, tilt into 3D, drag the timeline back 14,000 years, and hyperspace-jump between
+            waypoints.
+          </p>
           <div className="h-panel">
-            <Link href="/explore" className="h-panel-window" aria-label="Open the illustrated map">
+            <Link href="/map" className="h-panel-window" aria-label="Open the Star Map">
               <div className="h-chrome light">
                 <span />
                 <span />
                 <span />
-                <div className="h-url">Sky Explorer · Map</div>
+                <div className="h-url">spaceappsspherex.vercel.app/map</div>
               </div>
               <Image
-                src="/shots/explorer-map.jpg"
-                alt="The illustrated region map with the route through the Solar System and Constellations islands"
+                src="/shots/starmap-2d.jpg"
+                alt="The Star Map in 2D over Orion, with the Orion Nebula waypoint card open"
                 width={2560}
                 height={1520}
                 sizes="(max-width: 900px) 92vw, 760px"
@@ -153,8 +157,16 @@ export default function Home() {
               <span>Hipparcos catalogue, true positions and colors</span>
             </li>
             <li>
-              <b>Portals</b>
-              <span>Click Orion ↗ or Sirius ↗ to jump there</span>
+              <b>2D ⇄ 3D</b>
+              <span>Tilt the map into 3D; let go near flat and it snaps back to 2D</span>
+            </li>
+            <li>
+              <b>Timeline</b>
+              <span>See the sky drift from 12,000 BCE to 14,000 CE</span>
+            </li>
+            <li>
+              <b>Your waypoints</b>
+              <span>Press Shift+G to drop your own, in pastel colors</span>
             </li>
             <li>
               <b>Export & share</b>

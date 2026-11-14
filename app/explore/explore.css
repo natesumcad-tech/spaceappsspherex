@@ -68,6 +68,8 @@
 .xp-iconbtn:disabled, .xp-seg button:disabled { opacity: 0.5; cursor: default; }
 .xp-select { padding: 6px 8px; }
 .xp-seg { display: inline-flex; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
+.xp-seg a { font-size: 0.86rem; color: var(--muted); padding: 5px 14px; border-radius: 9px; text-decoration: none; display: inline-flex; align-items: center; }
+.xp-seg a:hover { color: var(--text); }
 .xp-seg button { font: inherit; font-size: 0.86rem; border: 0; background: transparent; color: var(--muted); padding: 5px 14px; border-radius: 9px; cursor: pointer; }
 .xp-seg button[aria-selected="true"] { background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 2px 8px rgba(60, 50, 140, 0.15); }
 .xp-check { display: inline-flex; align-items: center; gap: 5px; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
@@ -233,6 +235,10 @@
 .xp-nav { display: flex; gap: 8px; margin-top: 14px; }
 .xp-nav button { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .xp-back {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
   width: 100%;
   margin-top: 8px;
   font: inherit;
@@ -300,21 +306,6 @@ kbd {
   font: 600 0.74rem/1.5 var(--font-body), system-ui, sans-serif;
   text-align: center;
 }
-
-/* ── Illustrated map ─────────────────── */
-.xp-map { position: absolute; inset: 0; z-index: 2; background: linear-gradient(180deg, #c3cdff 0%, #ddd2ff 50%, #ffe3ee 100%); }
-.xp-map.hidden { visibility: hidden; }
-.sm-wrap { position: absolute; inset: 0; touch-action: none; cursor: grab; user-select: none; }
-.sm-wrap:active { cursor: grabbing; }
-.sm-svg { display: block; font-family: var(--font-body), system-ui, sans-serif; }
-.sm-stop { cursor: pointer; outline: none; }
-.sm-badge { transform-box: fill-box; transform-origin: center; transition: transform 0.18s ease; }
-.sm-stop.hover .sm-badge, .sm-stop:focus-visible .sm-badge { transform: scale(1.12); }
-.sm-pulse { transform-box: fill-box; transform-origin: center; animation: sm-pulse 1.6s ease-out infinite; }
-@keyframes sm-pulse { from { transform: scale(0.85); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
-.sm-flow { animation: sm-flow 1.4s linear infinite; }
-@keyframes sm-flow { to { stroke-dashoffset: -20; } }
-@media (prefers-reduced-motion: reduce) { .sm-pulse, .sm-flow { animation: none; } }
 
 /* ── Hotspots: a diamond that unfolds into a card ── */
 .hs { position: absolute; left: 0; top: 0; pointer-events: auto; z-index: 2; outline: none; }

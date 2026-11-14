@@ -1,0 +1,712 @@
+"use client";
+
+import Link from "next/link";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { SkyData } from "@/lib/explorer/astro";
+import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
+import { raToX } from "@/lib/starmap/coords";
+import { DEFAULT_SETTINGS, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
+
+const STORE_WP = "starmap.waypoints.v1";
+const STORE_SETTINGS = "starmap.settings.v1";
+
+function load<T>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function save(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* private mode etc. */
+  }
+}
+
+const fmt = (n: number, d = 1) => (Math.abs(n) < 0.05 && d === 1 ? "0.0" : n.toFixed(d));
+const raHMS = (ra: number) => {
+  const h = ra / 15, hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
+  return `${hh}h ${String(mm).padStart(2, "0")}m`;
+};
+
+export default function StarMapApp() {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<StarMapViewer | null>(null);
+  const minimapRef = useRef<MinimapHandle>(null);
+  const readoutRef = useRef<HTMLDivElement>(null);
+  const modeRef = useRef<"2d" | "3d">("2d");
+
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"2d" | "3d">("2d");
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [custom, setCustom] = useState<Waypoint[]>([]);
+  const [hover, setHover] = useState<Waypoint | null>(null);
+  const [epoch, setEpoch] = useState(NOW_INDEX);
+  const [showSettings, setShowSettings] = useState(false);
+  const [adding, setAdding] = useState<{ x: number; y: number } | null>(null);
+  const [travel, setTravel] = useState<string | null>(null);
+  const [help, setHelp] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load settings & custom waypoints saved in this browser
+  useEffect(() => {
+    setSettings({ ...DEFAULT_SETTINGS, ...load(STORE_SETTINGS, {}) });
+    setCustom(load<Waypoint[]>(STORE_WP, []));
+    if (window.innerWidth < 800) setHelp(false);
+  }, []);
+
+  const hoverWp = useCallback((wp: Waypoint | null) => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (wp) setHover(wp);
+    else hideTimer.current = setTimeout(() => setHover(null), 260);
+  }, []);
+
+  // Start the viewer
+  useEffect(() => {
+    let viewer: StarMapViewer | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ StarMapViewer }, sky] = await Promise.all([
+          import("@/lib/starmap/viewer"),
+          fetch("/data/sky.json").then((r) => r.json() as Promise<SkyData>),
+        ]);
+        if (cancelled) return;
+        viewer = new StarMapViewer(stageRef.current!, overlayRef.current!, sky, {
+          onView: (v: View) => {
+            minimapRef.current?.draw(v);
+            if (readoutRef.current) {
+              const ra = (((-v.x % 360) + 360) % 360);
+              readoutRef.current.innerHTML =
+                `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
+                `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
+                `<span><b>View</b> ${fmt(v.radius * 2, 0)}°</span><span><b>Tilt</b> ${fmt((v.phi * 180) / Math.PI, 0)}°</span>`;
+            }
+            if (v.mode !== modeRef.current) {
+              modeRef.current = v.mode;
+              setMode(v.mode);
+            }
+          },
+          onWaypointHover: hoverWp,
+          onTravel: (wp) => {
+            setTravel(wp.title);
+            setTimeout(() => setTravel(null), 1800);
+          },
+          onOverview: (c) => minimapRef.current?.setImage(c),
+        });
+        viewerRef.current = viewer;
+        viewer.invalidate();
+        setReady(true);
+      } catch (e) {
+        console.error(e);
+        setError("Your browser couldn't start the 3D map. Try a recent version of Chrome, Edge, Firefox or Safari.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      viewer?.dispose();
+      viewerRef.current = null;
+    };
+  }, [hoverWp]);
+
+  // Push state into the viewer
+  useEffect(() => {
+    viewerRef.current?.setSettings(settings);
+    save(STORE_SETTINGS, settings);
+  }, [settings, ready]);
+  useEffect(() => {
+    viewerRef.current?.setWaypoints([...PRESET_WAYPOINTS, ...custom]);
+    minimapRef.current?.setWaypoints([...PRESET_WAYPOINTS, ...custom]);
+    save(STORE_WP, custom);
+  }, [custom, ready]);
+  useEffect(() => {
+    const y = epochYear(EPOCHS[epoch]);
+    viewerRef.current?.setEpoch(y - 2000, planetsValid(y));
+  }, [epoch, ready]);
+
+  // Shift+G: drop a custom waypoint where you're looking (or under the mouse)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
+      if (e.shiftKey && e.key.toLowerCase() === "g" && viewerRef.current) {
+        e.preventDefault();
+        const p = viewerRef.current.pointOfInterest();
+        setAdding({ x: p.x, y: p.y });
+      } else if (e.key === "Escape") {
+        setAdding(null);
+        setShowSettings(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const set = (k: keyof Settings, v: Settings[keyof Settings]) => setSettings((s) => ({ ...s, [k]: v }));
+  const all = [...PRESET_WAYPOINTS, ...custom];
+  const ep = EPOCHS[epoch];
+
+  return (
+    <div className="mv">
+      <div ref={stageRef} className="mv-stage">
+        <div ref={overlayRef} className="mv-overlay" />
+      </div>
+
+      {!ready && !error && <div className="mv-loading">Laying out the sky…</div>}
+      {error && <div className="mv-loading">{error}</div>}
+
+      {/* Top-left: title & 2D/3D */}
+      <div className="mv-top-left">
+        <Link href="/" className="mv-glass mv-icon" aria-label="Back to home">
+          ←
+        </Link>
+        <div className="mv-glass mv-title">
+          <strong>Star Map</strong>
+          <span>Planet X & SPHEREx</span>
+        </div>
+        <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
+          <button role="tab" aria-selected={mode === "2d"} onClick={() => viewerRef.current?.set2D(true)}>
+            2D
+          </button>
+          <button role="tab" aria-selected={mode === "3d"} onClick={() => viewerRef.current?.set2D(false)}>
+            3D
+          </button>
+        </div>
+      </div>
+
+      {/* Top-right: actions, minimap, readout */}
+      <div className="mv-top-right">
+        <div className="mv-actions">
+          <Link href="/explore" className="mv-glass mv-pill">
+            Step inside ↗
+          </Link>
+          <button
+            className="mv-glass mv-pill"
+            onClick={() => {
+              const p = viewerRef.current?.pointOfInterest();
+              if (p) setAdding({ x: p.x, y: p.y });
+            }}
+            title="Add a waypoint (Shift+G)"
+          >
+            + Waypoint <kbd>⇧G</kbd>
+          </button>
+          <button className="mv-wrench" onClick={() => setShowSettings(true)} aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.6 17.2a1.6 1.6 0 0 0 2.3 2.3l5.7-5.7a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.2-.4-.4-2.2 2.5-2.5z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="mv-glass mv-minicard">
+          <Minimap ref={minimapRef} onMove={(x, y) => viewerRef.current?.setTarget(x, y)} />
+          <div ref={readoutRef} className="mv-readout" />
+        </div>
+      </div>
+
+      {/* Zoom & home */}
+      <div className="mv-zoom">
+        <button className="mv-glass" onClick={() => viewerRef.current?.zoomBy(0.7)} aria-label="Zoom in">
+          +
+        </button>
+        <button className="mv-glass" onClick={() => viewerRef.current?.zoomBy(1.4)} aria-label="Zoom out">
+          −
+        </button>
+        <button className="mv-glass" onClick={() => viewerRef.current?.home()} aria-label="Back to the origin" title="Back to the origin (H)">
+          ⌂
+        </button>
+      </div>
+
+      {/* Controls help */}
+      <div className={`mv-glass mv-help ${help ? "open" : ""}`}>
+        <button className="mv-help-toggle" onClick={() => setHelp((h) => !h)} aria-expanded={help}>
+          {help ? "Hide controls" : "Controls"}
+        </button>
+        {help && (
+          <ul>
+            <li><b>Pan</b> middle-drag · left-drag · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></li>
+            <li><b>Orbit</b> <kbd>Shift</kbd> + middle-drag · right-drag · <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
+            <li><b>Zoom</b> scroll · <kbd>Z</kbd><kbd>X</kbd></li>
+            <li><b>2D / 3D</b> <kbd>T</kbd> · tilt near flat to snap to 2D</li>
+            <li><b>Waypoint</b> <kbd>Shift</kbd>+<kbd>G</kbd> · <b>Home</b> <kbd>H</kbd></li>
+          </ul>
+        )}
+      </div>
+
+      {/* Waypoint details slide in from the left on hover */}
+      <aside
+        className={`mv-glass mv-wpcard ${hover && settings.descriptions ? "open" : ""}`}
+        onPointerEnter={() => hideTimer.current && clearTimeout(hideTimer.current)}
+        onPointerLeave={() => hoverWp(null)}
+        aria-live="polite"
+      >
+        {hover && <WaypointDetails wp={hover} viewer={viewerRef.current} onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))} />}
+      </aside>
+
+      {/* Add-waypoint panel (Shift+G) */}
+      <aside className={`mv-glass mv-addcard ${adding ? "open" : ""}`} aria-hidden={!adding}>
+        {adding && (
+          <AddWaypoint
+            at={adding}
+            toRadec={(x, y) => viewerRef.current?.toRadec(x, y) ?? [0, 0]}
+            onCancel={() => setAdding(null)}
+            onSave={(wp) => {
+              setCustom((c) => [...c, wp]);
+              setAdding(null);
+            }}
+          />
+        )}
+      </aside>
+
+      {/* Timeline */}
+      <div className="mv-glass mv-timeline">
+        <div className="mv-tl-head">
+          <strong>{ep.label}</strong>
+          <span>{ep.note}</span>
+          {!planetsValid(epochYear(ep)) && settings.planets && <em>Planets hidden: too far from today to calculate reliably.</em>}
+        </div>
+        <Timeline value={epoch} onChange={setEpoch} />
+      </div>
+
+      {travel && <div className="mv-travel">Traveling to {travel}…</div>}
+
+      {/* Settings window */}
+      <SettingsWindow
+        open={showSettings}
+        settings={settings}
+        set={set}
+        custom={custom}
+        setCustom={setCustom}
+        onClose={() => setShowSettings(false)}
+        count={all.length}
+      />
+    </div>
+  );
+}
+
+// ───────────────────────── Waypoint details ─────────────────────────
+
+function WaypointDetails({ wp, viewer, onDelete }: { wp: Waypoint; viewer: StarMapViewer | null; onDelete: (id: string) => void }) {
+  return (
+    <>
+      <span className="mv-kind" style={wp.color ? { background: wp.color } : undefined}>
+        {wp.kind}
+      </span>
+      <h2>{wp.title}</h2>
+      <p>{wp.description}</p>
+      {wp.significance && (
+        <p className="mv-sig">
+          <b>Why it matters:</b> {wp.significance}
+        </p>
+      )}
+      <dl>
+        <div>
+          <dt>Date</dt>
+          <dd>{wp.date || "—"}</dd>
+        </div>
+        <div>
+          <dt>Map x, y</dt>
+          <dd>
+            {fmt(raToX(wp.ra))}°, {fmt(wp.dec)}°
+          </dd>
+        </div>
+        <div>
+          <dt>RA (J2000)</dt>
+          <dd>{raHMS(wp.ra)}</dd>
+        </div>
+        <div>
+          <dt>Dec (J2000)</dt>
+          <dd>{fmt(wp.dec)}°</dd>
+        </div>
+      </dl>
+      <div className="mv-wp-actions">
+        <button className="mv-primary" onClick={() => viewer?.travelTo(wp)}>
+          Travel here
+        </button>
+        {wp.stop && (
+          <Link className="mv-secondary" href={`/explore?stop=${wp.stop}`}>
+            Step inside ↗
+          </Link>
+        )}
+        {wp.custom && (
+          <button className="mv-secondary" onClick={() => onDelete(wp.id)}>
+            Delete
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function AddWaypoint({ at, toRadec, onCancel, onSave }: { at: { x: number; y: number }; toRadec: (x: number, y: number) => [number, number]; onCancel: () => void; onSave: (wp: Waypoint) => void }) {
+  const [title, setTitle] = useState("");
+  const [kind, setKind] = useState("My waypoint");
+  const [description, setDescription] = useState("");
+  const [significance, setSignificance] = useState("");
+  const [date, setDate] = useState(() => new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }));
+  const [color, setColor] = useState(PASTELS[0]);
+  const [ra, dec] = toRadec(at.x, at.y);
+  const first = useRef<HTMLInputElement>(null);
+  useEffect(() => first.current?.focus(), []);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!title.trim()) return;
+        onSave({ id: `u-${Date.now()}`, title: title.trim(), kind: kind.trim() || "My waypoint", ra, dec, description: description.trim(), significance: significance.trim(), date: date.trim(), color, custom: true });
+      }}
+    >
+      <div className="mv-add-head">
+        <h2>New waypoint</h2>
+        <button type="button" className="mv-close" onClick={onCancel} aria-label="Close">
+          ×
+        </button>
+      </div>
+      <p className="mv-add-pos">
+        At x {fmt(at.x)}°, y {fmt(at.y)}° · RA {raHMS(ra)}, Dec {fmt(dec)}°
+      </p>
+      <label>
+        Name
+        <input ref={first} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. My favourite star" required maxLength={60} />
+      </label>
+      <label>
+        Type
+        <input value={kind} onChange={(e) => setKind(e.target.value)} maxLength={40} />
+      </label>
+      <label>
+        Description
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={280} placeholder="What's here?" />
+      </label>
+      <label>
+        Why it matters
+        <textarea value={significance} onChange={(e) => setSignificance(e.target.value)} rows={2} maxLength={200} />
+      </label>
+      <label>
+        Date
+        <input value={date} onChange={(e) => setDate(e.target.value)} maxLength={40} />
+      </label>
+      <fieldset>
+        <legend>Color</legend>
+        <div className="mv-swatches">
+          {PASTELS.map((c) => (
+            <button type="button" key={c} className={c === color ? "on" : ""} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} aria-pressed={c === color} />
+          ))}
+        </div>
+      </fieldset>
+      <div className="mv-wp-actions">
+        <button type="submit" className="mv-primary" disabled={!title.trim()}>
+          Add waypoint
+        </button>
+        <button type="button" className="mv-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ───────────────────────── Minimap ─────────────────────────
+
+type MinimapHandle = { draw: (v: View) => void; setImage: (c: HTMLCanvasElement) => void; setWaypoints: (w: Waypoint[]) => void };
+
+
+const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => void }>(function Minimap({ onMove }, ref) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const img = useRef<HTMLCanvasElement | null>(null);
+  const wps = useRef<Waypoint[]>([]);
+  const view = useRef<View | null>(null);
+  const drag = useRef<{ dx: number; dy: number } | null>(null);
+
+  const paint = useCallback(() => {
+    const c = canvas.current, v = view.current;
+    if (!c) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * dpr)) {
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(h * dpr);
+    }
+    const ctx = c.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (img.current) ctx.drawImage(img.current, 0, 0, w, h);
+    else {
+      ctx.fillStyle = "#0b1030";
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    for (const wp of wps.current) {
+      const x = ((raToX(wp.ra) + 180) / 360) * w, y = ((90 - wp.dec) / 180) * h;
+      ctx.fillStyle = wp.color ?? "rgba(255,255,255,0.85)";
+      ctx.fillRect(x - 1.5, y - 1, 3, 2);
+    }
+    if (!v) return;
+    const cx = ((v.x + 180) / 360) * w, cy = ((90 - v.y) / 180) * h;
+    const r = Math.max(5, (v.radius / 360) * w);
+    ctx.fillStyle = "rgba(255,255,255,0.14)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // heading tick: which way is "up" on screen
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx - Math.sin(v.theta) * r, cy - Math.cos(v.theta) * r);
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    draw: (v) => {
+      view.current = v;
+      paint();
+    },
+    setImage: (c) => {
+      img.current = c;
+      paint();
+    },
+    setWaypoints: (w) => {
+      wps.current = w;
+      paint();
+    },
+  }));
+
+  const toMap = (e: React.PointerEvent) => {
+    const r = canvas.current!.getBoundingClientRect();
+    return [((e.clientX - r.left) / r.width) * 360 - 180, 90 - ((e.clientY - r.top) / r.height) * 180] as const;
+  };
+
+  return (
+    <canvas
+      ref={canvas}
+      className="mv-minimap"
+      aria-label="Overview map: drag the circle to move"
+      onPointerDown={(e) => {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        const [x, y] = toMap(e);
+        const v = view.current;
+        // Grab the circle where you clicked it; click elsewhere to jump there.
+        drag.current = v && Math.hypot(x - v.x, y - v.y) < Math.max(v.radius, 6) ? { dx: v.x - x, dy: v.y - y } : { dx: 0, dy: 0 };
+        onMove(x + drag.current.dx, y + drag.current.dy);
+      }}
+      onPointerMove={(e) => {
+        if (!drag.current) return;
+        const [x, y] = toMap(e);
+        onMove(x + drag.current.dx, y + drag.current.dy);
+      }}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+    />
+  );
+});
+
+// ───────────────────────── Timeline ─────────────────────────
+
+function Timeline({ value, onChange }: { value: number; onChange: (i: number) => void }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [dragPos, setDragPos] = useState<number | null>(null);
+  const n = EPOCHS.length;
+  const pos = dragPos ?? value / (n - 1);
+  const nearest = Math.round(pos * (n - 1));
+
+  const fromEvent = (e: React.PointerEvent) => {
+    const r = track.current!.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  };
+
+  return (
+    <div className="mv-tl">
+      <div
+        ref={track}
+        className="mv-tl-track"
+        onPointerDown={(e) => {
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+          setDragPos(fromEvent(e));
+        }}
+        onPointerMove={(e) => dragPos !== null && setDragPos(fromEvent(e))}
+        onPointerUp={() => {
+          if (dragPos === null) return;
+          setDragPos(null);
+          onChange(nearest); // snap to the closest date
+        }}
+      >
+        <div className="mv-tl-fill" style={{ width: `${pos * 100}%` }} />
+        {EPOCHS.map((ep, i) => (
+          <button
+            key={ep.label}
+            className={`mv-tl-mark ${i === nearest ? "on" : ""}`}
+            style={{ left: `${(i / (n - 1)) * 100}%` }}
+            onClick={() => onChange(i)}
+            tabIndex={-1}
+          >
+            <span>{ep.label}</span>
+          </button>
+        ))}
+        <div
+          className={`mv-tl-handle ${dragPos !== null ? "dragging" : ""}`}
+          style={{ left: `${pos * 100}%` }}
+          role="slider"
+          tabIndex={0}
+          aria-label="Date"
+          aria-valuemin={0}
+          aria-valuemax={n - 1}
+          aria-valuenow={value}
+          aria-valuetext={EPOCHS[value].label}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") onChange(Math.max(0, value - 1));
+            if (e.key === "ArrowRight") onChange(Math.min(n - 1, value + 1));
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Settings window ─────────────────────────
+
+const TOGGLES: [keyof Settings, string, string][] = [
+  ["glow", "Light", "Milky Way glow and halos around bright stars"],
+  ["lines", "Constellation mapping", "Stick-figure lines joining each constellation"],
+  ["names", "Names", "Constellation, star and planet names"],
+  ["descriptions", "Descriptions", "Detail cards that slide in when you hover a waypoint"],
+  ["waypoints", "Waypoints", "The white markers you can click to fast travel"],
+  ["planets", "Planets", "The Sun and planets at the date on the timeline"],
+  ["grid", "Grid pattern", "RA / Dec grid lines, with the axes through the origin"],
+];
+
+function SettingsWindow({
+  open,
+  settings,
+  set,
+  custom,
+  setCustom,
+  onClose,
+  count,
+}: {
+  open: boolean;
+  settings: Settings;
+  set: (k: keyof Settings, v: Settings[keyof Settings]) => void;
+  custom: Waypoint[];
+  setCustom: (w: Waypoint[]) => void;
+  onClose: () => void;
+  count: number;
+}) {
+  const file = useRef<HTMLInputElement>(null);
+  return (
+    <div className={`mv-settings ${open ? "open" : ""}`} aria-hidden={!open} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="mv-settings-panel" role="dialog" aria-modal="true" aria-label="Settings">
+        <div className="mv-settings-head">
+          <h2>Settings</h2>
+          <button className="mv-primary" onClick={onClose}>
+            Done
+          </button>
+        </div>
+
+        <section>
+          <h3>Display</h3>
+          {TOGGLES.map(([k, label, hint]) => (
+            <label key={k} className="mv-toggle">
+              <span>
+                <b>{label}</b>
+                <small>{hint}</small>
+              </span>
+              <input type="checkbox" checked={settings[k] as boolean} onChange={(e) => set(k, e.target.checked)} />
+              <i aria-hidden="true" />
+            </label>
+          ))}
+        </section>
+
+        <section>
+          <h3>Performance</h3>
+          <p className="mv-note">The map only draws tiles near what you can see, and uses less detail as you zoom out.</p>
+          <div className="mv-seg-row">
+            {(["low", "auto", "high"] as const).map((q) => (
+              <button key={q} className={settings.quality === q ? "on" : ""} onClick={() => set("quality", q)}>
+                {q === "auto" ? "Auto" : q === "low" ? "Battery saver" : "High detail"}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h3>Controls</h3>
+          <ul className="mv-keys">
+            <li><span>Pan</span><span>Middle-drag, left-drag, or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</span></li>
+            <li><span>Orbit</span><span><kbd>Shift</kbd> + middle-drag, right-drag, or <kbd>Q</kbd><kbd>E</kbd> (turn) <kbd>R</kbd><kbd>F</kbd> (tilt)</span></li>
+            <li><span>Zoom</span><span>Scroll wheel, pinch, or <kbd>Z</kbd><kbd>X</kbd></span></li>
+            <li><span>2D / 3D</span><span><kbd>T</kbd>, or tilt to nearly flat and let go to snap</span></li>
+            <li><span>New waypoint</span><span><kbd>Shift</kbd> + <kbd>G</kbd></span></li>
+            <li><span>Back to origin</span><span><kbd>H</kbd></span></li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>Your waypoints</h3>
+          <p className="mv-note">
+            {custom.length} of {count} waypoints are yours. They&apos;re saved in this browser; export them to share or add to the team database.
+          </p>
+          <div className="mv-seg-row">
+            <button
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(custom, null, 2)], { type: "application/json" });
+                const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "star-map-waypoints.json" });
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+              }}
+              disabled={!custom.length}
+            >
+              Export
+            </button>
+            <button onClick={() => file.current?.click()}>Import</button>
+            <button onClick={() => custom.length && confirm("Delete all your waypoints?") && setCustom([])} disabled={!custom.length}>
+              Clear mine
+            </button>
+          </div>
+          <input
+            ref={file}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              try {
+                const list = JSON.parse(await f.text()) as Waypoint[];
+                const ok = list.filter((w) => typeof w.ra === "number" && typeof w.dec === "number" && w.title);
+                setCustom([...custom, ...ok.map((w, i) => ({ ...w, id: `u-${Date.now()}-${i}`, custom: true }))]);
+              } catch {
+                alert("That file isn't a waypoint list.");
+              }
+              e.target.value = "";
+            }}
+          />
+        </section>
+
+        <section>
+          <h3>About the data</h3>
+          <p className="mv-note">
+            Stars: 25,700 stars from the Hipparcos catalogue, placed on a grid by their RA/Dec, starting from the origin (RA 0h, Dec 0°). The timeline
+            shifts the sky by precession (a simplified model), and planets use NASA JPL&apos;s approximate orbital elements.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}

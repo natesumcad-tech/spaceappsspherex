@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import type { PlanetKind } from "./landmarks";
-import { radecToVec, type SkyData } from "./astro";
 
 // ── Seamless 3D value noise (sampled on the sphere so textures have no seams) ──
 function rng(seed: number) {
@@ -189,95 +188,4 @@ export function glowTexture() {
     cache.set("glow", toTexture(c));
   }
   return cache.get("glow")!;
-}
-
-/** Equirectangular thumbnail of the real sky, used on the map's "Night sky" sphere. */
-export function skyThumbTexture(sky: SkyData) {
-  if (!cache.has("skythumb")) {
-    const c = document.createElement("canvas");
-    c.width = 1024;
-    c.height = 512;
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#050a1c";
-    ctx.fillRect(0, 0, 1024, 512);
-    for (const [ra, dec, mag] of sky.stars) {
-      if (mag > 6) continue;
-      const x = (1 - ra / 360) * 1024, y = (0.5 - dec / 180) * 512;
-      const r = Math.max(0.4, (6.5 - mag) * 0.45);
-      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, (7 - mag) / 6)})`;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    cache.set("skythumb", toTexture(c));
-  }
-  return cache.get("skythumb")!;
-}
-
-/** Stick-figure badge of one constellation (gnomonic projection around its centre). */
-export function constellationBadge(sky: SkyData, id: string) {
-  const key = `badge:${id}`;
-  if (!cache.has(key)) {
-    const con = sky.constellations.find((c) => c.id === id)!;
-    const c = document.createElement("canvas");
-    c.width = c.height = 256;
-    const ctx = c.getContext("2d")!;
-    const center = radecToVec(con.center[0], con.center[1]);
-    const up = new THREE.Vector3(0, 1, 0);
-    // East on the left, north up: the way the constellation looks in the sky.
-    const east = new THREE.Vector3().crossVectors(up, center).normalize();
-    const north = new THREE.Vector3().crossVectors(center, east).normalize();
-    const pts = con.lines.map((line) =>
-      line.map(([ra, dec]) => {
-        const v = radecToVec(ra, dec);
-        const d = v.dot(center);
-        return [v.dot(east) / d, v.dot(north) / d] as [number, number];
-      }),
-    );
-    const all = pts.flat();
-    const ext = Math.max(...all.map(([x, y]) => Math.max(Math.abs(x), Math.abs(y)))) || 1;
-    const s = 100 / ext;
-    ctx.strokeStyle = "rgba(150,205,255,0.95)";
-    ctx.lineWidth = 3;
-    ctx.fillStyle = "#ffffff";
-    for (const line of pts) {
-      ctx.beginPath();
-      line.forEach(([x, y], i) => (i ? ctx.lineTo(128 - x * s, 128 - y * s) : ctx.moveTo(128 - x * s, 128 - y * s)));
-      ctx.stroke();
-      for (const [x, y] of line) {
-        ctx.beginPath();
-        ctx.arc(128 - x * s, 128 - y * s, 5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    cache.set(key, toTexture(c));
-  }
-  return cache.get(key)!;
-}
-
-/** Simple face-on spiral galaxy sprite for the map. */
-export function galaxyBadge() {
-  if (!cache.has("galaxybadge")) {
-    const c = document.createElement("canvas");
-    c.width = c.height = 256;
-    const ctx = c.getContext("2d")!;
-    const rand = rng(3);
-    ctx.globalCompositeOperation = "lighter";
-    for (let i = 0; i < 6000; i++) {
-      const arm = i % 2;
-      const r = Math.pow(rand(), 0.7) * 115;
-      const theta = arm * Math.PI + r * 0.045 + (rand() - 0.5) * 0.6;
-      const x = 128 + Math.cos(theta) * r, y = 128 + Math.sin(theta) * r;
-      const core = Math.max(0, 1 - r / 40);
-      ctx.fillStyle = `rgba(${200 + core * 55},${200 + core * 30},${255 - core * 70},0.25)`;
-      ctx.fillRect(x, y, 1.6, 1.6);
-    }
-    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 40);
-    g.addColorStop(0, "rgba(255,230,180,0.9)");
-    g.addColorStop(1, "rgba(255,230,180,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 256, 256);
-    cache.set("galaxybadge", toTexture(c));
-  }
-  return cache.get("galaxybadge")!;
 }
