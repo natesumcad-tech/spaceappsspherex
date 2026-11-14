@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { SkyData } from "@/lib/explorer/astro";
 import { DEG, MAP_H, MAP_W, planetPositions, projector, unprojector } from "./coords";
-import { SPHEREX_RGB, makeLoader, renderTile, type TileRequest } from "./hips";
+import { SPHEREX_RGB, layerById, makeLoader, renderTile, type TileRequest } from "./hips";
 import type { Waypoint } from "./data";
 
 export type Settings = {
@@ -48,15 +48,16 @@ type Tween = { start: number; ms: number; step: (t: number) => void; done?: () =
 type Overlay = { el: HTMLElement; x: number; y: number; kind: "con" | "star" | "planet" | "wp"; minD?: number; maxD?: number; wp?: Waypoint };
 
 const ROOT = 30; // level-0 tile size in degrees (12 × 6 tiles)
-const LMAX = 6; // deepest level: 30 / 2⁶ ≈ 0.47° tiles
+const LMAX = 8; // deepest level: 30 / 2⁸ ≈ 0.12° tiles, so zooming in stays sharp
 const MAX_TILES = 96; // never draw more than this many tiles at once
 const CACHE_CAP = 200; // textures kept in memory
 const PHI_MAX = 72 * DEG; // tilt limit: you can never get under the baseplate
 const SNAP_PHI = 12 * DEG; // let go of an orbit this close to top-down and it snaps to 2D
-const D_MIN = 1.2;
+const D_MIN = 0.3; // zoom right in: about 13 arcminutes across the screen
 const D_MAX = 260;
 const FOV = 40;
-const PLATE_DEPTH = 0.6; // thin slab: just enough for a fine white edge
+const PLATE_DEPTH = 0.6;
+const EDGE_FADE = 10; // degrees over which the map dissolves into the black void at its edges
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -234,14 +235,39 @@ export class StarMapViewer {
 
   // ───────────────────────── Scene ─────────────────────────
 
-  /** The map sits on a thick baseplate. Its sides are white so you can see the edge when you tilt. */
+  /**
+   * The map sits on a black baseplate, and its edges dissolve into the black void: four soft
+   * gradient strips lie over the borders, so there's no hard edge from any angle.
+   */
   private buildPlate() {
-    const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const top = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(MAP_W, PLATE_DEPTH, MAP_H), [white, white, top, white, white, white]);
+    const black = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(MAP_W, PLATE_DEPTH, MAP_H), black);
     plate.position.y = -PLATE_DEPTH / 2 - 0.002;
     plate.renderOrder = 0;
     this.scene.add(plate);
+
+    const c = Object.assign(document.createElement("canvas"), { width: 256, height: 4 });
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createLinearGradient(0, 0, 256, 0);
+    g.addColorStop(0, "rgba(0,0,0,1)");
+    g.addColorStop(0.35, "rgba(0,0,0,0.75)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 4);
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+    const strip = (len: number, cx: number, cy: number, rot: number) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(EDGE_FADE, len), mat);
+      m.rotation.set(-Math.PI / 2, 0, rot);
+      m.position.set(cx, 0.004, -cy);
+      m.renderOrder = 15; // over the imagery, under lines and labels
+      this.scene.add(m);
+    };
+    const h = EDGE_FADE / 2;
+    strip(MAP_H, -180 + h, 0, 0); // west edge: dark side outward
+    strip(MAP_H, 180 - h, 0, Math.PI); // east edge
+    strip(MAP_W, 0, 90 - h, -Math.PI / 2); // north edge
+    strip(MAP_W, 0, -90 + h, Math.PI / 2); // south edge
   }
 
   private buildGrid() {
@@ -328,6 +354,7 @@ export class StarMapViewer {
       const [x, y] = proj(wp.ra, wp.dec);
       const el = document.createElement("button");
       el.className = `mv-ov mv-wp${wp.custom ? " custom" : ""}`;
+      el.appendChild(document.createElement("i")); // the diamond itself (the button carries the screen position)
       el.setAttribute("aria-label", `Waypoint: ${wp.title}`);
       if (wp.color) el.style.setProperty("--wc", wp.color);
       el.style.display = "none";
@@ -467,7 +494,7 @@ export class StarMapViewer {
     this.camera.up.set(-st, 0, -ct);
     this.camera.lookAt(tx, 0, tz);
     this.camera.near = Math.max(0.05, this.d * 0.02);
-    this.camera.far = this.d * 6 + 600;
+    this.camera.far = this.d * 6 + this.renderRadius * 3 + 50;
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
   }
@@ -594,7 +621,8 @@ export class StarMapViewer {
       const s = ROOT / 2 ** t.L, id = ++this.reqId;
       this.inflight.set(key, version);
       this.pending.set(id, { key, version, L: t.L, i: t.i, j: t.j });
-      this.send({ id, x0: t.i * s, y0: t.j * s, w: s, h: s, W: this.tilePx, H: this.tilePx, years: this.years, ...this.imagery() });
+      const px = this.pixelsFor(t.L);
+      this.send({ id, x0: t.i * s, y0: t.j * s, w: s, h: s, W: px, H: px, years: this.years, ...this.imagery() });
     }
 
     for (const [key, e] of this.tiles) {
@@ -607,11 +635,23 @@ export class StarMapViewer {
     return false; // tiles arrive asynchronously and request their own frame
   }
 
+  /**
+   * Resolution scaling: once you zoom past the finest data a survey has, ask for a smaller tile that
+   * matches the data and let the GPU smooth it, instead of rendering big blocky pixels.
+   */
+  private pixelsFor(L: number) {
+    const s = ROOT / 2 ** L, ppd = this.tilePx / s;
+    const im = this.imagery();
+    const finest = Math.max(layerById(im.base).maxOrder, ...im.overlays.map((o) => layerById(o).maxOrder));
+    const want = Math.ceil(Math.log2(((58.63 * ppd) / 512) * im.detail));
+    const extra = want - finest;
+    return extra > 0 ? Math.max(32, this.tilePx >> extra) : this.tilePx;
+  }
+
   private uploadTile(key: string, L: number, i: number, j: number, px: Uint8ClampedArray, version: string) {
-    const s = ROOT / 2 ** L, size = this.tilePx;
+    const s = ROOT / 2 ** L, size = Math.round(Math.sqrt(px.length / 4));
     let e = this.tiles.get(key);
-    if (!e || e.px !== size) {
-      if (e) this.disposeTile(e);
+    if (!e) {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ color: 0xffffff }));
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(i * s + s / 2, 0, -(j * s + s / 2));

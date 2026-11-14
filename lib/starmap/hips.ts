@@ -220,9 +220,14 @@ export async function renderTile(req: TileRequest, load: (url: string) => Promis
         // three grayscale frames → R, G, B
         for (let c = 0; c < 3; c++) rgb[c] = imgs[c] ? imgs[c]!.data[p * imgs[c]!.ch] : -1;
         if (rgb[0] < 0 && rgb[1] < 0 && rgb[2] < 0) continue;
-        rgb[0] = Math.max(0, rgb[0]) * 1.08;
+        rgb[0] = Math.max(0, rgb[0]);
         rgb[1] = Math.max(0, rgb[1]);
-        rgb[2] = Math.max(0, rgb[2]) * 0.95;
+        rgb[2] = Math.max(0, rgb[2]);
+        // DR1 leaves saturated pixels blank (0). If one band is blank where another is near-saturated, show it as saturated.
+        const hi = Math.max(rgb[0], rgb[1], rgb[2]);
+        if (hi >= 150) for (let c = 0; c < 3; c++) if (rgb[c] === 0) rgb[c] = 255;
+        rgb[0] *= 1.08;
+        rgb[2] *= 0.95;
       } else {
         const img = imgs[0];
         if (!img) continue;
@@ -250,6 +255,8 @@ export async function renderTile(req: TileRequest, load: (url: string) => Promis
       out[k + 2] = c[2] * gain;
     }
   });
+
+  if (base.cube) fillSaturated(out, W, H);
 
   for (const id of req.overlays) {
     const layer = OVERLAYS.find((l) => l.id === id);
@@ -365,4 +372,40 @@ export function makeLoader(maxBytes = 120e6, maxConcurrent = 8) {
     cache.set(url, p);
     return p;
   };
+}
+
+/**
+ * The SPHEREx DR1 map leaves the cores of very bright objects blank. Fill blank pixels that are
+ * surrounded by near-saturated ones from their neighbours, so bright cores show as white, not black.
+ */
+function fillSaturated(px: Uint8ClampedArray, W: number, H: number) {
+  for (let pass = 0; pass < 12; pass++) {
+    const src = px.slice();
+    let changed = 0;
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        const k = (y * W + x) * 4;
+        if (src[k] || src[k + 1] || src[k + 2]) continue;
+        let n = 0, r = 0, g = 0, b = 0;
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            if ((!dx && !dy) || x + dx < 0 || x + dx >= W || y + dy < 0 || y + dy >= H) continue;
+            const q = k + (dy * W + dx) * 4;
+            if (src[q] + src[q + 1] + src[q + 2] >= 600) {
+              n++;
+              r += src[q];
+              g += src[q + 1];
+              b += src[q + 2];
+            }
+          }
+        const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1;
+        if (n >= (edge ? 2 : 3)) {
+          px[k] = r / n;
+          px[k + 1] = g / n;
+          px[k + 2] = b / n;
+          changed++;
+        }
+      }
+    if (!changed) break;
+  }
 }

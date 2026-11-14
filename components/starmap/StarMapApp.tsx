@@ -87,7 +87,7 @@ export default function StarMapApp() {
               readoutRef.current.innerHTML =
                 `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
                 `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
-                `<span><b>View</b> ${fmt(v.radius * 2, 0)}°</span><span><b>Tilt</b> ${fmt((v.phi * 180) / Math.PI, 0)}°</span>`;
+                `<span><b>View</b> ${v.radius * 2 < 2 ? `${fmt(v.radius * 120, 0)}′` : `${fmt(v.radius * 2, 0)}°`}</span><span><b>Tilt</b> ${fmt((v.phi * 180) / Math.PI, 0)}°</span>`;
             }
             if (loadingRef.current) {
               loadingRef.current.style.opacity = v.loading ? "1" : "0";

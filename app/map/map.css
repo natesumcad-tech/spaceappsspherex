@@ -71,29 +71,46 @@
   box-shadow: 0 0 12px rgba(76, 224, 138, 0.8);
 }
 
-/* Waypoints: small white rectangles that grow on hover */
+/* Waypoints: small breathing diamonds that grow and fill when you hover them */
 .mv-wp {
   pointer-events: auto;
-  width: 12px;
-  height: 8px;
-  margin: -4px 0 0 -6px;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
   padding: 0;
-  border: 1.5px solid #fff;
-  border-radius: 2px;
-  background: var(--wc, rgba(255, 255, 255, 0.35));
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.55);
+  border: 0;
+  background: none;
   cursor: pointer;
-  transition: width 0.18s, height 0.18s, margin 0.18s, background 0.18s, box-shadow 0.18s;
-}
-.mv-wp.custom { border-color: #fff; background: var(--wc); }
-.mv-wp:hover, .mv-wp:focus-visible {
-  width: 24px;
-  height: 16px;
-  margin: -8px 0 0 -12px;
-  background: var(--wc, #fff);
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25), 0 0 18px rgba(255, 255, 255, 0.8);
   outline: none;
 }
+.mv-wp i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border: 1.5px solid #fff;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+  transform: rotate(45deg);
+  animation: mv-breathe 2.4s ease-in-out infinite;
+  transition: width 0.2s, height 0.2s, margin 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.mv-wp.custom i { border-color: var(--wc); background: color-mix(in srgb, var(--wc) 35%, transparent); box-shadow: 0 0 10px var(--wc); }
+@keyframes mv-breathe {
+  0%, 100% { transform: rotate(45deg) scale(1); opacity: 0.95; }
+  50% { transform: rotate(45deg) scale(0.78); opacity: 0.6; }
+}
+.mv-wp:hover i, .mv-wp:focus-visible i {
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  animation: none;
+  background: var(--wc, #fff);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18), 0 0 20px rgba(255, 255, 255, 0.8);
+}
+@media (prefers-reduced-motion: reduce) { .mv-wp i { animation: none; } }
 
 /* ── Chrome ─────────────────────────── */
 .mv-glass { background: var(--glass); border: 1px solid rgba(255, 255, 255, 0.95); box-shadow: var(--shadow); backdrop-filter: blur(12px); border-radius: 14px; }
