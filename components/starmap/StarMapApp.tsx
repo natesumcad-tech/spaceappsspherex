@@ -15,6 +15,7 @@ import Collapsible from "@/components/ui/Collapsible";
 import { byId } from "@/lib/explorer/landmarks";
 import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import Assistant, { type AssistantAction } from "./Assistant";
+import CoordSearchBar from "./CoordSearchBar";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v1";
@@ -61,6 +62,8 @@ export default function StarMapApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [adding, setAdding] = useState<{ x: number; y: number } | null>(null);
   const [travel, setTravel] = useState<string | null>(null);
+  const [centerCoord, setCenterCoord] = useState({ ra: 0, dec: 0 });
+  const [hasMarker, setHasMarker] = useState(false);
   const [help, setHelp] = useState(true);
   const [sphere, setSphere] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -166,6 +169,7 @@ export default function StarMapApp() {
             minimapRef.current?.draw(v);
             if (readoutRef.current) {
               const ra = (((-v.x % 360) + 360) % 360);
+              setCenterCoord({ ra, dec: v.y });
               readoutRef.current.innerHTML =
                 `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
                 `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
@@ -195,8 +199,23 @@ export default function StarMapApp() {
         // Old /explore links and shared ?stop= links open that sphere straight away
         // Make sure views for waypoints exist before following a shared link to one
         [...PRESET_WAYPOINTS, ...load<Waypoint[]>(STORE_WP, [])].forEach(waypointStop);
-        const stop = new URL(window.location.href).searchParams.get("stop");
+        const urlParams = new URL(window.location.href).searchParams;
+        const stop = urlParams.get("stop");
         if (stop && byId(stop)) setTimeout(() => enterRef.current(stop), 300);
+        else {
+          const raQ = Number(urlParams.get("ra"));
+          const decQ = Number(urlParams.get("dec"));
+          const fovQ = Number(urlParams.get("fov")) || 1.5;
+          if (urlParams.has("ra") && urlParams.has("dec") && Number.isFinite(raQ) && Number.isFinite(decQ)) {
+            const [tx, ty] = viewer.project(raQ, decQ);
+            const dEnd = Math.max(0.5, (fovQ / 2) / Math.tan((40 / 2) * (Math.PI / 180)));
+            setTimeout(() => {
+              viewer?.flyTo(tx, ty, dEnd, false);
+              viewer?.setTargetMarker(raQ, decQ);
+              setHasMarker(true);
+            }, 200);
+          }
+        }
       } catch (e) {
         console.error(e);
         setError("Your browser couldn't start the 3D map. Try a recent version of Chrome, Edge, Firefox or Safari.");
@@ -382,6 +401,34 @@ export default function StarMapApp() {
       {/* Top-left: title & 2D/3D */}
       <div className="mv-top-left">
         <SiteTabs active="explorer" />
+        <CoordSearchBar
+          centerRa={centerCoord.ra}
+          centerDec={centerCoord.dec}
+          hasMarker={hasMarker}
+          onJump={(ra, dec, fov = 1.5, label) => {
+            const v = viewerRef.current;
+            if (!v) return;
+            const [x, y] = v.project(ra, dec);
+            const dEnd = Math.max(0.5, (fov / 2) / Math.tan((40 / 2) * (Math.PI / 180)));
+            v.flyTo(x, y, dEnd, false);
+            v.setTargetMarker(ra, dec, label);
+            setHasMarker(true);
+            const url = new URL(window.location.href);
+            url.searchParams.set("ra", ra.toFixed(4));
+            url.searchParams.set("dec", dec.toFixed(4));
+            url.searchParams.set("fov", String(fov));
+            window.history.replaceState(null, "", url);
+          }}
+          onClearMarker={() => {
+            viewerRef.current?.clearTargetMarker();
+            setHasMarker(false);
+            const url = new URL(window.location.href);
+            url.searchParams.delete("ra");
+            url.searchParams.delete("dec");
+            url.searchParams.delete("fov");
+            window.history.replaceState(null, "", url);
+          }}
+        />
         <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
           <button
             role="tab"

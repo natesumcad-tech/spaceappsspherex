@@ -133,6 +133,8 @@ export class StarMapViewer {
   private cursor: THREE.Vector2 | null = null;
   private warpT = 0;
   private stars: { a: number; r: number; v: number; c: string }[] = [];
+  private reticlePos: { x: number; y: number } | null = null;
+  private reticle = document.createElement("div");
   private visibleTiles = 0;
 
   constructor(
@@ -520,6 +522,22 @@ export class StarMapViewer {
     this.flyTo(x, y, 14, false);
   }
 
+  /** Place a subtle target reticle at J2000 (ra, dec) in degrees. */
+  setTargetMarker(ra: number, dec: number, label?: string) {
+    const [x, y] = this.project(ra, dec);
+    this.reticlePos = { x, y };
+    this.reticle.className = "mv-reticle";
+    this.reticle.innerHTML = `<span class="mv-reticle-ring"></span>${label ? `<span class="mv-reticle-label">${label}</span>` : ""}`;
+    if (!this.reticle.parentElement) this.overlay.appendChild(this.reticle);
+    this.dirty = true;
+  }
+
+  clearTargetMarker() {
+    this.reticlePos = null;
+    this.reticle.style.display = "none";
+    this.dirty = true;
+  }
+
   /** Fast travel with a hyperspace effect: pull back, streak across, drop in. */
   flyTo(x: number, y: number, dEnd: number, flat: boolean) {
     const from = { x: this.target.x, y: this.target.y, d: this.d, phi: this.phi };
@@ -856,6 +874,16 @@ export class StarMapViewer {
       this.pivot.style.display = "block";
       this.pivot.style.transform = `translate(${((v.x * 0.5 + 0.5) * w).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
     } else this.pivot.style.display = "none";
+
+    // Target reticle marker for coordinate search
+    if (this.reticlePos) {
+      v.set(this.reticlePos.x, 0, -this.reticlePos.y).project(this.camera);
+      const on = v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+      this.reticle.style.display = on ? "block" : "none";
+      if (on) {
+        this.reticle.style.transform = `translate(${((v.x * 0.5 + 0.5) * w).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
+      }
+    } else this.reticle.style.display = "none";
   }
 
   // ───────────────────────── Hyperspace ─────────────────────────
