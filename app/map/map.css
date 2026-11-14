@@ -55,6 +55,9 @@
 .mv-con { color: rgba(214, 208, 255, 0.85); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; translate: -50% -50%; text-shadow: 0 0 4px #0b1030; }
 .mv-star { color: rgba(255, 255, 255, 0.85); font-size: 11px; translate: 6px -50%; text-shadow: 0 0 3px #0b1030; }
 .mv-planet { display: flex; align-items: center; gap: 5px; translate: -6px -50%; font-size: 12px; font-weight: 600; color: #fff; text-shadow: 0 0 4px #0b1030; }
+.mv-planet.link { pointer-events: auto; cursor: pointer; padding: 2px 8px 2px 4px; border-radius: 999px; }
+.mv-planet.link:hover { background: rgba(255, 255, 255, 0.92); color: #262a52; text-shadow: none; }
+.mv-planet.link span::after { content: " ↗"; opacity: 0.8; }
 .mv-planet i { width: 10px; height: 10px; border-radius: 50%; background: var(--pc, #fff); box-shadow: 0 0 10px var(--pc, #fff); }
 .mv-pivot {
   position: absolute;
@@ -363,3 +366,15 @@
 .mv-subhead { margin-top: 16px !important; }
 .mv-toggle input[type="radio"] + i { border-radius: 999px; }
 @media (max-width: 760px) { .mv-imagery-seg button { font-size: 0.66rem; } }
+
+/* Inside a sphere: the map's own panels step aside; the title and 2D/3D/Sphere switch stay on top */
+.mv.in-sphere .mv-top-right,
+.mv.in-sphere .mv-zoom,
+.mv.in-sphere .mv-help,
+.mv.in-sphere .mv-timeline,
+.mv.in-sphere .mv-wpcard,
+.mv.in-sphere .mv-addcard { visibility: hidden; }
+.mv.in-sphere .mv-top-left { z-index: 50; }
+.mv-sphere { position: fixed; inset: 0; z-index: 40; animation: mv-sphere-in 0.45s ease both; }
+.mv-sphere.closing { opacity: 0; transition: opacity 0.35s ease; }
+@keyframes mv-sphere-in { from { opacity: 0; } to { opacity: 1; } }

@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LANDMARKS, SECTIONS, byId } from "@/lib/explorer/landmarks";
 import type { SkyEngine } from "@/lib/explorer/engine";
 import type { SkyData } from "@/lib/explorer/astro";
@@ -18,18 +16,22 @@ const LANGS = [
 
 const FLY_KINDS = ["orbit", "planet", "star", "galaxy"];
 
-export default function Explorer() {
+/**
+ * The 360° sphere view, shown inside the Star Map page. The parent owns which stop is open
+ * (`stopId`) and is told when the viewer wants another stop or wants to go back to the map.
+ */
+export default function SphereView({ stopId, onStop, onExit }: { stopId: string; onStop: (id: string) => void; onExit: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<SkyEngine | null>(null);
-  const busy = useRef(false);
-  const router = useRouter();
+  const shown = useRef<string | null>(null);
+  const onStopRef = useRef(onStop);
+  onStopRef.current = onStop;
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"loading" | "sphere">("loading");
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [visibleId, setVisibleId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
@@ -37,27 +39,7 @@ export default function Explorer() {
   const [lang, setLang] = useState("en");
   const [toast, setToast] = useState<string | null>(null);
 
-  const setUrl = (id: string | null) => {
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set("stop", id);
-    else url.searchParams.delete("stop");
-    window.history.replaceState(null, "", url);
-  };
-
-  /** Step into a sphere (from the list, a portal, or prev/next). */
-  const enterSphere = useCallback(async (id: string) => {
-    const engine = engineRef.current;
-    if (!engine || busy.current) return;
-    busy.current = true;
-    setCurrentId(id);
-    setUrl(id);
-    await engine.enter(id, () => setMode("sphere"));
-    busy.current = false;
-  }, []);
-
-  /** The map is the Star Map page. */
-  const backToMap = useCallback(() => router.push("/map"), [router]);
-
+  // Start the engine once
   useEffect(() => {
     let engine: SkyEngine | null = null;
     let cancelled = false;
@@ -68,15 +50,10 @@ export default function Explorer() {
           fetch("/data/sky.json").then((r) => r.json() as Promise<SkyData>),
         ]);
         if (cancelled) return;
-        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, {
-          onNavigate: (id) => enterSphere(id),
-        });
+        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onNavigate: (id) => onStopRef.current(id) });
         engineRef.current = engine;
         engine.init(data);
         setReady(true);
-        if (window.innerWidth >= 1100) setPanelOpen(true);
-        const stop = new URL(window.location.href).searchParams.get("stop");
-        enterSphere(stop && byId(stop) ? stop : LANDMARKS[0].id);
       } catch (e) {
         console.error(e);
         setError("Your browser couldn't start the 3D view. Try a recent version of Chrome, Edge, Firefox or Safari.");
@@ -87,11 +64,20 @@ export default function Explorer() {
       engine?.dispose();
       engineRef.current = null;
     };
-  }, [enterSphere]);
+  }, []);
+
+  // Walk to whichever stop the parent asks for
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!ready || !engine || shown.current === stopId || !byId(stopId)) return;
+    shown.current = stopId;
+    engine.enter(stopId, () => setVisibleId(stopId));
+  }, [stopId, ready]);
 
   useEffect(() => engineRef.current?.setToggles(showLabels, showLines), [showLabels, showLines]);
+  useEffect(() => engineRef.current?.setLanguage(lang), [lang]);
 
-  // Tell the engine where the info card sits so hotspot cards don't open underneath it.
+  // Keep hotspot cards from opening underneath the info card
   useEffect(() => {
     const card = document.querySelector<HTMLElement>(".xp-card");
     const stage = canvasRef.current?.parentElement;
@@ -99,7 +85,7 @@ export default function Explorer() {
     if (!card || !stage || !engine) return;
     const measure = () => {
       const c = card.getBoundingClientRect(), st = stage.getBoundingClientRect();
-      const side = c.width < st.width * 0.7; // desktop: card on the right; phone: card along the bottom
+      const side = c.width < st.width * 0.7;
       engine.safeArea = side ? { right: st.right - c.left + 8, bottom: 0 } : { right: 0, bottom: st.bottom - c.top + 8 };
     };
     measure();
@@ -107,27 +93,21 @@ export default function Explorer() {
     ro.observe(card);
     ro.observe(stage);
     return () => ro.disconnect();
-  }, [mode, currentId]);
-  useEffect(() => engineRef.current?.setLanguage(lang), [lang]);
+  }, [visibleId]);
 
   // Esc goes back to the map
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && mode === "sphere" && backToMap();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onExit();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, backToMap]);
+  }, [onExit]);
 
   const flash = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
   };
 
-  const pick = (id: string) => {
-    if (window.innerWidth < 1100) setPanelOpen(false);
-    enterSphere(id);
-  };
-
-  const current = currentId ? byId(currentId) : null;
+  const current = visibleId ? byId(visibleId) : null;
   const idx = current ? LANDMARKS.indexOf(current) : -1;
   const prev = idx >= 0 ? LANDMARKS[(idx - 1 + LANDMARKS.length) % LANDMARKS.length] : null;
   const next = idx >= 0 ? LANDMARKS[(idx + 1) % LANDMARKS.length] : null;
@@ -135,15 +115,12 @@ export default function Explorer() {
 
   const exportPng = async () => {
     if (!current) return;
-    const blob = await engineRef.current!.exportPNG(`Planet X & SPHEREx Explorer · ${current.title}`);
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `spherex-explorer-${current.id}.png`;
+    const blob = await engineRef.current!.exportPNG(`Planet X & SPHEREx · ${current.title}`);
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `spherex-${current.id}.png` });
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     flash("Image saved");
   };
-
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -155,26 +132,17 @@ export default function Explorer() {
 
   return (
     <div className="xp">
-      <header className="xp-bar">
-        <Link href="/" className="xp-home" aria-label="Back to home">
-          ←
-        </Link>
-        <button className="xp-iconbtn" onClick={() => setPanelOpen((o) => !o)} aria-expanded={panelOpen} aria-controls="xp-panel">
-          ☰ <span className="xp-hide-sm">Stops</span>
-        </button>
-        <div className="xp-title">
-          <strong>Sky Explorer</strong>
-          <span className="xp-hide-sm"> · Planet X & SPHEREx</span>
-        </div>
-        <div className="xp-seg" role="tablist" aria-label="View">
-          <Link href="/map" role="tab" aria-selected={false}>
-            Map
-          </Link>
-          <button role="tab" aria-selected={true}>
-            Sphere
+      <div className="xp-stage">
+        <canvas ref={canvasRef} className="xp-canvas" />
+        <div ref={labelsRef} className="xp-labels" />
+        <div ref={fadeRef} className="xp-fade" style={{ opacity: 1 }} />
+        {!ready && !error && <div className="xp-loading">Stepping inside…</div>}
+        {error && <div className="xp-loading">{error}</div>}
+
+        <div className="xp-toolbar">
+          <button className="xp-iconbtn" onClick={() => setPanelOpen((o) => !o)} aria-expanded={panelOpen} aria-controls="xp-panel">
+            ☰ <span className="xp-hide-sm">Stops</span>
           </button>
-        </div>
-        <div className="xp-tools">
           <label className="xp-check xp-hide-sm">
             <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Labels
           </label>
@@ -188,22 +156,13 @@ export default function Explorer() {
               </option>
             ))}
           </select>
-          <button className="xp-iconbtn" onClick={share} disabled={!ready} title="Copy a link to this view">
+          <button className="xp-iconbtn xp-hide-sm" onClick={share} disabled={!ready}>
             Share
           </button>
-          <button className="xp-iconbtn primary" onClick={exportPng} disabled={!ready} title="Download this view as a PNG">
+          <button className="xp-iconbtn primary" onClick={exportPng} disabled={!ready}>
             PNG
           </button>
         </div>
-      </header>
-
-      <div className="xp-stage">
-        <canvas ref={canvasRef} className="xp-canvas" />
-        <div ref={labelsRef} className="xp-labels" />
-
-        <div ref={fadeRef} className="xp-fade" />
-        {!ready && !error && <div className="xp-loading">Loading 25,000 stars…</div>}
-        {error && <div className="xp-loading">{error}</div>}
 
         <aside id="xp-panel" className={`xp-panel ${panelOpen ? "open" : ""}`}>
           {SECTIONS.map((section) => (
@@ -213,8 +172,11 @@ export default function Explorer() {
                 {LANDMARKS.filter((l) => l.section === section).map((l) => (
                   <li key={l.id}>
                     <button
-                      className={`xp-stop ${l.id === currentId ? "active" : ""} ${l.id === hoverId ? "hover" : ""}`}
-                      onClick={() => pick(l.id)}
+                      className={`xp-stop ${l.id === visibleId ? "active" : ""} ${l.id === hoverId ? "hover" : ""}`}
+                      onClick={() => {
+                        if (window.innerWidth < 1100) setPanelOpen(false);
+                        onStop(l.id);
+                      }}
                       onPointerEnter={() => setHoverId(l.id)}
                       onPointerLeave={() => setHoverId(null)}
                       disabled={!ready}
@@ -232,7 +194,7 @@ export default function Explorer() {
           ))}
         </aside>
 
-        {ready && mode === "sphere" && current && (
+        {ready && current && (
           <>
             <section className="xp-card" aria-live="polite">
               <p className="xp-eyebrow">
@@ -253,12 +215,12 @@ export default function Explorer() {
                 <b>SPHEREx link:</b> {current.spherex}
               </p>
               <div className="xp-nav">
-                <button onClick={() => prev && enterSphere(prev.id)}>← {prev?.title}</button>
-                <button onClick={() => next && enterSphere(next.id)}>{next?.title} →</button>
+                <button onClick={() => prev && onStop(prev.id)}>← {prev?.title}</button>
+                <button onClick={() => next && onStop(next.id)}>{next?.title} →</button>
               </div>
-              <Link className="xp-back" href="/map">
-                Back to the Star Map (Esc)
-              </Link>
+              <button className="xp-back" onClick={onExit}>
+                Back to the map (Esc)
+              </button>
             </section>
             <div className="xp-hint top">
               {canFly ? (

@@ -51,7 +51,7 @@ export default function Home() {
             time, then step inside stars, planets and the Milky Way in 360°.
           </p>
           <div className="h-ctas">
-            <Link href="/explore" className="h-btn">
+            <Link href="/map" className="h-btn">
               <span aria-hidden="true">◎</span> Launch the Sky Explorer
             </Link>
             <Link href="/map" className="h-btn-ghost">
@@ -65,7 +65,7 @@ export default function Home() {
           <div className="h-pill" aria-hidden="true">
             <span className="h-pill-dot" /> Sky Explorer <span className="h-pill-key">Esc</span> <span className="h-pill-sq" />
           </div>
-          <Link href="/explore?stop=saturn" className="h-window" aria-label="Open the Saturn stop in the Sky Explorer">
+          <Link href="/map?stop=saturn" className="h-window" aria-label="Open the Saturn stop in the Sky Explorer">
             <div className="h-chrome">
               <span />
               <span />
@@ -301,7 +301,7 @@ export default function Home() {
           <h2>
             Ready to <em>step inside?</em>
           </h2>
-          <Link href="/explore" className="h-btn">
+          <Link href="/map" className="h-btn">
             <span aria-hidden="true">◎</span> Launch the Sky Explorer
           </Link>
         </section>

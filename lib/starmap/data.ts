@@ -27,6 +27,7 @@ export const PRESET_WAYPOINTS: Waypoint[] = [
     description: "RA 0h, Dec 0°: where the Sun crosses the celestial equator heading north each March. Every coordinate on this map is measured from here.",
     significance: "The March equinox is the zero point of the sky's coordinate system, like Greenwich on Earth.",
     date: "Epoch J2000.0 (1 Jan 2000)",
+    stop: "night-sky",
   },
   {
     id: "m42",
@@ -87,6 +88,7 @@ export const PRESET_WAYPOINTS: Waypoint[] = [
     ra: 270,
     dec: 66.561,
     description: "The point directly above the plane of Earth's orbit, in the constellation Draco.",
+    stop: "spherex-orbit",
     significance:
       "SPHEREx observes around the ecliptic poles most often, building its deepest maps here. This patch is blank in the DR1 all-sky map; IRSA serves the deep-field images as a separate collection (spherex_dr1_deep).",
     date: "SPHEREx launched 11 Mar 2025",
@@ -166,6 +168,43 @@ export const PRESET_WAYPOINTS: Waypoint[] = [
     date: "Great Eruption 1843",
   },
 ];
+
+// Three more waypoints so every constellation stop can be reached from the map
+PRESET_WAYPOINTS.push(
+  {
+    id: "dipper",
+    title: "The Big Dipper",
+    kind: "Asterism in Ursa Major",
+    ra: 178.457,
+    dec: 53.695,
+    description: "Seven bright stars shaped like a ladle, part of the Great Bear.",
+    significance: "Its two end stars point to Polaris, which has guided travelers for centuries.",
+    date: "Recognized since antiquity",
+    stop: "ursa-major",
+  },
+  {
+    id: "antares",
+    title: "Antares",
+    kind: "Red supergiant",
+    ra: 247.352,
+    dec: -26.432,
+    description: "The red heart of Scorpius, a giant star hundreds of times wider than the Sun.",
+    significance: "Its name means \"rival of Mars\" for its color. It sits beside dusty star-forming clouds.",
+    date: "Named by ancient Greek astronomers",
+    stop: "scorpius",
+  },
+  {
+    id: "crux",
+    title: "The Southern Cross",
+    kind: "Constellation",
+    ra: 187.2,
+    dec: -60.0,
+    description: "The smallest constellation, and one of the most famous in the southern sky.",
+    significance: "It points toward the south celestial pole, and appears on several national flags.",
+    date: "Charted as its own constellation in the late 1500s",
+    stop: "crux",
+  },
+);
 
 export type Epoch = { label: string; year: number; note: string };
 

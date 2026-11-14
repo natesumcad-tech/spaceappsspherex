@@ -7,6 +7,8 @@ import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, 
 import { raToX } from "@/lib/starmap/coords";
 import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById } from "@/lib/starmap/hips";
 import { DEFAULT_SETTINGS, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
+import SphereView from "@/components/explorer/Explorer";
+import { byId } from "@/lib/explorer/landmarks";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v1";
@@ -41,6 +43,7 @@ export default function StarMapApp() {
   const readoutRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef<HTMLDivElement>(null);
   const modeRef = useRef<"2d" | "3d">("2d");
+  const viewRef = useRef<View | null>(null);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +56,78 @@ export default function StarMapApp() {
   const [adding, setAdding] = useState<{ x: number; y: number } | null>(null);
   const [travel, setTravel] = useState<string | null>(null);
   const [help, setHelp] = useState(true);
+  const [sphere, setSphere] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+  const sphereRef = useRef<string | null>(null);
+  sphereRef.current = sphere;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setUrl = (stop: string | null) => {
+    const url = new URL(window.location.href);
+    if (stop) url.searchParams.set("stop", stop);
+    else url.searchParams.delete("stop");
+    window.history.replaceState(null, "", url);
+  };
+
+  /** Where a sphere stop sits on the map (its waypoint, or the planet's current position). */
+  const stopXY = useCallback((stop: string): [number, number] | null => {
+    const v = viewerRef.current;
+    if (!v) return null;
+    const wp = PRESET_WAYPOINTS.find((w) => w.stop === stop);
+    if (wp) return v.project(wp.ra, wp.dec);
+    return v.planetXY(stop);
+  }, []);
+
+  /** Step inside a sphere: dive into its spot on the map, then the 360° view fades in. */
+  const enterSphere = useCallback(
+    async (stop: string) => {
+      const v = viewerRef.current;
+      if (!v || !byId(stop)) return;
+      setHover(null);
+      setAdding(null);
+      const at = stopXY(stop);
+      if (sphereRef.current) {
+        if (at) v.setTarget(at[0], at[1]); // keep the map underneath in step
+      } else if (at) {
+        v.flyTo(at[0], at[1], 4, false);
+        await new Promise((r) => setTimeout(r, 1100));
+      }
+      v.setEnabled(false);
+      setSphere(stop);
+      setUrl(stop);
+    },
+    [stopXY],
+  );
+  const enterRef = useRef(enterSphere);
+  enterRef.current = enterSphere;
+
+  /** Back to the map, right where that sphere sits. */
+  const exitSphere = useCallback(() => {
+    if (!sphereRef.current) return;
+    setClosing(true);
+    setTimeout(() => {
+      setSphere(null);
+      setClosing(false);
+      setUrl(null);
+      viewerRef.current?.setEnabled(true);
+      const d = viewRef.current?.d ?? 14;
+      if (d < 14) viewerRef.current?.zoomBy(14 / d); // ease back out to see the neighborhood
+    }, 350);
+  }, []);
+
+  /** The Sphere tab: step into whichever landmark is nearest the middle of the view. */
+  const nearestStop = () => {
+    const v = viewRef.current, viewer = viewerRef.current;
+    if (!v || !viewer) return "night-sky";
+    let best = "night-sky", bd = Infinity;
+    for (const wp of PRESET_WAYPOINTS) {
+      if (!wp.stop) continue;
+      const [x, y] = viewer.project(wp.ra, wp.dec);
+      const d = Math.hypot(x - v.x, y - v.y);
+      if (d < bd) [bd, best] = [d, wp.stop];
+    }
+    return best;
+  };
 
   // Load settings & custom waypoints saved in this browser
   useEffect(() => {
@@ -81,6 +155,7 @@ export default function StarMapApp() {
         if (cancelled) return;
         viewer = new StarMapViewer(stageRef.current!, overlayRef.current!, sky, {
           onView: (v: View) => {
+            viewRef.current = v;
             minimapRef.current?.draw(v);
             if (readoutRef.current) {
               const ra = (((-v.x % 360) + 360) % 360);
@@ -104,10 +179,14 @@ export default function StarMapApp() {
             setTimeout(() => setTravel(null), 1800);
           },
           onOverview: (c) => minimapRef.current?.setImage(c),
+          onPlanet: (stop) => enterRef.current(stop),
         });
         viewerRef.current = viewer;
         viewer.invalidate();
         setReady(true);
+        // Old /explore links and shared ?stop= links open that sphere straight away
+        const stop = new URL(window.location.href).searchParams.get("stop");
+        if (stop && byId(stop)) setTimeout(() => enterRef.current(stop), 300);
       } catch (e) {
         console.error(e);
         setError("Your browser couldn't start the 3D map. Try a recent version of Chrome, Edge, Firefox or Safari.");
@@ -139,6 +218,7 @@ export default function StarMapApp() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
+      if (sphereRef.current) return; // the sphere view has its own keys
       if (e.shiftKey && e.key.toLowerCase() === "g" && viewerRef.current) {
         e.preventDefault();
         const p = viewerRef.current.pointOfInterest();
@@ -157,7 +237,7 @@ export default function StarMapApp() {
   const ep = EPOCHS[epoch];
 
   return (
-    <div className="mv">
+    <div className={`mv ${sphere ? "in-sphere" : ""}`}>
       <div ref={stageRef} className="mv-stage">
         <div ref={overlayRef} className="mv-overlay" />
       </div>
@@ -171,15 +251,32 @@ export default function StarMapApp() {
           ←
         </Link>
         <div className="mv-glass mv-title">
-          <strong>Star Map</strong>
+          <strong>Sky Explorer</strong>
           <span>Planet X & SPHEREx</span>
         </div>
         <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
-          <button role="tab" aria-selected={mode === "2d"} onClick={() => viewerRef.current?.set2D(true)}>
+          <button
+            role="tab"
+            aria-selected={!sphere && mode === "2d"}
+            onClick={() => {
+              exitSphere();
+              viewerRef.current?.set2D(true);
+            }}
+          >
             2D
           </button>
-          <button role="tab" aria-selected={mode === "3d"} onClick={() => viewerRef.current?.set2D(false)}>
+          <button
+            role="tab"
+            aria-selected={!sphere && mode === "3d"}
+            onClick={() => {
+              exitSphere();
+              viewerRef.current?.set2D(false);
+            }}
+          >
             3D
+          </button>
+          <button role="tab" aria-selected={!!sphere} onClick={() => !sphere && enterSphere(nearestStop())} title="Step inside the nearest landmark">
+            Sphere
           </button>
         </div>
       </div>
@@ -187,9 +284,6 @@ export default function StarMapApp() {
       {/* Top-right: actions, minimap, readout */}
       <div className="mv-top-right">
         <div className="mv-actions">
-          <Link href="/explore" className="mv-glass mv-pill">
-            Step inside ↗
-          </Link>
           <button
             className="mv-glass mv-pill"
             onClick={() => {
@@ -260,6 +354,7 @@ export default function StarMapApp() {
           <WaypointDetails
             wp={hover}
             viewer={viewerRef.current}
+            onStep={enterSphere}
             imaged={`${layerById(settings.layer).name}: ${layerById(settings.layer).observed}`}
             onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))}
           />
@@ -291,7 +386,14 @@ export default function StarMapApp() {
         <Timeline value={epoch} onChange={setEpoch} />
       </div>
 
-      {travel && <div className="mv-travel">Traveling to {travel}…</div>}
+      {travel && !sphere && <div className="mv-travel">Traveling to {travel}…</div>}
+
+      {/* The 360° sphere opens right here, over the map */}
+      {sphere && (
+        <div className={`mv-sphere ${closing ? "closing" : ""}`}>
+          <SphereView stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
+        </div>
+      )}
 
       {/* Settings window */}
       <SettingsWindow
@@ -309,7 +411,19 @@ export default function StarMapApp() {
 
 // ───────────────────────── Waypoint details ─────────────────────────
 
-function WaypointDetails({ wp, viewer, imaged, onDelete }: { wp: Waypoint; viewer: StarMapViewer | null; imaged: string; onDelete: (id: string) => void }) {
+function WaypointDetails({
+  wp,
+  viewer,
+  imaged,
+  onStep,
+  onDelete,
+}: {
+  wp: Waypoint;
+  viewer: StarMapViewer | null;
+  imaged: string;
+  onStep: (stop: string) => void;
+  onDelete: (id: string) => void;
+}) {
   return (
     <>
       <span className="mv-kind" style={wp.color ? { background: wp.color } : undefined}>
@@ -351,9 +465,9 @@ function WaypointDetails({ wp, viewer, imaged, onDelete }: { wp: Waypoint; viewe
           Travel here
         </button>
         {wp.stop && (
-          <Link className="mv-secondary" href={`/explore?stop=${wp.stop}`}>
+          <button className="mv-secondary" onClick={() => onStep(wp.stop!)}>
             Step inside ↗
-          </Link>
+          </button>
         )}
         {wp.custom && (
           <button className="mv-secondary" onClick={() => onDelete(wp.id)}>

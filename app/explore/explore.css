@@ -14,9 +14,10 @@
   --shadow: 0 18px 50px -20px rgba(60, 50, 140, 0.45);
   position: fixed;
   inset: 0;
+  z-index: 40; /* above the Star Map it opens from */
   display: flex;
   flex-direction: column;
-  background: #070b1a;
+  background: #000;
   color: var(--text);
   overflow: hidden;
 }
@@ -382,4 +383,31 @@ kbd {
 @media (max-width: 400px) {
   .xp-bar { gap: 4px; padding: 8px 6px; }
   .xp-tools { gap: 4px; }
+}
+
+/* Embedded in the Star Map: tools float at the top right, the map's own title & view switch stay top left */
+.xp-toolbar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+.xp-panel { top: 74px; }
+.xp-zoom { top: 78px; }
+.xp-hint.top { top: 80px; }
+.xp-toast { top: 80px; }
+.xp-loading { background: #000; color: #fff; }
+@media (max-width: 560px) {
+  .xp-toolbar { top: 66px; right: 8px; left: auto; }
+  .xp-panel { top: 120px; }
+  .xp-zoom { top: 124px; }
 }

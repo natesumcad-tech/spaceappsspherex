@@ -41,7 +41,11 @@ type Events = {
   onWaypointHover: (wp: Waypoint | null) => void;
   onTravel: (wp: Waypoint) => void;
   onOverview: (c: HTMLCanvasElement) => void;
+  /** Mars, Jupiter or Saturn was clicked: open its sphere. */
+  onPlanet: (stop: string) => void;
 };
+
+const PLANET_STOPS: Record<string, string> = { Mars: "mars", Jupiter: "jupiter", Saturn: "saturn" };
 
 type TileEntry = { mesh: THREE.Mesh; tex: THREE.DataTexture | null; px: number; version: string; used: number; L: number; retryAt?: number };
 type Tween = { start: number; ms: number; step: (t: number) => void; done?: () => void };
@@ -326,6 +330,12 @@ export class StarMapViewer {
         const [x, y] = proj(p.ra, p.dec);
         const el = this.addOverlay("planet", p.name, x, y, {});
         el.style.setProperty("--pc", p.color);
+        const stop = PLANET_STOPS[p.name];
+        if (stop) {
+          el.classList.add("link");
+          el.title = `Step inside ${p.name}`;
+          el.addEventListener("click", () => this.events.onPlanet(stop));
+        }
       }
     this.placeWaypoints();
   }
@@ -474,6 +484,26 @@ export class StarMapViewer {
   private animate(ms: number, step: (t: number) => void, done?: () => void) {
     this.tweens.push({ start: performance.now(), ms, step, done });
     this.invalidate();
+  }
+
+  /** While a sphere is open the map sits idle and ignores the mouse and keyboard. */
+  private enabled = true;
+  setEnabled(on: boolean) {
+    this.enabled = on;
+    this.keys.clear();
+    this.drag = null;
+    if (on) this.invalidate();
+  }
+
+  /** Where a J2000 RA/Dec lands on the map at the current epoch. */
+  project(ra: number, dec: number) {
+    return projector(this.years)(ra, dec);
+  }
+
+  /** Map position of a planet right now (for flying to it before stepping inside). */
+  planetXY(name: string) {
+    const p = planetPositions(this.years + 2000).find((q) => q.name.toLowerCase() === name);
+    return p ? this.project(p.ra, p.dec) : null;
   }
 
   /** Ask for a frame. Nothing is drawn unless something changed. */
@@ -792,6 +822,7 @@ export class StarMapViewer {
   private bindInput() {
     const el = this.renderer.domElement;
     const onDown = (e: PointerEvent) => {
+      if (!this.enabled) return;
       if (e.pointerType === "touch") {
         this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
         el.setPointerCapture(e.pointerId);
@@ -841,6 +872,7 @@ export class StarMapViewer {
       this.invalidate();
     };
     const onWheel = (e: WheelEvent) => {
+      if (!this.enabled) return;
       e.preventDefault();
       const before = this.pickClient(e.clientX, e.clientY);
       const k = e.ctrlKey ? 0.01 : 0.0015; // ctrl+wheel = trackpad pinch
@@ -853,7 +885,7 @@ export class StarMapViewer {
     const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
     const camKeys = ["w", "a", "s", "d", "q", "e", "r", "f", "z", "x", "=", "+", "-", "arrowup", "arrowdown", "arrowleft", "arrowright"];
     const onKey = (e: KeyboardEvent) => {
-      if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!this.enabled || typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (camKeys.includes(k) && !(e.shiftKey && k === "g")) {
         this.keys.add(k);
