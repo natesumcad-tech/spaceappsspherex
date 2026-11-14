@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { LANDMARKS, byId, type Landmark } from "./landmarks";
+import { LANDMARKS, byId, type Hotspot, type Landmark } from "./landmarks";
 import { DEG, bvToKelvin, dirToYawPitch, galacticToRaDec, kelvinToRGB, radecToVec, type SkyData } from "./astro";
 import { cloudTexture, glowTexture, planetTexture, ringTexture } from "./textures";
 
@@ -15,6 +15,14 @@ type Label = {
   names?: Record<string, string>;
   id?: string;
   link?: string;
+};
+
+type HotspotEl = {
+  el: HTMLDivElement;
+  pos: () => THREE.Vector3;
+  /** For points on a spinning body: the surface normal, so the marker hides on the far side. */
+  normal?: () => THREE.Vector3;
+  sky: boolean;
 };
 
 // Things you can click inside a sphere to jump to another stop.
@@ -119,6 +127,11 @@ export class SkyEngine {
   private occluders: { center: THREE.Vector3; radius: number }[] = [];
 
   private labels: Label[] = [];
+  private hotspots: HotspotEl[] = [];
+  /** Named points in the current sphere that hotspots can attach to. */
+  private anchors: Record<string, () => THREE.Vector3> = {};
+  private body: THREE.Object3D | null = null;
+  private lookTarget: { yaw: number; pitch: number } | null = null;
   private visibleLabels: { x: number; y: number; text: string; cls: string }[] = [];
   private raf = 0;
   private clock = new THREE.Clock();
@@ -131,6 +144,8 @@ export class SkyEngine {
   private lang = "en";
   showLabels = true;
   showLines = true;
+  /** Screen space covered by page UI (the info card), so hotspot cards open away from it. */
+  safeArea = { right: 0, bottom: 0 };
 
   // Look & fly state
   private yaw = 0;
@@ -266,6 +281,11 @@ export class SkyEngine {
     this.occluders = [];
     this.labels.filter((l) => l.layer === "fg").forEach((l) => l.el.remove());
     this.labels = this.labels.filter((l) => l.layer !== "fg");
+    this.hotspots.forEach((h) => h.el.remove());
+    this.hotspots = [];
+    this.anchors = {};
+    this.body = null;
+    this.lookTarget = null;
     this.cam.position.set(0, 0, 0);
 
     // Point the sky so the landmark sits comfortably in front of you, north still up.
@@ -297,6 +317,8 @@ export class SkyEngine {
     if (lm.kind === "planet") this.buildPlanetView(lm, desired, sunDir);
     if (lm.kind === "star") this.buildStarView(lm, desired, right);
     if (galaxy) this.buildGalaxyView(desired);
+    this.fg.updateMatrixWorld(true);
+    lm.hotspots?.forEach((h) => this.addHotspot(h));
   }
 
   private glowSprite(color: string, scale: number, pos: THREE.Vector3, opacity = 1) {
@@ -310,6 +332,7 @@ export class SkyEngine {
     const pos = dir.clone().multiplyScalar(800);
     this.fg.add(this.glowSprite("#ffcf8a", 300, pos), this.glowSprite("#fff6e0", 70, pos));
     this.addFgLabel("Sun", pos);
+    this.anchors.sun = () => pos;
     const light = new THREE.DirectionalLight(0xffffff, intensity);
     light.position.copy(dir.clone().multiplyScalar(50));
     this.fg.add(light);
@@ -345,6 +368,11 @@ export class SkyEngine {
     this.spinners.push({ obj: body, speed: 0.01 }, { obj: clouds, speed: 0.013 });
     this.addSun(desired.clone().multiplyScalar(0.5).add(right.clone().multiplyScalar(0.6)).add(new THREE.Vector3(0, 0.35, 0)).normalize(), 1.8);
     this.addFgLabel("Earth", desired.clone().multiplyScalar(0.45).add(new THREE.Vector3(0, -0.55, 0)), "spherex-orbit");
+    const up = new THREE.Vector3(0, 1, 0);
+    const limb = desired.clone().multiplyScalar(0.9).add(up.clone().multiplyScalar(0.45)).normalize().multiplyScalar(1.03).add(earth.position);
+    const cloud = desired.clone().multiplyScalar(0.35).add(right.clone().multiplyScalar(-0.25)).add(up).normalize().add(earth.position);
+    this.anchors.limb = () => limb;
+    this.anchors.clouds = () => cloud;
   }
 
   private buildPlanetView(lm: Landmark, desired: THREE.Vector3, sunDir: THREE.Vector3) {
@@ -358,6 +386,10 @@ export class SkyEngine {
     tilt.add(body);
     if (lm.planet === "saturn") tilt.add(this.makeRings(1));
     this.fg.add(tilt);
+    this.body = body;
+    // Ring anchors sit on the side of the rings facing you (the tilt group's +z points at the camera).
+    this.anchors.rings = () => tilt.localToWorld(new THREE.Vector3(1.55, 0, 0.75));
+    this.anchors.cassini = () => tilt.localToWorld(new THREE.Vector3(-1.6, 0, 1.17));
     this.occluders.push({ center: tilt.position.clone(), radius: 1 });
     this.spinners.push({ obj: body, speed: lm.planet === "jupiter" || lm.planet === "saturn" ? 0.08 : 0.03 });
     this.addSun(sunDir);
@@ -382,6 +414,7 @@ export class SkyEngine {
     const star = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.ShaderMaterial({ uniforms, vertexShader: STAR_VERT, fragmentShader: STAR_FRAG }));
     star.position.copy(desired).multiplyScalar(dist);
     this.fg.add(star, this.glowSprite(lm.star!.color, 5.2, star.position, 0.85));
+    this.body = star;
     this.occluders.push({ center: star.position.clone(), radius: 1 });
     this.spinners.push({ obj: star, speed: 0.02 });
     this.addFgLabel(lm.title, star.position.clone().add(new THREE.Vector3(0, 1.35, 0)));
@@ -391,7 +424,7 @@ export class SkyEngine {
       const dwarf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
       dwarf.position.copy(pos);
       this.fg.add(dwarf, this.glowSprite("#dfe8ff", 0.5, pos));
-      this.addFgLabel(lm.star!.companion, pos.clone().add(new THREE.Vector3(0, 0.2, 0)));
+      this.anchors.companion = () => pos;
     }
   }
 
@@ -441,8 +474,9 @@ export class SkyEngine {
 
     const marker = this.glowSprite("#ffe28a", 6, new THREE.Vector3(Math.cos(2.4) * 26, Math.sin(2.4) * 26, 0)); // the Sun, ~26,000 ly out
     disk.add(marker);
-    this.addFgLabel("Sun · you are here", () => marker.getWorldPosition(new THREE.Vector3()), "night-sky");
-    this.addFgLabel("Galactic centre", () => galaxy.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 4, 0)));
+    this.addFgLabel("You are here", () => marker.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 5, 0)));
+    this.anchors["sun-marker"] = () => marker.getWorldPosition(new THREE.Vector3());
+    this.anchors["galaxy-centre"] = () => galaxy.getWorldPosition(new THREE.Vector3());
 
     const M = 2500; // distant galaxies
     const bp = new Float32Array(M * 3), bc = new Float32Array(M * 3), bs = new Float32Array(M);
@@ -481,6 +515,78 @@ export class SkyEngine {
 
   private addFgLabel(text: string, pos: THREE.Vector3 | (() => THREE.Vector3), link?: string) {
     this.addLabel("fg", "lbl lbl-fg", { en: text }, typeof pos === "function" ? pos : () => pos, { link });
+  }
+
+  /** A small diamond that expands into a card on hover (or tap). */
+  private addHotspot(h: Hotspot) {
+    const at = h.at;
+    let pos: (() => THREE.Vector3) | undefined;
+    let normal: (() => THREE.Vector3) | undefined;
+    let sky = false;
+    if ("sky" in at) {
+      const local = radecToVec(at.sky[0], at.sky[1], 860);
+      pos = () => local.clone().applyQuaternion(this.skyGroup.quaternion).add(this.skyGroup.position);
+      sky = true;
+    } else if ("body" in at) {
+      const body = this.body;
+      if (!body) return;
+      // Same mapping three.js uses for sphere UVs, so the marker sits on the matching texture feature.
+      const lat = at.body[0] * DEG, lon = at.body[1] * DEG;
+      const local = new THREE.Vector3(-Math.cos(lon) * Math.cos(lat), Math.sin(lat), Math.sin(lon) * Math.cos(lat)).multiplyScalar(1.01);
+      pos = () => body.localToWorld(local.clone());
+      normal = () => body.localToWorld(local.clone()).sub(body.getWorldPosition(new THREE.Vector3()));
+    } else pos = this.anchors[at.anchor];
+    if (!pos) return;
+
+    const el = document.createElement("div");
+    el.className = "hs";
+    el.tabIndex = 0;
+    el.style.display = "none";
+    const mark = document.createElement("span");
+    mark.className = "hs-mark";
+    const card = document.createElement("div");
+    card.className = "hs-card";
+    const title = document.createElement("strong");
+    title.textContent = h.title;
+    const body = document.createElement("p");
+    body.textContent = h.body;
+    const actions = document.createElement("div");
+    actions.className = "hs-actions";
+    const look = document.createElement("button");
+    look.textContent = "Look closer";
+    const p = pos;
+    look.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.lookAtPoint(p());
+    });
+    actions.appendChild(look);
+    if (h.link && h.link !== this.current?.id) {
+      const go = document.createElement("button");
+      go.textContent = `Go to ${byId(h.link)?.title ?? "stop"} ↗`;
+      go.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.events.onNavigate(h.link!);
+      });
+      actions.appendChild(go);
+    }
+    card.append(title, body, actions);
+    el.append(mark, card);
+    // Touch screens have no hover: tap the diamond to open or close the card.
+    mark.addEventListener("click", () => el.classList.toggle("open"));
+    el.addEventListener("pointerdown", (e) => e.stopPropagation());
+    this.labelLayer.appendChild(el);
+    this.hotspots.push({ el, pos, normal, sky });
+  }
+
+  /** Smoothly turn (and zoom) toward a point. */
+  lookAtPoint(p: THREE.Vector3) {
+    const { yaw, pitch } = dirToYawPitch(p.clone().sub(this.cam.position));
+    let y = yaw;
+    while (y - this.yaw > Math.PI) y -= Math.PI * 2;
+    while (y - this.yaw < -Math.PI) y += Math.PI * 2;
+    this.lookTarget = { yaw: y, pitch };
+    this.vel = { yaw: 0, pitch: 0 };
+    this.fov = THREE.MathUtils.clamp(this.fov * 0.6, 18, 100);
   }
 
   setLanguage(lang: string) {
@@ -522,6 +628,30 @@ export class SkyEngine {
       l.el.style.display = "";
       l.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`;
       this.visibleLabels.push({ x, y, text: l.el.textContent ?? "", cls: l.el.className });
+    }
+    for (const hs of this.hotspots) {
+      let show = this.active;
+      if (show) {
+        v.copy(hs.pos());
+        if (hs.sky && (!this.skyGroup.visible || this.isOccluded(v))) show = false;
+        if (show && hs.normal && hs.normal().dot(this.cam.position.clone().sub(v)) <= 0) show = false; // far side
+      }
+      if (show) {
+        v.project(this.cam);
+        show = v.z < 1 && Math.abs(v.x) < 1 && Math.abs(v.y) < 1;
+      }
+      if (!show) {
+        if (hs.el.style.display !== "none") {
+          hs.el.style.display = "none";
+          hs.el.classList.remove("open");
+        }
+        continue;
+      }
+      const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
+      hs.el.style.display = "";
+      hs.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      hs.el.classList.toggle("flip", x > w - this.safeArea.right - 290);
+      hs.el.classList.toggle("up", y > h - this.safeArea.bottom - 190);
     }
   }
 
@@ -620,6 +750,8 @@ export class SkyEngine {
     const c = this.canvas;
     const down = (e: PointerEvent) => {
       if (!this.active) return;
+      this.lookTarget = null;
+      this.hotspots.forEach((h) => h.el.classList.remove("open"));
       c.setPointerCapture(e.pointerId);
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.pointers.size === 2) {
@@ -710,6 +842,7 @@ export class SkyEngine {
     if (has("e")) move.y += 1;
     if (has("q")) move.y -= 1;
     if (!move.lengthSq()) return;
+    this.lookTarget = null;
     move.normalize().multiplyScalar(this.flySpeed * dt * (has("shift") ? 3 : 1));
     const p = this.cam.position.add(move);
     if (p.length() > this.flyRadius) p.setLength(this.flyRadius);
@@ -743,6 +876,11 @@ export class SkyEngine {
     for (const u of this.starUniforms) u.uTime.value = t;
 
     this.applyKeys(dt);
+    if (this.lookTarget) {
+      this.yaw += (this.lookTarget.yaw - this.yaw) * 0.12;
+      this.pitch += (this.lookTarget.pitch - this.pitch) * 0.12;
+      if (Math.abs(this.lookTarget.yaw - this.yaw) + Math.abs(this.lookTarget.pitch - this.pitch) < 0.002) this.lookTarget = null;
+    }
     if (!this.pointers.size) {
       this.yaw += this.vel.yaw;
       this.pitch = THREE.MathUtils.clamp(this.pitch + this.vel.pitch, -89 * DEG, 89 * DEG);

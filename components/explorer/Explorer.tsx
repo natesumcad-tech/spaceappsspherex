@@ -102,6 +102,24 @@ export default function Explorer() {
   }, [enterSphere]);
 
   useEffect(() => engineRef.current?.setToggles(showLabels, showLines), [showLabels, showLines]);
+
+  // Tell the engine where the info card sits so hotspot cards don't open underneath it.
+  useEffect(() => {
+    const card = document.querySelector<HTMLElement>(".xp-card");
+    const stage = canvasRef.current?.parentElement;
+    const engine = engineRef.current;
+    if (!card || !stage || !engine) return;
+    const measure = () => {
+      const c = card.getBoundingClientRect(), st = stage.getBoundingClientRect();
+      const side = c.width < st.width * 0.7; // desktop: card on the right; phone: card along the bottom
+      engine.safeArea = side ? { right: st.right - c.left + 8, bottom: 0 } : { right: 0, bottom: st.bottom - c.top + 8 };
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(card);
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [mode, currentId]);
   useEffect(() => engineRef.current?.setLanguage(lang), [lang]);
 
   // Esc goes back to the map

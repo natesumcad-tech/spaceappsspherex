@@ -1,5 +1,14 @@
 export type PlanetKind = "earth" | "moon" | "mars" | "jupiter" | "saturn";
 
+/** Where a hotspot sits inside a sphere. */
+export type HotspotAnchor =
+  | { sky: [number, number] } // RA, Dec (degrees) on the celestial sphere
+  | { body: [number, number] } // latitude, longitude (degrees) on the stop's planet or star; spins with it
+  | { anchor: "rings" | "cassini" | "sun" | "companion" | "limb" | "clouds" | "galaxy-centre" | "sun-marker" };
+
+/** A small diamond marker that expands into an info card on hover. */
+export type Hotspot = { title: string; body: string; at: HotspotAnchor; link?: string };
+
 export type Landmark = {
   id: string;
   section: "Near Earth" | "Constellations" | "Solar System" | "Stars" | "Milky Way";
@@ -16,6 +25,7 @@ export type Landmark = {
   constellation?: string;
   planet?: PlanetKind;
   star?: { color: string; companion?: string };
+  hotspots?: Hotspot[];
 };
 
 // The tour runs outward from Earth: each stop is a "sphere" you can step into and look around.
@@ -38,6 +48,11 @@ export const LANDMARKS: Landmark[] = [
     look: [0, 0],
     fov: 75,
     planet: "earth",
+    hotspots: [
+      { title: "Atmosphere", at: { anchor: "limb" }, body: "That thin blue glow is all the air we have. About 90% of it lies within 16 km of the ground." },
+      { title: "Clouds", at: { anchor: "clouds" }, body: "Weather happens in the lowest layer of the atmosphere. SPHEREx flies far above it, so clouds never block its view." },
+      { title: "The Sun", at: { anchor: "sun" }, body: "SPHEREx's cone-shaped shields block heat and light from the Sun and Earth, keeping its telescope cold enough to see faint infrared light." },
+    ],
   },
   {
     id: "night-sky",
@@ -56,6 +71,10 @@ export const LANDMARKS: Landmark[] = [
     spherex: "SPHEREx maps this entire sphere, not just the stars you can see, in 102 infrared colors.",
     look: [85, 0],
     fov: 95,
+    hotspots: [
+      { title: "The Pleiades", at: { sky: [56.75, 24.12] }, body: "The Seven Sisters: a cluster of young, hot stars about 444 light-years away, born together from the same cloud." },
+      { title: "Andromeda Galaxy", at: { sky: [10.68, 41.27] }, body: "Our nearest big neighbour galaxy, about 2.5 million light-years away. It is the most distant thing most people can see without a telescope." },
+    ],
   },
   {
     id: "orion",
@@ -74,6 +93,11 @@ export const LANDMARKS: Landmark[] = [
       "Orion's star-forming clouds are full of dust and frozen molecules: exactly the ices SPHEREx is surveying.",
     constellation: "Ori",
     fov: 55,
+    hotspots: [
+      { title: "Rigel", at: { sky: [78.634, -8.202] }, body: "A blue supergiant about 860 light-years away, tens of thousands of times more luminous than the Sun." },
+      { title: "Orion's Belt", at: { sky: [84.053, -1.202] }, body: "Alnitak, Alnilam and Mintaka: three bright stars in a row. Follow their line southeast to find Sirius, the brightest star in the sky." , link: "sirius" },
+      { title: "Orion Nebula (M42)", at: { sky: [83.822, -5.391] }, body: "A stellar nursery about 1,300 light-years away where new stars are forming right now. You can see it as a fuzzy patch in Orion's sword." },
+    ],
   },
   {
     id: "ursa-major",
@@ -92,6 +116,10 @@ export const LANDMARKS: Landmark[] = [
       "SPHEREx revisits the sky near the ecliptic poles most often. The north ecliptic pole lies just next door, in Draco.",
     constellation: "UMa",
     fov: 70,
+    hotspots: [
+      { title: "Pointer stars", at: { sky: [165.7, 59.1] }, body: "Draw a line from Merak through Dubhe and keep going about five times as far: you reach Polaris, the North Star.", link: "polaris" },
+      { title: "Mizar & Alcor", at: { sky: [201.1, 54.95] }, body: "A famous naked-eye double star in the Dipper's handle, long used as an eyesight test." },
+    ],
   },
   {
     id: "scorpius",
@@ -110,6 +138,10 @@ export const LANDMARKS: Landmark[] = [
       "This crowded, dusty direction is prime territory for measuring ices in front of thousands of background stars.",
     constellation: "Sco",
     fov: 55,
+    hotspots: [
+      { title: "Antares", at: { sky: [247.35, -26.43] }, body: "A red supergiant whose name means \"rival of Mars\" because of its red colour." },
+      { title: "Toward the galactic centre", at: { sky: [266.42, -29.0] }, body: "Just east of the scorpion's tail lies the centre of our galaxy, hidden behind thick clouds of dust.", link: "milky-way" },
+    ],
   },
   {
     id: "crux",
@@ -127,6 +159,10 @@ export const LANDMARKS: Landmark[] = [
     spherex: "Dark clouds like the Coalsack block visible light, but infrared light gets through.",
     constellation: "Cru",
     fov: 40,
+    hotspots: [
+      { title: "Acrux", at: { sky: [186.65, -63.1] }, body: "The brightest star in the Southern Cross. Through a telescope it splits into a multiple star system." },
+      { title: "The Coalsack", at: { sky: [192.5, -62.5] }, body: "A dark cloud of dust about 600 light-years away that blocks the starlight behind it. Infrared light can shine through dust like this." },
+    ],
   },
   {
     id: "moon",
@@ -145,6 +181,10 @@ export const LANDMARKS: Landmark[] = [
     look: [70, 15],
     fov: 60,
     planet: "moon",
+    hotspots: [
+      { title: "Craters", at: { body: [30, 60] }, body: "With no air or weather to erase them, the Moon's craters record billions of years of impacts." },
+      { title: "The Sun", at: { anchor: "sun" }, body: "Sunlight reaching the Moon left the Sun about 8 minutes ago. Moonlight is just reflected sunlight." },
+    ],
   },
   {
     id: "mars",
@@ -164,6 +204,10 @@ export const LANDMARKS: Landmark[] = [
     look: [120, 0],
     fov: 60,
     planet: "mars",
+    hotspots: [
+      { title: "Polar ice cap", at: { body: [82, 0] }, body: "Water ice, topped in winter by a layer of frozen carbon dioxide (dry ice)." },
+      { title: "Red dust", at: { body: [5, 200] }, body: "Iron-rich dust gives Mars its colour: the planet is literally rusty." },
+    ],
   },
   {
     id: "jupiter",
@@ -182,6 +226,10 @@ export const LANDMARKS: Landmark[] = [
     look: [56.8, 24],
     fov: 60,
     planet: "jupiter",
+    hotspots: [
+      { title: "Great Red Spot", at: { body: [-21.8, 126] }, body: "A storm wider than Earth that astronomers have watched for more than 150 years." },
+      { title: "Cloud belts", at: { body: [18, 30] }, body: "Dark belts and light zones are bands of clouds pushed around by winds faster than 400 km/h." },
+    ],
   },
   {
     id: "saturn",
@@ -201,6 +249,10 @@ export const LANDMARKS: Landmark[] = [
     look: [280, -20],
     fov: 60,
     planet: "saturn",
+    hotspots: [
+      { title: "The rings", at: { anchor: "rings" }, body: "Billions of chunks of water ice, from grains of dust to pieces the size of houses, all orbiting Saturn." },
+      { title: "Cassini Division", at: { anchor: "cassini" }, body: "A gap about 4,800 km wide between the two brightest rings, shaped by the gravity of Saturn's moon Mimas." },
+    ],
   },
   {
     id: "sirius",
@@ -220,6 +272,10 @@ export const LANDMARKS: Landmark[] = [
     fov: 60,
     constellation: "CMa",
     star: { color: "#cfdcff", companion: "Sirius B (white dwarf)" },
+    hotspots: [
+      { title: "Sirius B", at: { anchor: "companion" }, body: "A white dwarf about the size of Earth but nearly as massive as the Sun. A teaspoon of it would weigh several tonnes." },
+      { title: "Hot surface", at: { body: [20, 40] }, body: "Sirius's surface is close to 10,000 °C, nearly twice as hot as the Sun's, which is why it shines blue-white." },
+    ],
   },
   {
     id: "polaris",
@@ -239,6 +295,10 @@ export const LANDMARKS: Landmark[] = [
     fov: 60,
     constellation: "UMi",
     star: { color: "#fff0d2" },
+    hotspots: [
+      { title: "A pulsing star", at: { body: [15, 30] }, body: "Polaris is a Cepheid variable: it swells and shrinks slightly, brightening and dimming every few days." },
+      { title: "Kochab & Pherkad", at: { sky: [225.0, 73.0] }, body: "The two \"guardians of the pole\" at the end of the Little Dipper's bowl, circling Polaris all night." },
+    ],
   },
   {
     id: "betelgeuse",
@@ -258,6 +318,10 @@ export const LANDMARKS: Landmark[] = [
     fov: 60,
     constellation: "Ori",
     star: { color: "#ff9a5c" },
+    hotspots: [
+      { title: "Boiling surface", at: { body: [20, 40] }, body: "Betelgeuse's surface churns with giant convection cells, vastly bigger than the ones on the Sun." },
+      { title: "The Great Dimming", at: { body: [-35, 300] }, body: "In 2019–2020 a cloud of dust puffed out over its southern half, and the star dimmed by more than half." },
+    ],
   },
   {
     id: "milky-way",
@@ -276,6 +340,10 @@ export const LANDMARKS: Landmark[] = [
       "SPHEREx maps hundreds of millions of galaxies beyond our own to build a 3D map of the Universe.",
     look: [0, 0],
     fov: 70,
+    hotspots: [
+      { title: "Sagittarius A*", at: { anchor: "galaxy-centre" }, body: "A supermassive black hole at the galaxy's heart, about 4 million times the mass of the Sun." },
+      { title: "The Sun's orbit", at: { anchor: "sun-marker" }, body: "The Sun and its planets take about 230 million years to circle the galactic centre once.", link: "night-sky" },
+    ],
   },
 ];
 

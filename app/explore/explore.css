@@ -254,3 +254,72 @@ kbd {
   cursor: pointer;
 }
 .xp-back:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── Hotspots: a diamond that unfolds into a card ── */
+.hs { position: absolute; left: 0; top: 0; pointer-events: auto; z-index: 2; outline: none; }
+.hs::after { content: ""; position: absolute; left: -16px; top: -26px; width: 48px; height: 52px; } /* hover bridge */
+.hs.flip::after { left: -32px; }
+.hs-mark {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.06);
+  transform: rotate(45deg);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  z-index: 1;
+  animation: hs-breathe 2.4s ease-in-out infinite;
+  transition: background 0.2s, transform 0.2s;
+}
+@keyframes hs-breathe {
+  0%, 100% { transform: rotate(45deg) scale(1); opacity: 0.85; }
+  50% { transform: rotate(45deg) scale(0.78); opacity: 0.55; }
+}
+.hs:hover .hs-mark, .hs:focus-within .hs-mark, .hs.open .hs-mark {
+  animation: none;
+  background: rgba(255, 255, 255, 0.95);
+  transform: rotate(45deg) scale(0.7);
+}
+.hs-card {
+  position: absolute;
+  left: 16px;
+  top: -24px;
+  width: 260px;
+  padding: 12px 14px;
+  background: rgba(8, 12, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  clip-path: inset(0 100% calc(100% - 2px) 0);
+  transition: clip-path 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.15s;
+}
+.hs.flip .hs-card { left: auto; right: 16px; clip-path: inset(0 0 calc(100% - 2px) 100%); }
+.hs.up .hs-card { top: auto; bottom: -24px; }
+.hs:hover .hs-card, .hs:focus-within .hs-card, .hs.open .hs-card {
+  opacity: 1;
+  pointer-events: auto;
+  clip-path: inset(0 0 0 0);
+}
+.hs-card strong { display: block; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 6px; }
+.hs-card p { margin: 0; font-size: 0.86rem; line-height: 1.45; color: rgba(232, 236, 255, 0.85); }
+.hs-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.hs-actions button {
+  font: inherit;
+  font-size: 0.78rem;
+  color: #fff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.hs-actions button:hover { background: #fff; color: #0a0f24; }
+@media (prefers-reduced-motion: reduce) {
+  .hs-mark { animation: none; }
+  .hs-card { transition: none; }
+}
