@@ -296,7 +296,7 @@ export default function Home() {
 
       <footer className="h-footer">
         <span>
-          Built for the {site.event} by the Big Bang.
+          Built for the {site.event} by Big Bang.
         </span>
         <span>
           <a href={site.teamPageUrl} target="_blank" rel="noreferrer">
