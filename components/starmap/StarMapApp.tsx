@@ -807,7 +807,7 @@ function SettingsWindow({
           <h3>About the data</h3>
           <p className="mv-note">
             The map is SPHEREx Data Release 1 (NASA/JPL-Caltech, served by IRSA), streamed as HiPS tiles and laid onto a grid by RA/Dec starting from the
-            origin (RA 0h, Dec 0°). Constellation lines and names come from the Hipparcos-based d3-celestial catalogue. The timeline shifts the sky by
+            origin (RA 0h, Dec 0°). Very bright cores that DR1 leaves blank (saturated pixels) are shown as white. Constellation lines and names come from the Hipparcos-based d3-celestial catalogue. The timeline shifts the sky by
             precession (a simplified model), and planets use NASA JPL&apos;s approximate orbital elements.
           </p>
         </section>
