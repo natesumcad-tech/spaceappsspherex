@@ -1,0 +1,12 @@
+.home .scroll-reveal-item {
+  transition: opacity 650ms ease var(--reveal-delay, 0ms),
+    translate 650ms cubic-bezier(.2, .7, .2, 1) var(--reveal-delay, 0ms);
+}
+.home .scroll-reveal-pending { opacity: 0; translate: 0 24px; }
+@media (prefers-reduced-motion: reduce) {
+  .home .scroll-reveal-item { transition: none; }
+  .home .scroll-reveal-pending { opacity: 1; translate: none; }
+}
+@media print {
+  .home .scroll-reveal-pending { opacity: 1; translate: none; }
+}

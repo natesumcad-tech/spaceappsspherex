@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import ScrollReveal from "@/components/ScrollReveal";
 import SpectrumExplorer from "@/components/SpectrumExplorer";
 import { site, project, team, mission, resources } from "@/content/site";
 import "./home.css";
@@ -22,6 +23,7 @@ const BARS = Array.from({ length: 102 }, (_, i) => {
 export default function Home() {
   return (
     <div className="home">
+      <ScrollReveal />
       {/* ── Hero ── */}
       <header className="h-hero">
         <div className="h-sky" aria-hidden="true" />
