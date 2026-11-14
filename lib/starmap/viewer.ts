@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { SkyData } from "@/lib/explorer/astro";
 import { DEG, MAP_H, MAP_W, planetPositions, projector, unprojector } from "./coords";
 import { SPHEREX_RGB, layerById, makeLoader, renderTile, type TileRequest } from "./hips";
+import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import type { Waypoint } from "./data";
 
 export type Settings = {
@@ -50,7 +51,16 @@ type Events = {
 /** How close (camera distance, and offset from the centre of the view) counts as "arrived". */
 const NEAR_D = 22;
 
-const PLANET_STOPS: Record<string, string> = { Mars: "mars", Jupiter: "jupiter", Saturn: "saturn" };
+const PLANET_STOPS: Record<string, string> = {
+  Sun: "sun",
+  Mercury: "mercury",
+  Venus: "venus",
+  Mars: "mars",
+  Jupiter: "jupiter",
+  Saturn: "saturn",
+  Uranus: "uranus",
+  Neptune: "neptune",
+};
 
 type TileEntry = { mesh: THREE.Mesh; tex: THREE.DataTexture | null; px: number; version: string; used: number; L: number; retryAt?: number };
 type Tween = { start: number; ms: number; step: (t: number) => void; done?: () => void };
@@ -322,13 +332,15 @@ export class StarMapViewer {
     this.overlays = this.overlays.filter((o) => o.kind === "wp");
     for (const c of this.sky.constellations) {
       const [x, y] = proj(c.center[0], c.center[1]);
-      this.addOverlay("con", c.names.en, x, y, { maxD: c.rank === 1 ? D_MAX : c.rank === 2 ? 150 : 80 });
+      const el = this.addOverlay("con", c.names.en, x, y, { maxD: c.rank === 1 ? D_MAX : c.rank === 2 ? 150 : 80 });
+      this.makeEnterable(el, constellationStop(c), x, y, 20);
     }
     for (const s of this.sky.named) {
       const [ra, dec, mag] = this.sky.stars[s.i];
       if (mag > 1.6) continue;
       const [x, y] = proj(ra, dec);
-      this.addOverlay("star", s.names.en, x, y, { maxD: 70 });
+      const el = this.addOverlay("star", s.names.en, x, y, { maxD: 70 });
+      this.makeEnterable(el, starStop(this.sky, s), x, y, 10);
     }
     if (this.planetsOn)
       for (const p of planetPositions(this.years + 2000)) {
@@ -336,16 +348,19 @@ export class StarMapViewer {
         const el = this.addOverlay("planet", p.name, x, y, {});
         el.style.setProperty("--pc", p.color);
         const stop = PLANET_STOPS[p.name];
-        if (stop) {
-          const o = this.overlays[this.overlays.length - 1];
-          o.stop = stop;
-          el.classList.add("link");
-          el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
-          // First click flies you to the planet; once you're there, click again to step inside.
-          el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.flyTo(x, y, 10, false)));
-        }
+        if (stop) this.makeEnterable(el, stop, x, y, 10);
       }
     this.placeWaypoints();
+  }
+
+  /** Street View style: the first click flies you there; once you've arrived, a second click steps inside. */
+  private makeEnterable(el: HTMLElement, stop: string, x: number, y: number, flyD: number) {
+    const o = this.overlays[this.overlays.length - 1];
+    o.stop = stop;
+    el.classList.add("link");
+    el.title = "Click to fly here, then click again to view in 360°";
+    el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
+    el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.flyTo(x, y, flyD, false)));
   }
 
   private addOverlay(kind: Overlay["kind"], text: string, x: number, y: number, o: { maxD?: number; minD?: number }) {
@@ -373,7 +388,8 @@ export class StarMapViewer {
       const el = document.createElement("button");
       el.className = `mv-ov mv-wp${wp.custom ? " custom" : ""}`;
       el.appendChild(document.createElement("i")); // the diamond itself (the button carries the screen position)
-      if (wp.stop) el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
+      const stop = waypointStop(wp); // every waypoint has a 360° view
+      el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
       el.setAttribute("aria-label", `Waypoint: ${wp.title}`);
       if (wp.color) el.style.setProperty("--wc", wp.color);
       el.style.display = "none";
@@ -383,9 +399,9 @@ export class StarMapViewer {
       el.addEventListener("blur", () => this.events.onWaypointHover(null));
       el.addEventListener("pointerdown", (e) => e.stopPropagation());
       // Street View style: the first click flies you there, a second click (once you've arrived) steps inside.
-      el.addEventListener("click", () => (wp.stop && el.classList.contains("near") ? this.events.onEnter(wp.stop) : this.travelTo(wp)));
+      el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.travelTo(wp)));
       this.overlayLayer.appendChild(el);
-      this.overlays.push({ el, x, y, kind: "wp", wp, stop: wp.stop });
+      this.overlays.push({ el, x, y, kind: "wp", wp, stop });
     }
     this.invalidate();
   }
@@ -763,7 +779,9 @@ export class StarMapViewer {
     if (this.d <= NEAR_D)
       for (const o of this.overlays) {
         if (!o.stop || (o.kind === "wp" && !s.waypoints) || (o.kind === "planet" && !(s.planets && s.names))) continue;
-        const dd = Math.hypot(o.x - this.target.x, o.y - this.target.y);
+        if ((o.kind === "con" || o.kind === "star") && !s.names) continue;
+        // Waypoints win ties, then planets and stars, then constellation centers
+        const dd = Math.hypot(o.x - this.target.x, o.y - this.target.y) * (o.kind === "wp" ? 0.5 : o.kind === "con" ? 1.5 : 1);
         if (dd <= Math.max(1.2, this.d * 0.14) && dd < nd) [near, nd] = [o, dd];
       }
     const nearStop = near?.stop ?? null;

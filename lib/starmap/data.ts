@@ -46,7 +46,7 @@ export const PRESET_WAYPOINTS: Waypoint[] = [
     kind: "Spiral galaxy",
     ra: 10.685,
     dec: 41.269,
-    description: "Our nearest large neighbour galaxy, about 2.5 million light-years away.",
+    description: "Our nearest large neighbor galaxy, about 2.5 million light-years away.",
     significance: "The most distant object most people can see without a telescope.",
     date: "First recorded 964 CE",
   },

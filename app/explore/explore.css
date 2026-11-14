@@ -411,3 +411,4 @@ kbd {
   .xp-panel { top: 120px; }
   .xp-zoom { top: 124px; }
 }
+.xp-credit { font-size: 0.74rem !important; color: var(--faint) !important; }

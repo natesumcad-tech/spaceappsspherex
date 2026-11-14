@@ -25,7 +25,7 @@ Every push to GitHub redeploys the site automatically.
 
 ## Sky Explorer (`/map`)
 
-A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street View-style 360° views of landmarks: click a diamond to fly there, and once you've arrived it grows and glows with **View in 360°**; click it again to step inside. `/explore` and `?stop=` links open the matching sphere.
+A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street View-style 360° views of **everything on it**: every waypoint (yours too), planet, the Sun, every bright named star and all 88 constellations. Click one to fly there; once you've arrived it lights up with **View in 360°**; click it again to step inside. `/explore` and `?stop=` links open the matching sphere.
 
 - **Camera (Fusion 360 style):** middle-drag pans, Shift + middle-drag orbits (a green dot marks the pivot), the scroll wheel zooms toward the cursor. Left-drag also pans and right-drag also orbits. Keyboard: WASD/arrows pan, Q/E turn, R/F tilt, Z/X zoom, T toggles 2D/3D, H returns to the origin.
 - **2D snap:** let go of an orbit within about 12° of straight down and it snaps to the flat 2D view. Tilt stops at 72° so you can't go under the baseplate. The map's edges dissolve into the black void, with no border.
@@ -50,7 +50,10 @@ A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street 
 | `lib/starmap/data.ts` | Preset waypoints and timeline dates |
 | `components/starmap/StarMapApp.tsx` | Page UI: minimap, timeline, settings, waypoint panels |
 
-### Sphere view
+### 360° views
+
+Views without a hand-made tour stop are generated on the fly (`lib/explorer/dynamic.ts`): deep-sky waypoints and constellations wrap the real SPHEREx DR1 image of that patch of sky into the sphere (rendered from IRSA tiles in a background worker), stars become a body you can fly around colored by temperature, and the Sun, Mercury, Venus, Uranus and Neptune have their own 3D views.
+
 
 A "Street View for space": 14 stops you can step inside, each a 360° sphere. Open one by clicking a waypoint diamond (or Mars, Jupiter, Saturn) twice: the first click flies you there, the second steps inside. The waypoint card's **View in 360°** button does the same once you've arrived, and the sphere's stop list jumps between stops. Esc, 2D or 3D returns to the map at the same spot.
 

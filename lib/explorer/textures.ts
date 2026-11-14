@@ -114,6 +114,27 @@ const PAINTERS: Record<PlanetKind, (x: number, y: number, z: number, lat: number
     const spot = Math.exp(-(dl * dl + dn * dn));
     return mix(c, [195, 95, 65], spot * 0.9);
   },
+  mercury: (x, y, z) => {
+    const n = fbmA(x * 5, y * 5, z * 5, 6);
+    const crater = sstep(0.62, 0.7, fbmB(x * 9, y * 9, z * 9, 3));
+    const g = 105 + n * 85 - crater * 35;
+    return [g * 1.02, g * 0.95, g * 0.86];
+  },
+  venus: (x, y, z, lat) => {
+    const swirl = fbmA(x * 2 + lat * 3, y * 6, z * 2, 5);
+    return mix([226, 190, 120], [250, 232, 190], swirl);
+  },
+  uranus: (x, y, z, lat) => {
+    const band = 0.5 + 0.5 * Math.sin(lat * 14 + fbmA(x * 2, y * 2, z * 2, 3) * 0.6);
+    return mix([150, 215, 222], [178, 232, 236], band * 0.6);
+  },
+  neptune: (x, y, z, lat, lon) => {
+    const band = 0.5 + 0.5 * Math.sin(lat * 10 + (fbmA(x * 3, y * 3, z * 3, 4) - 0.5) * 1.5);
+    let c = mix([40, 80, 190], [70, 115, 220], band);
+    const dl = (lat + 0.35) / 0.08, dn = ((((lon - 1.4) + Math.PI) % (2 * Math.PI)) - Math.PI) / 0.16;
+    c = mix(c, [25, 45, 120], Math.exp(-(dl * dl + dn * dn)) * 0.8); // a dark storm spot
+    return mix(c, [230, 240, 255], sstep(0.72, 0.8, fbmB(x * 6, y * 14, z * 6, 3)) * 0.5); // bright cloud streaks
+  },
   saturn: (x, y, z, lat) => {
     const turb = fbmA(x * 3, y * 3, z * 3, 4) - 0.5;
     const t = lat * 10 + turb * 0.6;

@@ -2,6 +2,11 @@ import * as THREE from "three";
 import { LANDMARKS, byId, type Hotspot, type Landmark } from "./landmarks";
 import { DEG, bvToKelvin, dirToYawPitch, galacticToRaDec, kelvinToRGB, radecToVec, type SkyData } from "./astro";
 import { cloudTexture, glowTexture, planetTexture, ringTexture } from "./textures";
+import { SPHEREX_RGB, makeLoader, renderTile, type TileRequest } from "@/lib/starmap/hips";
+
+/** Narrowest zoom (degrees across), so small things like galaxies can fill the screen. */
+const FOV_MIN = 2.5;
+const PATCH_PX = 1024;
 
 export type EngineEvents = {
   /** A portal (clickable constellation, star, galaxy…) inside a sphere was clicked. */
@@ -116,6 +121,12 @@ export class SkyEngine {
   private sky!: SkyData;
 
   private skyGroup = new THREE.Group();
+  /** Real SPHEREx imagery for the current sphere, wrapped onto the inside of the sky. */
+  private patchGroup = new THREE.Group();
+  private patchMat: THREE.MeshBasicMaterial | null = null;
+  private patchGen = 0;
+  private worker: Worker | null = null;
+  private patchLoad: ReturnType<typeof makeLoader> | null = null;
   private starsMat = pointsMaterial(1);
   private mwMat = pointsMaterial(1);
   private allLines!: THREE.LineSegments;
@@ -182,6 +193,7 @@ export class SkyEngine {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    this.worker?.terminate();
     this.ro.disconnect();
     this.cleanup.forEach((f) => f());
     this.renderer.dispose();
@@ -217,7 +229,7 @@ export class SkyEngine {
     const lgeo = new THREE.BufferGeometry();
     lgeo.setAttribute("position", new THREE.Float32BufferAttribute(seg, 3));
     this.allLines = new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({ color: 0x5f86d6, transparent: true, opacity: 0.32, depthWrite: false }));
-    this.skyGroup.add(this.allLines, this.highlight);
+    this.skyGroup.add(this.allLines, this.highlight, this.patchGroup);
     this.scene.add(this.skyGroup, this.fg, new THREE.AmbientLight(0xffffff, 0.06));
 
     // Sky labels live in the sky group's frame, which rides along with the camera (stars are "at infinity").
@@ -317,8 +329,82 @@ export class SkyEngine {
     if (lm.kind === "planet") this.buildPlanetView(lm, desired, sunDir);
     if (lm.kind === "star") this.buildStarView(lm, desired, right);
     if (galaxy) this.buildGalaxyView(desired);
+    this.buildPatch(lm.patch);
     this.fg.updateMatrixWorld(true);
     lm.hotspots?.forEach((h) => this.addHotspot(h));
+  }
+
+  /**
+   * Wraps a SPHEREx DR1 cutout (fetched from IRSA and reprojected in a worker) onto a flat panel
+   * tangent to the sky at the patch centre, so it lines up exactly with the stars. Edges fade out.
+   */
+  private buildPatch(patch: Landmark["patch"]) {
+    const gen = ++this.patchGen;
+    for (const m of this.patchGroup.children as THREE.Mesh[]) {
+      (m.material as THREE.MeshBasicMaterial).map?.dispose();
+      (m.material as THREE.Material).dispose();
+      m.geometry.dispose();
+    }
+    this.patchGroup.clear();
+    this.patchMat = null;
+    if (!patch) return;
+    const req: TileRequest = {
+      id: gen,
+      x0: 0,
+      y0: 0,
+      w: patch.fov,
+      h: patch.fov,
+      W: PATCH_PX,
+      H: PATCH_PX,
+      years: 0,
+      base: "spherex",
+      frames: [...SPHEREX_RGB],
+      overlays: [],
+      light: true,
+      detail: 1,
+      gnomonic: patch,
+    };
+    const done = (px: Uint8ClampedArray | null) => {
+      if (!px || gen !== this.patchGen) return;
+      // Circular vignette so the patch melts into the surrounding sky
+      for (let y = 0; y < PATCH_PX; y++)
+        for (let x = 0; x < PATCH_PX; x++) {
+          const r = Math.hypot(x - PATCH_PX / 2, y - PATCH_PX / 2) / (PATCH_PX / 2);
+          const a = r < 0.72 ? 1 : r > 1 ? 0 : 1 - ((r - 0.72) / 0.28) ** 2 * (3 - (2 * (r - 0.72)) / 0.28);
+          px[(y * PATCH_PX + x) * 4 + 3] = Math.max(0, Math.min(255, a * 255));
+        }
+      const tex = new THREE.DataTexture(new Uint8Array(px.buffer), PATCH_PX, PATCH_PX, THREE.RGBAFormat);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.generateMipmaps = true;
+      tex.needsUpdate = true;
+      const R = 860, size = 2 * R * Math.tan((patch.fov / 2) * DEG);
+      const C = radecToVec(patch.ra, patch.dec);
+      const E = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), C).normalize(); // east
+      const N = new THREE.Vector3().crossVectors(C, E).normalize(); // north
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+      // Seen from inside, east is on the left: local x = west, y = north, facing the centre.
+      mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(E.clone().negate(), N, C.clone().negate()));
+      mesh.position.copy(C).multiplyScalar(R);
+      mesh.renderOrder = -1; // stars and lines draw over it
+      this.patchGroup.add(mesh);
+      this.patchMat = mat;
+    };
+    if (typeof Worker !== "undefined" && !this.worker) {
+      try {
+        this.worker = new Worker(new URL("../starmap/tile.worker.ts", import.meta.url), { type: "module" });
+        this.worker.onmessage = (e: MessageEvent<{ id: number; px?: Uint8ClampedArray }>) => done(e.data.id === this.patchGen ? (e.data.px ?? null) : null);
+        this.worker.onerror = () => (this.worker = null);
+      } catch {
+        this.worker = null;
+      }
+    }
+    if (this.worker) this.worker.postMessage(req);
+    else {
+      this.patchLoad ??= makeLoader(40e6);
+      renderTile(req, this.patchLoad).then((r) => done(r.px), () => done(null));
+    }
   }
 
   private glowSprite(color: string, scale: number, pos: THREE.Vector3, opacity = 1) {
@@ -376,7 +462,7 @@ export class SkyEngine {
   }
 
   private buildPlanetView(lm: Landmark, desired: THREE.Vector3, sunDir: THREE.Vector3) {
-    const dist = { moon: 3.6, mars: 4, jupiter: 4.4, saturn: 6.5, earth: 4 }[lm.planet!];
+    const dist = ({ moon: 3.6, mars: 4, jupiter: 4.4, saturn: 6.5, earth: 4 } as Record<string, number>)[lm.planet!] ?? 4;
     const tilt = new THREE.Group();
     tilt.position.copy(desired).multiplyScalar(dist);
     tilt.lookAt(0, 0, 0);
@@ -586,7 +672,7 @@ export class SkyEngine {
     while (y - this.yaw < -Math.PI) y += Math.PI * 2;
     this.lookTarget = { yaw: y, pitch };
     this.vel = { yaw: 0, pitch: 0 };
-    this.fov = THREE.MathUtils.clamp(this.fov * 0.6, 18, 100);
+    this.fov = THREE.MathUtils.clamp(this.fov * 0.6, FOV_MIN, 100);
   }
 
   setLanguage(lang: string) {
@@ -693,7 +779,7 @@ export class SkyEngine {
   }
 
   zoom(factor: number) {
-    this.fov = THREE.MathUtils.clamp(this.fov * factor, 15, 100);
+    this.fov = THREE.MathUtils.clamp(this.fov * factor, FOV_MIN, 100);
   }
 
   resetView() {
@@ -767,7 +853,7 @@ export class SkyEngine {
         p.y = e.clientY;
         const [a, b] = [...this.pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (this.pinchDist) this.fov = THREE.MathUtils.clamp(this.fov * (this.pinchDist / d), 15, 100);
+        if (this.pinchDist) this.fov = THREE.MathUtils.clamp(this.fov * (this.pinchDist / d), FOV_MIN, 100);
         this.pinchDist = d;
         return;
       }
@@ -787,7 +873,7 @@ export class SkyEngine {
     const wheel = (e: WheelEvent) => {
       if (!this.active) return;
       e.preventDefault();
-      this.fov = THREE.MathUtils.clamp(this.fov * (1 + e.deltaY * 0.0012), 15, 100);
+      this.fov = THREE.MathUtils.clamp(this.fov * (1 + e.deltaY * 0.0012), FOV_MIN, 100);
     };
     const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
     const keydown = (e: KeyboardEvent) => {
@@ -874,6 +960,7 @@ export class SkyEngine {
     const t = this.clock.elapsedTime;
     for (const s of this.spinners) s.obj.rotation.y += s.speed * dt;
     for (const u of this.starUniforms) u.uTime.value = t;
+    if (this.patchMat && this.patchMat.opacity < 1) this.patchMat.opacity = Math.min(1, this.patchMat.opacity + dt * 1.5);
 
     this.applyKeys(dt);
     if (this.lookTarget) {

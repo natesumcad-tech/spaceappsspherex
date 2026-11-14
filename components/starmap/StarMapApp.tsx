@@ -9,6 +9,7 @@ import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById } from "@/li
 import { DEFAULT_SETTINGS, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
 import SphereView from "@/components/explorer/Explorer";
 import { byId } from "@/lib/explorer/landmarks";
+import { waypointStop } from "@/lib/explorer/dynamic";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v1";
@@ -76,7 +77,11 @@ export default function StarMapApp() {
     if (!v) return null;
     const wp = PRESET_WAYPOINTS.find((w) => w.stop === stop);
     if (wp) return v.project(wp.ra, wp.dec);
-    return v.planetXY(stop);
+    const planet = v.planetXY(stop);
+    if (planet) return planet;
+    const lm = byId(stop); // generated views know where they look
+    const at = lm?.patch ?? (lm?.look ? { ra: lm.look[0], dec: lm.look[1] } : null);
+    return at ? v.project(at.ra, at.dec) : null;
   }, []);
 
   /** Step inside a sphere: dive into its spot on the map, then the 360° view fades in. */
@@ -174,6 +179,8 @@ export default function StarMapApp() {
         viewer.invalidate();
         setReady(true);
         // Old /explore links and shared ?stop= links open that sphere straight away
+        // Make sure views for waypoints exist before following a shared link to one
+        [...PRESET_WAYPOINTS, ...load<Waypoint[]>(STORE_WP, [])].forEach(waypointStop);
         const stop = new URL(window.location.href).searchParams.get("stop");
         if (stop && byId(stop)) setTimeout(() => enterRef.current(stop), 300);
       } catch (e) {
@@ -324,7 +331,7 @@ export default function StarMapApp() {
             <li><b>Orbit</b> <kbd>Shift</kbd> + middle-drag · right-drag · <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
             <li><b>Zoom</b> scroll · <kbd>Z</kbd><kbd>X</kbd></li>
             <li><b>2D / 3D</b> <kbd>T</kbd> · tilt near flat to snap to 2D</li>
-            <li><b>360° view</b> click a diamond to fly there, then click it again</li>
+            <li><b>360° view</b> click any diamond, planet, star or constellation name to fly there, then click it again</li>
             <li><b>Waypoint</b> <kbd>Shift</kbd>+<kbd>G</kbd> · <b>Home</b> <kbd>H</kbd></li>
           </ul>
         )}
@@ -341,7 +348,7 @@ export default function StarMapApp() {
           <WaypointDetails
             wp={hover}
             viewer={viewerRef.current}
-            near={!!hover.stop && hover.stop === nearStop}
+            near={waypointStop(hover) === nearStop}
             onStep={enterSphere}
             imaged={`${layerById(settings.layer).name}: ${layerById(settings.layer).observed}`}
             onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))}
@@ -452,7 +459,7 @@ function WaypointDetails({
       </dl>
       <div className="mv-wp-actions">
         {near ? (
-          <button className="mv-primary" onClick={() => onStep(wp.stop!)}>
+          <button className="mv-primary" onClick={() => onStep(waypointStop(wp))}>
             View in 360° ↗
           </button>
         ) : (
@@ -460,7 +467,7 @@ function WaypointDetails({
             Travel here
           </button>
         )}
-        {wp.stop && !near && <span className="mv-hint360">Travel here, then click the diamond again to view it in 360°</span>}
+        {!near && <span className="mv-hint360">Travel here, then click the diamond again to view it in 360°</span>}
         {wp.custom && (
           <button className="mv-secondary" onClick={() => onDelete(wp.id)}>
             Delete

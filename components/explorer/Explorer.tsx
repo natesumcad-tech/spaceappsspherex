@@ -197,9 +197,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
         {ready && current && (
           <>
             <section className="xp-card" aria-live="polite">
-              <p className="xp-eyebrow">
-                Stop {idx + 1} of {LANDMARKS.length} · {current.section}
-              </p>
+              <p className="xp-eyebrow">{idx >= 0 ? `Stop ${idx + 1} of ${LANDMARKS.length} · ${current.section}` : current.section}</p>
               <h1>{current.title}</h1>
               <p className="xp-sub">{current.subtitle}</p>
               <p>{current.description}</p>
@@ -214,10 +212,13 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
               <p className="xp-spherex">
                 <b>SPHEREx link:</b> {current.spherex}
               </p>
-              <div className="xp-nav">
-                <button onClick={() => prev && onStop(prev.id)}>← {prev?.title}</button>
-                <button onClick={() => next && onStop(next.id)}>{next?.title} →</button>
-              </div>
+              {current.patch && <p className="xp-credit">Background imagery: SPHEREx DR1 (NASA/JPL-Caltech), streamed from IRSA.</p>}
+              {prev && next && (
+                <div className="xp-nav">
+                  <button onClick={() => onStop(prev.id)}>← {prev.title}</button>
+                  <button onClick={() => onStop(next.id)}>{next.title} →</button>
+                </div>
+              )}
               <button className="xp-back" onClick={onExit}>
                 Back to the map (Esc)
               </button>

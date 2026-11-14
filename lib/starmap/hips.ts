@@ -156,6 +156,12 @@ export type TileRequest = {
   detail: number;
   /** Rows top-first (for 2D canvases). Default is bottom-first, as WebGL textures expect. */
   topDown?: boolean;
+  /**
+   * Instead of a flat map region: a camera-style view of the sky centred on ra/dec, `fov` degrees
+   * across, as seen from inside the celestial sphere (east on the left). Used by the 360° views.
+   * `w` should equal `fov` so the resolution maths matches.
+   */
+  gnomonic?: { ra: number; dec: number; fov: number };
 };
 
 /**
@@ -178,7 +184,22 @@ export async function renderTile(req: TileRequest, load: (url: string) => Promis
 
   // Pass 1: where on the sky is each pixel?
   const ra = new Float64Array(n), dec = new Float64Array(n);
-  for (let py = 0; py < H; py++) {
+  if (req.gnomonic) {
+    const g = req.gnomonic, a = g.ra * DEG, d0 = g.dec * DEG, t = Math.tan((g.fov / 2) * DEG);
+    const C = [Math.cos(d0) * Math.cos(a), Math.cos(d0) * Math.sin(a), Math.sin(d0)];
+    const E = [-Math.sin(a), Math.cos(a), 0]; // east
+    const N = [-Math.sin(d0) * Math.cos(a), -Math.sin(d0) * Math.sin(a), Math.cos(d0)]; // north
+    for (let py = 0; py < H; py++) {
+      const v = (req.topDown ? 0.5 - (py + 0.5) / H : (py + 0.5) / H - 0.5) * 2 * t;
+      for (let px = 0; px < W; px++) {
+        const u = ((px + 0.5) / W - 0.5) * 2 * t; // screen right = west, seen from inside
+        const x = C[0] - u * E[0] + v * N[0], y = C[1] - u * E[1] + v * N[1], z = C[2] - u * E[2] + v * N[2];
+        const l = Math.hypot(x, y, z);
+        ra[py * W + px] = ((Math.atan2(y, x) / DEG) % 360 + 360) % 360;
+        dec[py * W + px] = Math.asin(z / l) / DEG;
+      }
+    }
+  } else for (let py = 0; py < H; py++) {
     const y = req.topDown ? req.y0 + req.h - ((py + 0.5) / H) * req.h : req.y0 + ((py + 0.5) / H) * req.h;
     for (let px = 0; px < W; px++) {
       const x = req.x0 + ((px + 0.5) / W) * req.w;
