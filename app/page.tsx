@@ -1,3 +1,4 @@
+import PageTransition from "@/components/PageTransition";
 import Image from "next/image";
 import Link from "next/link";
 import SiteTabs from "@/components/SiteTabs";
@@ -15,6 +16,7 @@ const BARS = Array.from({ length: 102 }, (_, i) => {
 
 export default function Home() {
   return (
+    <PageTransition>
     <div className="home">
       <ScrollReveal />
       {/* ── Hero ── */}
@@ -38,7 +40,7 @@ export default function Home() {
             bands, rewind the sky 14,000 years, and open 360° views of stars, planets, galaxies and all 88 constellations.
           </p>
           <div className="h-ctas">
-            <Link href="/map" className="h-btn">
+            <Link transitionTypes={["site-navigation"]} href="/map" className="h-btn">
               <span aria-hidden="true">◎</span> Open the Sky Explorer
             </Link>
             <a href="#how" className="h-btn-ghost">
@@ -121,7 +123,7 @@ export default function Home() {
             Maps, tilt into 3D, and hyperspace-jump between waypoints.
           </p>
           <div className="h-panel">
-            <Link href="/map" className="h-panel-window" aria-label="Open the Star Map">
+            <Link transitionTypes={["site-navigation"]} href="/map" className="h-panel-window" aria-label="Open the Star Map">
               <div className="h-chrome light">
                 <span />
                 <span />
@@ -288,7 +290,7 @@ export default function Home() {
           <h2>
             Open the <em>Sky Explorer</em>
           </h2>
-          <Link href="/map" className="h-btn">
+          <Link transitionTypes={["site-navigation"]} href="/map" className="h-btn">
             <span aria-hidden="true">◎</span> Start at the origin
           </Link>
         </section>
@@ -312,5 +314,6 @@ export default function Home() {
         </span>
       </footer>
     </div>
+    </PageTransition>
   );
 }

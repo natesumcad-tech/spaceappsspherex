@@ -1,3 +1,4 @@
+import PageTransition from "@/components/PageTransition";
 import type { Metadata } from "next";
 import StarMapApp from "@/components/starmap/StarMapApp";
 import "../explore/explore.css";
@@ -9,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function MapPage() {
-  return <StarMapApp />;
+  return <PageTransition><StarMapApp /></PageTransition>;
 }
