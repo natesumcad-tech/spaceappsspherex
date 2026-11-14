@@ -379,3 +379,33 @@
 .h-hero h1 { text-shadow: 0 2px 24px #000, 0 0 60px #000; }
 .h-lede { text-shadow: 0 2px 12px #000, 0 0 25px #000; }
 @media (max-width: 700px) { .h-sky::before { background-position: center 30%; background-size: auto 780px; } .h-hero-copy { margin-top: 85px; } }
+
+/* Warm beige surfaces with the sky timeline's periwinkle/lilac/rose palette. */
+:root:has(.home) body { background: #f0e6d6; }
+.home { --text: #272329; --muted: #665f64; --faint: #766c72; --surface: #faf3e8; --border: #d9ccbd; --bg: #e8dccb; --accent: #6f7dff; --lav: #e1d8ec; --sky: #dce0ef; --pink: #ecd7dc; --mint: #e6dfd1; --butter: #eee0c7; background: #f0e6d6; }
+.home kbd, .h-card-light, .h-features li, .home .explorer, .h-box, .h-team li, .h-resources a, .h-panel-window { background: #faf3e8; }
+.h-goal { background: #faf3e8 !important; }
+.h-sky::after { background: linear-gradient(180deg, #0008 0%, #0003 24%, #0007 60%, #080808 78%, #f0e6d6 100%); }
+.h-hero h1, .h-hero h1 em { color: #f6eddf; }
+.h-lede { color: #e4dace; }
+.h-hero .h-btn, .h-final .h-btn { background: linear-gradient(100deg, #b9c4ff, #d9b8ff, #ffc2dc); color: #272329 !important; border-color: #d9b8ff; }
+.h-btn { background: #554b6c; border-color: #554b6c; }
+.h-logo-mark { box-shadow: 0 0 0 1px #d9b8ff, 0 0 14px #b9c4ff66; }
+.h-kicker { color: #e6dcd0; border-color: #d9b8ff55; }
+.h-hero .h-btn-ghost { color: #e4dace !important; }
+.h-wallpaper { background: linear-gradient(135deg, #554b6c, #c5b1c9 55%, #e3cdbc); }
+.h-chrome.light { background: #e8dccb; }
+.h-chrome.light .h-url { background: #faf3e8; }
+.h-card-color { background: linear-gradient(150deg, #302c3b, #5a4d65); }
+.h-panel { background: linear-gradient(150deg, #dce0ef, #e1d8ec 50%, #ecded2); }
+.h-stat { background: #e8dccb; }
+.h-stat:nth-child(1) { background: #dce0ef; }
+.h-stat:nth-child(2) { background: #e1d8ec; }
+.h-stat:nth-child(3) { background: #ecd7dc; }
+.h-stat:nth-child(4) { background: #eee0c7; }
+.h-goal.tint-0::before, .h-goal.tint-1::before, .h-goal.tint-2::before, .h-goal.tint-3::before { background: linear-gradient(90deg, #b9c4ff, #d9b8ff, #ffc2dc); }
+.h-tags li { background: #e6dbd1; color: #54465c; }
+.home .segmented { background: #e8dccb; }
+.home .segmented button[aria-selected="true"] { background: #554b6c; color: #faf3e8; }
+.h-final h2, .h-final em { color: #f6eddf; }
+.h-final-label { color: #d6c9bc; }
