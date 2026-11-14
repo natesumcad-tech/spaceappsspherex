@@ -6,7 +6,8 @@ import type { SkyData } from "@/lib/explorer/astro";
 import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
 import { raToX } from "@/lib/starmap/coords";
 import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById } from "@/lib/starmap/hips";
-import { DEFAULT_SETTINGS, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
+import { createPortal } from "react-dom";
+import { DEFAULT_SETTINGS, type MapHover, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
 import SphereView from "@/components/explorer/Explorer";
 import Collapsible from "@/components/ui/Collapsible";
 import { byId } from "@/lib/explorer/landmarks";
@@ -52,7 +53,7 @@ export default function StarMapApp() {
   const [mode, setMode] = useState<"2d" | "3d">("2d");
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [custom, setCustom] = useState<Waypoint[]>([]);
-  const [hover, setHover] = useState<Waypoint | null>(null);
+  const [hover, setHover] = useState<MapHover | null>(null);
   const [epoch, setEpoch] = useState(NOW_INDEX);
   const [showSettings, setShowSettings] = useState(false);
   const [adding, setAdding] = useState<{ x: number; y: number } | null>(null);
@@ -130,10 +131,16 @@ export default function StarMapApp() {
     if (window.innerWidth < 800) setHelp(false);
   }, []);
 
-  const hoverWp = useCallback((wp: Waypoint | null) => {
+  const overCard = useRef(false);
+  const hoverWp = useCallback((h: MapHover | null) => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    if (wp) setHover(wp);
-    else hideTimer.current = setTimeout(() => setHover(null), 260);
+    if (!h && overCard.current) return; // still reading the card
+    if (h) setHover(h);
+    else
+      hideTimer.current = setTimeout(() => {
+        setHover(null);
+        viewerRef.current?.clearCard();
+      }, 280);
   }, []);
 
   // Start the viewer
@@ -167,7 +174,7 @@ export default function StarMapApp() {
               setMode(v.mode);
             }
           },
-          onWaypointHover: hoverWp,
+          onHover: hoverWp,
           onTravel: (wp) => {
             setTravel(wp.title);
             setTimeout(() => setTravel(null), 1800);
@@ -335,24 +342,43 @@ export default function StarMapApp() {
         )}
       </Collapsible>
 
-      {/* Waypoint details slide in from the left on hover */}
-      <aside
-        className={`mv-glass mv-wpcard ${hover && settings.descriptions ? "open" : ""}`}
-        onPointerEnter={() => hideTimer.current && clearTimeout(hideTimer.current)}
-        onPointerLeave={() => hoverWp(null)}
-        aria-live="polite"
-      >
-        {hover && (
-          <WaypointDetails
-            wp={hover}
-            viewer={viewerRef.current}
-            near={waypointStop(hover) === nearStop}
-            onStep={enterSphere}
-            imaged={`${layerById(settings.layer).name}: ${layerById(settings.layer).observed}`}
-            onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))}
-          />
+      {/* The summary card pops out of the hovered diamond or planet (rendered inside the viewer's card host) */}
+      {hover &&
+        settings.descriptions &&
+        viewerRef.current &&
+        createPortal(
+          <div
+            className="mv-pop"
+            key={hover.wp?.id ?? hover.planet}
+            onPointerEnter={() => {
+              overCard.current = true;
+              if (hideTimer.current) clearTimeout(hideTimer.current);
+            }}
+            onPointerLeave={() => {
+              overCard.current = false;
+              hoverWp(null);
+            }}
+          >
+            {hover.wp ? (
+              <WaypointDetails
+                wp={hover.wp}
+                viewer={viewerRef.current}
+                near={waypointStop(hover.wp) === nearStop}
+                onStep={enterSphere}
+                imaged={`${layerById(settings.layer).name}: ${layerById(settings.layer).observed}`}
+                onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))}
+              />
+            ) : (
+              <PlanetDetails
+                hover={hover}
+                near={hover.stop === nearStop}
+                onStep={enterSphere}
+                onTravel={() => viewerRef.current?.flyTo(hover.x, hover.y, 10, false)}
+              />
+            )}
+          </div>,
+          viewerRef.current.cardHost,
         )}
-      </aside>
 
       {/* Add-waypoint panel (Shift+G) */}
       <aside className={`mv-glass mv-addcard ${adding ? "open" : ""}`} aria-hidden={!adding}>
@@ -444,7 +470,7 @@ function WaypointDetails({
           <dt>Image taken</dt>
           <dd>{imaged}</dd>
         </div>
-        <div>
+        <div className="wide">
           <dt>{wp.custom ? "Added" : "Recorded"}</dt>
           <dd>{wp.date || "—"}</dd>
         </div>
@@ -455,12 +481,10 @@ function WaypointDetails({
           </dd>
         </div>
         <div>
-          <dt>RA (J2000)</dt>
-          <dd>{raHMS(wp.ra)}</dd>
-        </div>
-        <div>
-          <dt>Dec (J2000)</dt>
-          <dd>{fmt(wp.dec)}°</dd>
+          <dt>RA, Dec</dt>
+          <dd>
+            {raHMS(wp.ra)}, {fmt(wp.dec)}°
+          </dd>
         </div>
       </dl>
       <div className="mv-wp-actions">
@@ -473,12 +497,51 @@ function WaypointDetails({
             Travel here
           </button>
         )}
-        {!near && <span className="mv-hint360">Travel here, then click the diamond again to view it in 360°</span>}
+        {!near && <span className="mv-hint360">then click the diamond again for 360°</span>}
         {wp.custom && (
           <button className="mv-secondary" onClick={() => onDelete(wp.id)}>
             Delete
           </button>
         )}
+      </div>
+    </>
+  );
+}
+
+/** The hover card for a planet or the Sun: its 360° stop's summary. */
+function PlanetDetails({ hover, near, onStep, onTravel }: { hover: MapHover; near: boolean; onStep: (stop: string) => void; onTravel: () => void }) {
+  const lm = hover.stop ? byId(hover.stop) : null;
+  if (!lm) return null;
+  return (
+    <>
+      <span className="mv-kind">{lm.subtitle}</span>
+      <h2>{lm.title}</h2>
+      <p>{lm.description}</p>
+      <dl>
+        {lm.facts.slice(0, 2).map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+        <div className="wide">
+          <dt>Position today</dt>
+          <dd>
+            Map {fmt(hover.x)}°, {fmt(hover.y)}°
+          </dd>
+        </div>
+      </dl>
+      <div className="mv-wp-actions">
+        {near ? (
+          <button className="mv-primary" onClick={() => onStep(lm.id)}>
+            View in 360° ↗
+          </button>
+        ) : (
+          <button className="mv-primary" onClick={onTravel}>
+            Travel here
+          </button>
+        )}
+        {!near && <span className="mv-hint360">then click it again for 360°</span>}
       </div>
     </>
   );

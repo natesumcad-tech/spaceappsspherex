@@ -41,7 +41,7 @@ A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street 
 - **Performance:** only tiles near the view are drawn (at most 96, plus fog in the distance), with less detail when zoomed out, and nothing redraws unless something changes.
 - **Minimap:** shows where you are as a white dotted circle that grows as you zoom out. Drag it to move.
 - **Timeline:** snaps between eight dates from 12,000 BCE to 14,000 CE. The sky shifts with precession (simplified model) and the planets use NASA JPL's approximate orbital elements (only shown within ±3,000 years).
-- **Waypoints (39):** small breathing white diamonds. Hover for a card (description, why it matters, date, coordinates), click to hyperspace there. Shift+G adds your own (saved in your browser; export and import in Settings).
+- **Waypoints (39):** small breathing white diamonds. Hover for a card that pops out of the diamond (description, image date, coordinates); planets have one too. Click to hyperspace there. Shift+G adds your own (saved in your browser; export and import in Settings).
 - **Settings:** the wrench icon picks the IRSA imagery and extra layers, toggles light, constellation lines, names, descriptions, waypoints, planets and the grid, and sets the quality.
 - **Your own images:** list images with coordinates in `public/data/map-images.json` as `{ "src", "ra", "dec", "widthDeg", "heightDeg" }` and they're placed on the map by their RA/Dec, loading only when they come into view.
 

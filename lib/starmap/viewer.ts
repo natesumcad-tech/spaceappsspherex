@@ -35,11 +35,15 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: "auto",
 };
 
+/** What's being hovered on the map; the summary card pops out of it. */
+export type MapHover = { wp?: Waypoint; planet?: string; stop?: string; x: number; y: number };
+
 export type View = { x: number; y: number; d: number; phi: number; theta: number; radius: number; mode: "2d" | "3d"; tiles: number; loading: number };
 
 type Events = {
   onView: (v: View) => void;
-  onWaypointHover: (wp: Waypoint | null) => void;
+  /** Hovering a waypoint diamond or a planet (null when the pointer leaves). */
+  onHover: (h: MapHover | null) => void;
   onTravel: (wp: Waypoint) => void;
   onOverview: (c: HTMLCanvasElement) => void;
   /** A waypoint or planet you're already close to was clicked: open its 360° view. */
@@ -93,6 +97,9 @@ export class StarMapViewer {
   private extraImages = new THREE.Group();
   private overlays: Overlay[] = [];
   private pivot: HTMLDivElement;
+  /** The hover card lives in here; it rides along with whatever you're hovering. */
+  readonly cardHost: HTMLDivElement;
+  private cardAt: { x: number; y: number } | null = null;
   private warp: HTMLCanvasElement;
   private ro: ResizeObserver;
   private cleanup: (() => void)[] = [];
@@ -144,6 +151,10 @@ export class StarMapViewer {
     this.pivot = document.createElement("div");
     this.pivot.className = "mv-pivot";
     overlayLayer.appendChild(this.pivot);
+    this.cardHost = document.createElement("div");
+    this.cardHost.className = "mv-cardhost";
+    this.cardHost.style.display = "none";
+    overlayLayer.appendChild(this.cardHost);
     this.warp = document.createElement("canvas");
     this.warp.className = "mv-warp";
     this.warp.style.display = "none";
@@ -348,12 +359,30 @@ export class StarMapViewer {
         const el = this.addOverlay("planet", p.name, x, y, {});
         el.style.setProperty("--pc", p.color);
         const stop = PLANET_STOPS[p.name];
-        if (stop) this.makeEnterable(el, stop, x, y, 10);
+        if (stop) {
+          this.makeEnterable(el, stop, x, y, 10);
+          el.addEventListener("pointerenter", () => this.hover({ planet: p.name, stop, x, y }, el.offsetWidth));
+          el.addEventListener("pointerleave", () => this.events.onHover(null));
+        }
       }
     this.placeWaypoints();
   }
 
   /** Street View style: the first click flies you there; once you've arrived, a second click steps inside. */
+  /** `width`: how far the hovered label reaches to the right, so the card opens just past it. */
+  private hover(h: MapHover, width = 0) {
+    this.cardAt = { x: h.x, y: h.y };
+    this.cardHost.style.setProperty("--off", `${Math.max(18, width + 4)}px`);
+    this.events.onHover(h);
+    this.invalidate();
+  }
+
+  /** Hide the hover card (the page calls this once the card has closed). */
+  clearCard() {
+    this.cardAt = null;
+    this.cardHost.style.display = "none";
+  }
+
   private makeEnterable(el: HTMLElement, stop: string, x: number, y: number, flyD: number) {
     const o = this.overlays[this.overlays.length - 1];
     o.stop = stop;
@@ -393,10 +422,10 @@ export class StarMapViewer {
       el.setAttribute("aria-label", `Waypoint: ${wp.title}`);
       if (wp.color) el.style.setProperty("--wc", wp.color);
       el.style.display = "none";
-      el.addEventListener("pointerenter", () => this.events.onWaypointHover(wp));
-      el.addEventListener("pointerleave", () => this.events.onWaypointHover(null));
-      el.addEventListener("focus", () => this.events.onWaypointHover(wp));
-      el.addEventListener("blur", () => this.events.onWaypointHover(null));
+      el.addEventListener("pointerenter", () => this.hover({ wp, stop: waypointStop(wp), x, y }));
+      el.addEventListener("pointerleave", () => this.events.onHover(null));
+      el.addEventListener("focus", () => this.hover({ wp, stop: waypointStop(wp), x, y }));
+      el.addEventListener("blur", () => this.events.onHover(null));
       el.addEventListener("pointerdown", (e) => e.stopPropagation());
       // Street View style: the first click flies you there, a second click (once you've arrived) steps inside.
       el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.travelTo(wp)));
@@ -808,6 +837,18 @@ export class StarMapViewer {
       o.el.style.display = "";
       o.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
       o.el.style.opacity = String(clamp(1 - (dist - R * 0.6) / (R * 0.4), 0, 1)); // fade with the fog
+    }
+    // The hover card follows the thing it describes, opening away from the screen edges
+    if (this.cardAt) {
+      v.set(this.cardAt.x, 0, -this.cardAt.y).project(this.camera);
+      const on = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
+      this.cardHost.style.display = on ? "" : "none";
+      if (on) {
+        const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
+        this.cardHost.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        this.cardHost.classList.toggle("flip", x > w - 360);
+        this.cardHost.classList.toggle("up", y > h - 470); // leave room for the timeline
+      }
     }
     // Green pivot dot while orbiting
     if (this.drag?.mode === "orbit") {

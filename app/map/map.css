@@ -447,3 +447,69 @@
 .mv-timeline .mv-tl { padding: 12px 6px 22px; }
 .mv-timeline.closed { width: auto; min-width: 240px; }
 .mv-minicard.closed { width: auto; min-width: 200px; }
+
+/* Hover card that pops out of the diamond or planet you're pointing at */
+.mv-cardhost { position: absolute; left: 0; top: 0; z-index: 6; will-change: transform; }
+.mv-pop {
+  position: absolute;
+  left: var(--off, 18px);
+  top: -22px;
+  width: 300px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 18px 44px -14px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  pointer-events: auto;
+  transform-origin: 0 22px;
+  animation: mv-pop-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.mv-pop::before { /* bridge across the gap so moving onto the card doesn't close it */
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -20px;
+  width: 20px;
+  height: 48px;
+}
+.mv-cardhost.flip .mv-pop { left: auto; right: 18px; transform-origin: 100% 22px; }
+.mv-cardhost.flip .mv-pop::before { left: auto; right: -20px; }
+.mv-cardhost.up .mv-pop { top: auto; bottom: -22px; transform-origin: 0 calc(100% - 22px); }
+.mv-cardhost.up.flip .mv-pop { transform-origin: 100% calc(100% - 22px); }
+.mv-cardhost.up .mv-pop::before { top: auto; bottom: 0; }
+@keyframes mv-pop-in {
+  from { opacity: 0; transform: scale(0.6); clip-path: inset(0 100% 70% 0 round 16px); }
+  to { opacity: 1; transform: scale(1); clip-path: inset(0 0 0 0 round 16px); }
+}
+.mv-cardhost.flip .mv-pop { animation-name: mv-pop-in-flip; }
+@keyframes mv-pop-in-flip {
+  from { opacity: 0; transform: scale(0.6); clip-path: inset(0 0 70% 100% round 16px); }
+  to { opacity: 1; transform: scale(1); clip-path: inset(0 0 0 0 round 16px); }
+}
+.mv-pop h2 { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 1.25rem; line-height: 1.15; margin: 6px 0 4px; color: var(--text); }
+.mv-pop p { font-size: 0.8rem; line-height: 1.45; color: var(--muted); margin: 0 0 6px; }
+.mv-pop .mv-sig { display: none; } /* kept short on the map; the 360° view has the full story */
+.mv-pop dl { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 8px 0 0; }
+.mv-pop dl div { background: #f6f4ff; border-radius: 8px; padding: 5px 8px; }
+.mv-pop dl div.wide { grid-column: 1 / -1; }
+.mv-pop dt { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.mv-pop dd { margin: 0; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.74rem; font-weight: 600; }
+.mv-pop .mv-wp-actions { margin-top: 10px; gap: 6px; align-items: center; }
+.mv-pop .mv-primary, .mv-pop .mv-secondary { padding: 6px 12px; font-size: 0.78rem; }
+.mv-pop .mv-hint360 { flex: 1 1 100px; font-size: 0.68rem; }
+@media (prefers-reduced-motion: reduce) { .mv-pop { animation: none; } }
+
+/* A smaller timeline by default */
+.mv-timeline { width: min(620px, calc(100vw - 28px)) !important; padding: 8px 16px 6px !important; border-radius: 16px !important; }
+.mv-tl-head { gap: 10px; }
+.mv-tl-head strong { font-size: 0.98rem !important; }
+.mv-tl-note { font-size: 0.74rem !important; margin-top: 2px !important; }
+.mv-timeline .mv-tl { padding: 10px 28px 18px !important; }
+.mv-tl-handle { width: 18px !important; height: 18px !important; margin: -9px 0 0 -9px !important; border-width: 2.5px !important; }
+.mv-tl-mark span { font-size: 0.56rem !important; top: 12px !important; }
+@media (min-width: 761px) {
+  .mv-zoom { bottom: 112px !important; }
+  .mv-help { bottom: 112px !important; }
+}
