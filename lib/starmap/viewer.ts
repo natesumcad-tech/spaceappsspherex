@@ -528,7 +528,7 @@ export class StarMapViewer {
     this.reticlePos = { x, y };
     this.reticle.className = "mv-reticle";
     this.reticle.innerHTML = `<span class="mv-reticle-ring"></span>${label ? `<span class="mv-reticle-label">${label}</span>` : ""}`;
-    if (!this.reticle.parentElement) this.overlay.appendChild(this.reticle);
+    if (!this.reticle.parentElement) this.pivot.parentElement?.appendChild(this.reticle);
     this.dirty = true;
   }
 
