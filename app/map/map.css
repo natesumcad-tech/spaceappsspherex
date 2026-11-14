@@ -57,7 +57,6 @@
 .mv-planet { display: flex; align-items: center; gap: 5px; translate: -6px -50%; font-size: 12px; font-weight: 600; color: #fff; text-shadow: 0 0 4px #0b1030; }
 .mv-planet.link { pointer-events: auto; cursor: pointer; padding: 2px 8px 2px 4px; border-radius: 999px; }
 .mv-planet.link:hover { background: rgba(255, 255, 255, 0.92); color: #262a52; text-shadow: none; }
-.mv-planet.link span::after { content: " ↗"; opacity: 0.8; }
 .mv-planet i { width: 10px; height: 10px; border-radius: 50%; background: var(--pc, #fff); box-shadow: 0 0 10px var(--pc, #fff); }
 .mv-pivot {
   position: absolute;
@@ -378,3 +377,53 @@
 .mv-sphere { position: fixed; inset: 0; z-index: 40; animation: mv-sphere-in 0.45s ease both; }
 .mv-sphere.closing { opacity: 0; transition: opacity 0.35s ease; }
 @keyframes mv-sphere-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Arrived: the diamond grows, glows and offers the 360° view (Street View style) */
+.mv-360 {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%) translateY(-4px);
+  white-space: nowrap;
+  font: 600 0.72rem/1 var(--font-body), system-ui, sans-serif;
+  font-style: normal;
+  color: #262a52;
+  background: #fff;
+  border-radius: 999px;
+  padding: 5px 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.mv-360::before { content: "◎ "; color: #6f7dff; }
+.mv-wp.near { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+.mv-wp.near i {
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  background: var(--wc, #fff);
+  border-width: 2px;
+  animation: mv-near 1.6s ease-in-out infinite;
+}
+.mv-wp.near::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  transform: rotate(45deg) scale(0.75);
+  animation: mv-ring 1.6s ease-out infinite;
+}
+.mv-wp.near .mv-360, .mv-planet.link.near .mv-360 { opacity: 1; transform: translateX(-50%); }
+.mv-wp.near:hover i { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.25), 0 0 34px #fff; }
+@keyframes mv-near {
+  0%, 100% { transform: rotate(45deg) scale(1); box-shadow: 0 0 14px rgba(255, 255, 255, 0.7); }
+  50% { transform: rotate(45deg) scale(1.08); box-shadow: 0 0 30px #fff; }
+}
+@keyframes mv-ring { from { transform: rotate(45deg) scale(0.75); opacity: 0.9; } to { transform: rotate(45deg) scale(1.6); opacity: 0; } }
+.mv-planet.link { position: absolute; }
+.mv-planet.link.near { background: #fff; color: #262a52; text-shadow: none; box-shadow: 0 0 24px rgba(255, 255, 255, 0.7); }
+.mv-planet.link.near i { transform: scale(1.5); }
+.mv-planet.link .mv-360 { top: calc(100% + 6px); }
+.mv-hint360 { font-size: 0.74rem; color: var(--muted); align-self: center; flex: 1 1 140px; }
+@media (prefers-reduced-motion: reduce) { .mv-wp.near i, .mv-wp.near::before { animation: none; } }

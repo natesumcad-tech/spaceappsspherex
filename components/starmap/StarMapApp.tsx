@@ -58,6 +58,7 @@ export default function StarMapApp() {
   const [help, setHelp] = useState(true);
   const [sphere, setSphere] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [nearStop, setNearStop] = useState<string | null>(null);
   const sphereRef = useRef<string | null>(null);
   sphereRef.current = sphere;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,19 +116,6 @@ export default function StarMapApp() {
     }, 350);
   }, []);
 
-  /** The Sphere tab: step into whichever landmark is nearest the middle of the view. */
-  const nearestStop = () => {
-    const v = viewRef.current, viewer = viewerRef.current;
-    if (!v || !viewer) return "night-sky";
-    let best = "night-sky", bd = Infinity;
-    for (const wp of PRESET_WAYPOINTS) {
-      if (!wp.stop) continue;
-      const [x, y] = viewer.project(wp.ra, wp.dec);
-      const d = Math.hypot(x - v.x, y - v.y);
-      if (d < bd) [bd, best] = [d, wp.stop];
-    }
-    return best;
-  };
 
   // Load settings & custom waypoints saved in this browser
   useEffect(() => {
@@ -179,7 +167,8 @@ export default function StarMapApp() {
             setTimeout(() => setTravel(null), 1800);
           },
           onOverview: (c) => minimapRef.current?.setImage(c),
-          onPlanet: (stop) => enterRef.current(stop),
+          onEnter: (stop) => enterRef.current(stop),
+          onNear: setNearStop,
         });
         viewerRef.current = viewer;
         viewer.invalidate();
@@ -275,9 +264,6 @@ export default function StarMapApp() {
           >
             3D
           </button>
-          <button role="tab" aria-selected={!!sphere} onClick={() => !sphere && enterSphere(nearestStop())} title="Step inside the nearest landmark">
-            Sphere
-          </button>
         </div>
       </div>
 
@@ -338,6 +324,7 @@ export default function StarMapApp() {
             <li><b>Orbit</b> <kbd>Shift</kbd> + middle-drag · right-drag · <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
             <li><b>Zoom</b> scroll · <kbd>Z</kbd><kbd>X</kbd></li>
             <li><b>2D / 3D</b> <kbd>T</kbd> · tilt near flat to snap to 2D</li>
+            <li><b>360° view</b> click a diamond to fly there, then click it again</li>
             <li><b>Waypoint</b> <kbd>Shift</kbd>+<kbd>G</kbd> · <b>Home</b> <kbd>H</kbd></li>
           </ul>
         )}
@@ -354,6 +341,7 @@ export default function StarMapApp() {
           <WaypointDetails
             wp={hover}
             viewer={viewerRef.current}
+            near={!!hover.stop && hover.stop === nearStop}
             onStep={enterSphere}
             imaged={`${layerById(settings.layer).name}: ${layerById(settings.layer).observed}`}
             onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))}
@@ -415,12 +403,14 @@ function WaypointDetails({
   wp,
   viewer,
   imaged,
+  near,
   onStep,
   onDelete,
 }: {
   wp: Waypoint;
   viewer: StarMapViewer | null;
   imaged: string;
+  near: boolean;
   onStep: (stop: string) => void;
   onDelete: (id: string) => void;
 }) {
@@ -461,14 +451,16 @@ function WaypointDetails({
         </div>
       </dl>
       <div className="mv-wp-actions">
-        <button className="mv-primary" onClick={() => viewer?.travelTo(wp)}>
-          Travel here
-        </button>
-        {wp.stop && (
-          <button className="mv-secondary" onClick={() => onStep(wp.stop!)}>
-            Step inside ↗
+        {near ? (
+          <button className="mv-primary" onClick={() => onStep(wp.stop!)}>
+            View in 360° ↗
+          </button>
+        ) : (
+          <button className="mv-primary" onClick={() => viewer?.travelTo(wp)}>
+            Travel here
           </button>
         )}
+        {wp.stop && !near && <span className="mv-hint360">Travel here, then click the diamond again to view it in 360°</span>}
         {wp.custom && (
           <button className="mv-secondary" onClick={() => onDelete(wp.id)}>
             Delete

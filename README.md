@@ -25,7 +25,7 @@ Every push to GitHub redeploys the site automatically.
 
 ## Sky Explorer (`/map`)
 
-One page with three views: **2D** and **3D** (a Google Maps-style map of the whole sky) and **Sphere** (step inside a landmark in 360°). Switch with the 2D / 3D / Sphere control at the top left. `/explore` and `?stop=` links open the matching sphere.
+A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street View-style 360° views of landmarks: click a diamond to fly there, and once you've arrived it grows and glows with **View in 360°**; click it again to step inside. `/explore` and `?stop=` links open the matching sphere.
 
 - **Camera (Fusion 360 style):** middle-drag pans, Shift + middle-drag orbits (a green dot marks the pivot), the scroll wheel zooms toward the cursor. Left-drag also pans and right-drag also orbits. Keyboard: WASD/arrows pan, Q/E turn, R/F tilt, Z/X zoom, T toggles 2D/3D, H returns to the origin.
 - **2D snap:** let go of an orbit within about 12° of straight down and it snaps to the flat 2D view. Tilt stops at 72° so you can't go under the baseplate. The map's edges dissolve into the black void, with no border.
@@ -52,7 +52,7 @@ One page with three views: **2D** and **3D** (a Google Maps-style map of the who
 
 ### Sphere view
 
-A "Street View for space": 14 stops you can step inside, each a 360° sphere. Open one with **Step inside** on a waypoint card, by clicking Mars, Jupiter or Saturn on the map, with the Sphere tab (nearest landmark), or from the sphere's stop list. Esc, 2D or 3D returns to the map at the same spot.
+A "Street View for space": 14 stops you can step inside, each a 360° sphere. Open one by clicking a waypoint diamond (or Mars, Jupiter, Saturn) twice: the first click flies you there, the second steps inside. The waypoint card's **View in 360°** button does the same once you've arrived, and the sphere's stop list jumps between stops. Esc, 2D or 3D returns to the map at the same spot.
 
 - **Sphere view:** drag to look around, scroll or pinch to zoom, Prev/Next to walk the route, Esc for the map.
 - **WASD:** fly around planets, stars and the galaxy (Q/E down/up, Shift faster, R reset). In sky-only stops WASD looks around.

@@ -41,15 +41,20 @@ type Events = {
   onWaypointHover: (wp: Waypoint | null) => void;
   onTravel: (wp: Waypoint) => void;
   onOverview: (c: HTMLCanvasElement) => void;
-  /** Mars, Jupiter or Saturn was clicked: open its sphere. */
-  onPlanet: (stop: string) => void;
+  /** A waypoint or planet you're already close to was clicked: open its 360° view. */
+  onEnter: (stop: string) => void;
+  /** The landmark you're close enough to step into changed (null = none). */
+  onNear: (stop: string | null) => void;
 };
+
+/** How close (camera distance, and offset from the centre of the view) counts as "arrived". */
+const NEAR_D = 22;
 
 const PLANET_STOPS: Record<string, string> = { Mars: "mars", Jupiter: "jupiter", Saturn: "saturn" };
 
 type TileEntry = { mesh: THREE.Mesh; tex: THREE.DataTexture | null; px: number; version: string; used: number; L: number; retryAt?: number };
 type Tween = { start: number; ms: number; step: (t: number) => void; done?: () => void };
-type Overlay = { el: HTMLElement; x: number; y: number; kind: "con" | "star" | "planet" | "wp"; minD?: number; maxD?: number; wp?: Waypoint };
+type Overlay = { el: HTMLElement; x: number; y: number; kind: "con" | "star" | "planet" | "wp"; minD?: number; maxD?: number; wp?: Waypoint; stop?: string };
 
 const ROOT = 30; // level-0 tile size in degrees (12 × 6 tiles)
 const LMAX = 8; // deepest level: 30 / 2⁸ ≈ 0.12° tiles, so zooming in stays sharp
@@ -332,9 +337,12 @@ export class StarMapViewer {
         el.style.setProperty("--pc", p.color);
         const stop = PLANET_STOPS[p.name];
         if (stop) {
+          const o = this.overlays[this.overlays.length - 1];
+          o.stop = stop;
           el.classList.add("link");
-          el.title = `Step inside ${p.name}`;
-          el.addEventListener("click", () => this.events.onPlanet(stop));
+          el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
+          // First click flies you to the planet; once you're there, click again to step inside.
+          el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.flyTo(x, y, 10, false)));
         }
       }
     this.placeWaypoints();
@@ -365,6 +373,7 @@ export class StarMapViewer {
       const el = document.createElement("button");
       el.className = `mv-ov mv-wp${wp.custom ? " custom" : ""}`;
       el.appendChild(document.createElement("i")); // the diamond itself (the button carries the screen position)
+      if (wp.stop) el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
       el.setAttribute("aria-label", `Waypoint: ${wp.title}`);
       if (wp.color) el.style.setProperty("--wc", wp.color);
       el.style.display = "none";
@@ -373,9 +382,10 @@ export class StarMapViewer {
       el.addEventListener("focus", () => this.events.onWaypointHover(wp));
       el.addEventListener("blur", () => this.events.onWaypointHover(null));
       el.addEventListener("pointerdown", (e) => e.stopPropagation());
-      el.addEventListener("click", () => this.travelTo(wp));
+      // Street View style: the first click flies you there, a second click (once you've arrived) steps inside.
+      el.addEventListener("click", () => (wp.stop && el.classList.contains("near") ? this.events.onEnter(wp.stop) : this.travelTo(wp)));
       this.overlayLayer.appendChild(el);
-      this.overlays.push({ el, x, y, kind: "wp", wp });
+      this.overlays.push({ el, x, y, kind: "wp", wp, stop: wp.stop });
     }
     this.invalidate();
   }
@@ -740,12 +750,30 @@ export class StarMapViewer {
 
   // ───────────────────────── Overlays ─────────────────────────
 
+  private nearStop: string | null = null;
+
   private updateOverlays() {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     const R = this.renderRadius;
     const v = new THREE.Vector3();
     const s = this.settings;
+
+    // Which landmark (if any) have you arrived at? Zoomed in, and it's near the middle of the view.
+    let near: Overlay | null = null, nd = Infinity;
+    if (this.d <= NEAR_D)
+      for (const o of this.overlays) {
+        if (!o.stop || (o.kind === "wp" && !s.waypoints) || (o.kind === "planet" && !(s.planets && s.names))) continue;
+        const dd = Math.hypot(o.x - this.target.x, o.y - this.target.y);
+        if (dd <= Math.max(1.2, this.d * 0.14) && dd < nd) [near, nd] = [o, dd];
+      }
+    const nearStop = near?.stop ?? null;
+    if (nearStop !== this.nearStop) {
+      this.nearStop = nearStop;
+      this.events.onNear(nearStop);
+    }
+
     for (const o of this.overlays) {
+      if (o.stop) o.el.classList.toggle("near", o === near);
       let show =
         o.kind === "wp" ? s.waypoints : o.kind === "planet" ? s.planets && s.names : s.names && this.d <= (o.maxD ?? D_MAX) && this.d >= (o.minD ?? 0);
       const dist = Math.hypot(o.x - this.target.x, o.y - this.target.y);
