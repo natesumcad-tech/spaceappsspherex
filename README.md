@@ -37,7 +37,7 @@ A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street 
 - **Performance:** only tiles near the view are drawn (at most 96, plus fog in the distance), with less detail when zoomed out, and nothing redraws unless something changes.
 - **Minimap:** shows where you are as a white dotted circle that grows as you zoom out. Drag it to move.
 - **Timeline:** snaps between eight dates from 12,000 BCE to 14,000 CE. The sky shifts with precession (simplified model) and the planets use NASA JPL's approximate orbital elements (only shown within ±3,000 years).
-- **Waypoints:** small breathing white diamonds. Hover for a card (description, why it matters, date, coordinates), click to hyperspace there. Shift+G adds your own (saved in your browser; export and import in Settings).
+- **Waypoints (39):** small breathing white diamonds. Hover for a card (description, why it matters, date, coordinates), click to hyperspace there. Shift+G adds your own (saved in your browser; export and import in Settings).
 - **Settings:** the wrench icon picks the IRSA imagery and extra layers, toggles light, constellation lines, names, descriptions, waypoints, planets and the grid, and sets the quality.
 - **Your own images:** list images with coordinates in `public/data/map-images.json` as `{ "src", "ra", "dec", "widthDeg", "heightDeg" }` and they're placed on the map by their RA/Dec, loading only when they come into view.
 
@@ -51,6 +51,8 @@ A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street 
 | `components/starmap/StarMapApp.tsx` | Page UI: minimap, timeline, settings, waypoint panels |
 
 ### 360° views
+
+**Moving around:** every view has a movement panel. **Look** turns you on the spot (drag the ring to turn, tilt and zoom sliders). **Orbit** circles the object: drag the ring to go around, with height and distance sliders (or A/D around, W/S closer/farther, Q/E lower/higher). **Free fly** moves you with WASD. Constellations are built in real 3D from star distances (HYG database v4.1, CC BY-SA 4.0), so from the Sun they look like the familiar figure, and from the side they come apart.
 
 Views without a hand-made tour stop are generated on the fly (`lib/explorer/dynamic.ts`): deep-sky waypoints and constellations wrap the real SPHEREx DR1 image of that patch of sky into the sphere (rendered from IRSA tiles in a background worker), stars become a body you can fly around colored by temperature, and the Sun, Mercury, Venus, Uranus and Neptune have their own 3D views.
 
@@ -71,4 +73,4 @@ A "Street View for space": 14 stops you can step inside, each a 360° sphere. Op
 | `lib/explorer/textures.ts` | Procedural planet, star and badge textures |
 | `lib/explorer/astro.ts` | Sky coordinate maths and star colors |
 | `components/explorer/Explorer.tsx` | The sphere view, shown over the map page |
-| `scripts/build-sky-data.mjs` | Rebuilds `public/data/sky.json` from the star catalogue (`npm run build:sky`) |
+| `scripts/build-sky-data.mjs` | Rebuilds `public/data/sky.json` from the star catalogue (`HYG_CSV=path/to/hygdata_v41.csv npm run build:sky` to include distances) |

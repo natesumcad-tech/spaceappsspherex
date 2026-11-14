@@ -412,3 +412,43 @@ kbd {
   .xp-zoom { top: 124px; }
 }
 .xp-credit { font-size: 0.74rem !important; color: var(--faint) !important; }
+
+/* Movement controls: mode switch, orbit ring, sliders */
+.xp-move {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 3;
+  width: 280px;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+.xp-move-seg { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #f3f0ff; }
+.xp-move-seg button { flex: 1; font: inherit; font-size: 0.8rem; font-weight: 600; border: 0; background: transparent; color: var(--muted); padding: 6px 4px; border-radius: 8px; cursor: pointer; }
+.xp-move-seg button[aria-checked="true"] { background: #fff; color: var(--text); box-shadow: 0 2px 8px rgba(60, 50, 140, 0.15); }
+.xp-ring-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.xp-ring { width: 112px; height: 112px; flex: none; touch-action: none; cursor: grab; outline: none; }
+.xp-ring:active { cursor: grabbing; }
+.xp-ring-track { fill: #f6f4ff; stroke: #ddd5ff; stroke-width: 10; }
+.xp-ring-tick { stroke: #c9c2ff; stroke-width: 1.2; }
+.xp-ring-core { fill: #fff; stroke: #c9c2ff; stroke-width: 2; }
+.xp-ring-arm { stroke: #c9c2ff; stroke-width: 2; stroke-dasharray: 3 3; }
+.xp-ring-knob { fill: #fff; stroke: var(--accent); stroke-width: 3; filter: drop-shadow(0 2px 4px rgba(111, 125, 255, 0.45)); }
+.xp-ring.on .xp-ring-knob { fill: var(--accent); }
+.xp-ring:focus-visible .xp-ring-track { stroke: var(--accent); }
+.xp-sliders { flex: 1; display: grid; gap: 10px; }
+.xp-sliders label { display: grid; gap: 2px; font-size: 0.72rem; font-weight: 600; color: var(--muted); }
+.xp-sliders input { width: 100%; accent-color: var(--accent); }
+.xp-move-note { margin: 10px 0 0; font-size: 0.76rem; line-height: 1.4; color: var(--muted); }
+.lbl-3d { font-size: 12px; font-weight: 600; color: #fff; margin-top: 14px; }
+.lbl-con.lbl-link { background: transparent; border-color: transparent; box-shadow: none; color: rgba(196, 204, 255, 0.85); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 6px; }
+.lbl-con.lbl-link:hover { background: rgba(255, 255, 255, 0.92); color: #262a52; }
+@media (max-width: 799px) {
+  .xp-move { left: 8px; right: 8px; width: auto; bottom: calc(46% + 16px); padding: 8px; }
+  .xp-ring { width: 84px; height: 84px; }
+  .xp-move-note { display: none; }
+}

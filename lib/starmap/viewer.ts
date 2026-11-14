@@ -6,9 +6,9 @@ import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynami
 import type { Waypoint } from "./data";
 
 export type Settings = {
-  /** Base imagery: the SPHEREx DR1 cube or 2MASS colour. */
+  /** Base imagery: the SPHEREx DR1 cube or 2MASS color. */
   layer: "spherex" | "2mass";
-  /** SPHEREx frame (0–101) for a single wavelength, or -1 for the three-colour view. */
+  /** SPHEREx frame (0–101) for a single wavelength, or -1 for the three-color view. */
   band: number;
   /** Extra IRSA surveys drawn on top where they have data. */
   overlays: string[];
@@ -48,7 +48,7 @@ type Events = {
   onNear: (stop: string | null) => void;
 };
 
-/** How close (camera distance, and offset from the centre of the view) counts as "arrived". */
+/** How close (camera distance, and offset from the center of the view) counts as "arrived". */
 const NEAR_D = 22;
 
 const PLANET_STOPS: Record<string, string> = {
@@ -332,8 +332,8 @@ export class StarMapViewer {
     this.overlays = this.overlays.filter((o) => o.kind === "wp");
     for (const c of this.sky.constellations) {
       const [x, y] = proj(c.center[0], c.center[1]);
-      const el = this.addOverlay("con", c.names.en, x, y, { maxD: c.rank === 1 ? D_MAX : c.rank === 2 ? 150 : 80 });
-      this.makeEnterable(el, constellationStop(c), x, y, 20);
+      const el = this.addOverlay("con", c.names.en, x, y, { maxD: c.rank <= 2 ? D_MAX : 160 });
+      this.makeEnterable(el, constellationStop(this.sky, c), x, y, 20);
     }
     for (const s of this.sky.named) {
       const [ra, dec, mag] = this.sky.stars[s.i];
@@ -460,7 +460,7 @@ export class StarMapViewer {
     this.invalidate();
   }
 
-  /** The point on the map under the mouse (or the centre of the view). */
+  /** The point on the map under the mouse (or the center of the view). */
   pointOfInterest() {
     return (this.cursor ?? this.target).clone();
   }

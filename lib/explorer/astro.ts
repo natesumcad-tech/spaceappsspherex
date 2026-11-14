@@ -42,7 +42,7 @@ export function galacticToRaDec(lDeg: number, bDeg: number) {
   return { ra, dec };
 }
 
-/** B−V colour index → effective temperature (Ballesteros 2012). */
+/** B−V color index → effective temperature (Ballesteros 2012). */
 export function bvToKelvin(bv: number) {
   return 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62));
 }
@@ -65,7 +65,7 @@ export function kelvinToRGB(k: number): [number, number, number] {
 }
 
 export type SkyData = {
-  stars: [number, number, number, number][]; // ra, dec, mag, bv
+  stars: [number, number, number, number, number][]; // ra, dec, mag, bv, distance in parsecs (0 = unknown)
   named: { hip: number; i: number; con: string; names: Record<string, string> }[];
   constellations: {
     id: string;
@@ -77,7 +77,7 @@ export type SkyData = {
 };
 
 /**
- * A constellation's stick figure flattened onto a plane (gnomonic projection around its centre),
+ * A constellation's stick figure flattened onto a plane (gnomonic projection around its center),
  * oriented as it looks in the sky (east left, north up) and scaled to fit in [-1, 1].
  */
 export function constellationFigure(con: SkyData["constellations"][number]) {

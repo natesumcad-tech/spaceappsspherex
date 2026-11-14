@@ -508,7 +508,7 @@ function AddWaypoint({ at, toRadec, onCancel, onSave }: { at: { x: number; y: nu
       </p>
       <label>
         Name
-        <input ref={first} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. My favourite star" required maxLength={60} />
+        <input ref={first} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. My favorite star" required maxLength={60} />
       </label>
       <label>
         Type
@@ -920,7 +920,7 @@ function SettingsWindow({
           <h3>About the data</h3>
           <p className="mv-note">
             The map is SPHEREx Data Release 1 (NASA/JPL-Caltech, served by IRSA), streamed as HiPS tiles and laid onto a grid by RA/Dec starting from the
-            origin (RA 0h, Dec 0°). Very bright cores that DR1 leaves blank (saturated pixels) are shown as white. Constellation lines and names come from the Hipparcos-based d3-celestial catalogue. The timeline shifts the sky by
+            origin (RA 0h, Dec 0°). Very bright cores that DR1 leaves blank (saturated pixels) are shown as white. Constellation lines and names come from the Hipparcos-based d3-celestial catalogue; star distances for the 3D constellations come from the HYG database v4.1 (CC BY-SA 4.0). The timeline shifts the sky by
             precession (a simplified model), and planets use NASA JPL&apos;s approximate orbital elements.
           </p>
         </section>

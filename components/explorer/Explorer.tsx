@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LANDMARKS, SECTIONS, byId } from "@/lib/explorer/landmarks";
-import type { SkyEngine } from "@/lib/explorer/engine";
+import type { NavMode, NavState, SkyEngine } from "@/lib/explorer/engine";
 import type { SkyData } from "@/lib/explorer/astro";
 
 const LANGS = [
@@ -14,7 +14,6 @@ const LANGS = [
   ["ar", "العربية"],
 ] as const;
 
-const FLY_KINDS = ["orbit", "planet", "star", "galaxy"];
 
 /**
  * The 360° sphere view, shown inside the Star Map page. The parent owns which stop is open
@@ -38,6 +37,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
   const [showLines, setShowLines] = useState(true);
   const [lang, setLang] = useState("en");
   const [toast, setToast] = useState<string | null>(null);
+  const [nav, setNav] = useState<NavState | null>(null);
 
   // Start the engine once
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
           fetch("/data/sky.json").then((r) => r.json() as Promise<SkyData>),
         ]);
         if (cancelled) return;
-        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onNavigate: (id) => onStopRef.current(id) });
+        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onNavigate: (id) => onStopRef.current(id), onNav: setNav });
         engineRef.current = engine;
         engine.init(data);
         setReady(true);
@@ -111,7 +111,6 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
   const idx = current ? LANDMARKS.indexOf(current) : -1;
   const prev = idx >= 0 ? LANDMARKS[(idx - 1 + LANDMARKS.length) % LANDMARKS.length] : null;
   const next = idx >= 0 ? LANDMARKS[(idx + 1) % LANDMARKS.length] : null;
-  const canFly = !!current && FLY_KINDS.includes(current.kind);
 
   const exportPng = async () => {
     if (!current) return;
@@ -224,13 +223,20 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
               </button>
             </section>
             <div className="xp-hint top">
-              {canFly ? (
+              {nav?.mode === "orbit" ? (
+                <>
+                  Drag or <kbd>A</kbd>
+                  <kbd>D</kbd> to go around · <kbd>W</kbd>
+                  <kbd>S</kbd> closer/farther · <kbd>Q</kbd>
+                  <kbd>E</kbd> lower/higher · scroll to zoom
+                </>
+              ) : nav?.mode === "fly" ? (
                 <>
                   <kbd>W</kbd>
                   <kbd>A</kbd>
                   <kbd>S</kbd>
                   <kbd>D</kbd> fly · <kbd>Q</kbd>
-                  <kbd>E</kbd> down/up · <kbd>Shift</kbd> faster · <kbd>R</kbd> reset · drag to look
+                  <kbd>E</kbd> down/up · <kbd>Shift</kbd> faster · drag to look · <kbd>R</kbd> back to start
                 </>
               ) : (
                 <>
@@ -241,6 +247,9 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
                 </>
               )}
             </div>
+            {nav && (
+              <MoveControls nav={nav} engine={engineRef.current} constellation={current.kind === "constellation"} />
+            )}
             <div className="xp-zoom">
               <button onClick={() => engineRef.current?.zoom(0.8)} aria-label="Zoom in">
                 +
@@ -253,6 +262,122 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
         )}
         {toast && <div className="xp-toast">{toast}</div>}
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────── Movement controls ─────────────────────────
+
+const MODES: [NavMode, string][] = [
+  ["look", "Look"],
+  ["orbit", "Orbit"],
+  ["fly", "Free fly"],
+];
+
+/**
+ * Mode switch, plus a ring and two sliders. In Orbit they travel around the object (ring = around,
+ * height, distance); in Look and Free fly they turn you on the spot (ring = heading, height = tilt, zoom).
+ */
+function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: SkyEngine | null; constellation: boolean }) {
+  const ring = useRef<SVGSVGElement>(null);
+  const dragging = useRef(false);
+  const R = 50;
+  // Wherever there's something to go around, the ring travels around it (switching to Orbit);
+  // otherwise (and in Free fly) it turns you on the spot.
+  const orbiting = nav.canOrbit && nav.mode !== "fly";
+  const toAz = (e: React.PointerEvent) => {
+    const r = ring.current!.getBoundingClientRect();
+    return Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2)));
+  };
+  // Clockwise on the ring = turn right, which is a smaller yaw
+  const setRing = (a: number) => (orbiting ? engine?.setOrbit({ az: a }) : engine?.setLook({ yaw: -a }));
+  // Distance / zoom sliders are logarithmic
+  const logR = (r: number) => Math.log(r / nav.rMin) / Math.log(nav.rMax / nav.rMin);
+  const logF = (f: number) => 1 - Math.log(f / nav.fovMin) / Math.log(100 / nav.fovMin);
+  const az = orbiting ? nav.az : -nav.yaw;
+  const kx = 60 + Math.sin(az) * R, ky = 60 - Math.cos(az) * R;
+  return (
+    <div className="xp-move">
+      <div className="xp-move-seg" role="radiogroup" aria-label="How to move">
+        {MODES.filter(([m]) => m === "look" || (m === "orbit" ? nav.canOrbit : nav.canFly)).map(([m, label]) => (
+          <button key={m} role="radio" aria-checked={nav.mode === m} onClick={() => engine?.setNavMode(m)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {(
+        <div className="xp-ring-row">
+          <svg
+            ref={ring}
+            viewBox="0 0 120 120"
+            className={`xp-ring ${nav.mode === "orbit" ? "on" : ""}`}
+            role="slider"
+            aria-label={orbiting ? "Travel around" : "Turn around"}
+            aria-valuemin={-180}
+            aria-valuemax={180}
+            aria-valuenow={Math.round((az * 180) / Math.PI)}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft") setRing(az - 0.15);
+              if (e.key === "ArrowRight") setRing(az + 0.15);
+            }}
+            onPointerDown={(e) => {
+              (e.target as Element).setPointerCapture(e.pointerId);
+              dragging.current = true;
+              setRing(toAz(e));
+            }}
+            onPointerMove={(e) => dragging.current && setRing(toAz(e))}
+            onPointerUp={() => (dragging.current = false)}
+            onPointerCancel={() => (dragging.current = false)}
+          >
+            <circle cx="60" cy="60" r={R} className="xp-ring-track" />
+            {Array.from({ length: 24 }, (_, i) => {
+              const a = (i / 24) * Math.PI * 2;
+              return <line key={i} x1={60 + Math.sin(a) * (R - 5)} y1={60 - Math.cos(a) * (R - 5)} x2={60 + Math.sin(a) * (R + 5)} y2={60 - Math.cos(a) * (R + 5)} className="xp-ring-tick" />;
+            })}
+            <circle cx="60" cy="60" r="9" className="xp-ring-core" />
+            <line x1="60" y1="60" x2={kx} y2={ky} className="xp-ring-arm" />
+            <circle cx={kx} cy={ky} r="9" className="xp-ring-knob" />
+          </svg>
+          <div className="xp-sliders">
+            <label>
+              <span>{orbiting ? "Height" : "Tilt"}</span>
+              <input
+                type="range"
+                min={-85}
+                max={85}
+                value={Math.round(((orbiting ? nav.el : nav.pitch) * 180) / Math.PI)}
+                onChange={(e) => {
+                  const v = (+e.target.value * Math.PI) / 180;
+                  if (orbiting) engine?.setOrbit({ el: v });
+                  else engine?.setLook({ pitch: v });
+                }}
+              />
+            </label>
+            <label>
+              <span>{orbiting ? "Distance" : "Zoom"}</span>
+              <input
+                type="range"
+                min={0}
+                max={1000}
+                value={Math.round((orbiting ? logR(nav.r) : logF(nav.fov)) * 1000)}
+                onChange={(e) => {
+                  const t = +e.target.value / 1000;
+                  if (orbiting) engine?.setOrbit({ r: nav.rMin * Math.pow(nav.rMax / nav.rMin, t) });
+                  else engine?.setLook({ fov: nav.fovMin * Math.pow(100 / nav.fovMin, 1 - t) });
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
+      {constellation && (
+        <p className="xp-move-note">
+          {nav.away
+            ? "You've left the Sun: these stars are at their real distances, so the familiar shape has come apart."
+            : "From Earth these stars look like a flat pattern. Orbit or fly away to see their real distances."}
+        </p>
+      )}
     </div>
   );
 }

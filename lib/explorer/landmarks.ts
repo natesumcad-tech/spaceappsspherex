@@ -4,7 +4,8 @@ export type PlanetKind = "earth" | "moon" | "mars" | "jupiter" | "saturn" | "mer
 export type HotspotAnchor =
   | { sky: [number, number] } // RA, Dec (degrees) on the celestial sphere
   | { body: [number, number] } // latitude, longitude (degrees) on the stop's planet or star; spins with it
-  | { anchor: "rings" | "cassini" | "sun" | "companion" | "limb" | "clouds" | "galaxy-centre" | "sun-marker" };
+  /** A named point the view provides: rings, cassini, sun, companion, limb, clouds, galaxy-centre, sun-marker, or fig-<hip> (a star of a 3D constellation). */
+  | { anchor: string };
 
 /** A small diamond marker that expands into an info card on hover. */
 export type Hotspot = { title: string; body: string; at: HotspotAnchor; link?: string };
@@ -18,7 +19,7 @@ export type Landmark = {
   description: string;
   facts: [string, string][];
   spherex: string;
-  /** Initial look direction (RA/Dec, degrees). Constellations use their catalogue centre instead. */
+  /** Initial look direction (RA/Dec, degrees). Constellations use their catalogue center instead. */
   look?: [number, number];
   fov?: number;
   /** Constellation to highlight (IAU abbreviation as in the catalogue). */
@@ -130,9 +131,9 @@ export const LANDMARKS: Landmark[] = [
     section: "Constellations",
     kind: "constellation",
     title: "Scorpius",
-    subtitle: "Constellation · toward the galactic centre",
+    subtitle: "Constellation · toward the galactic center",
     description:
-      "A curling scorpion with the red supergiant Antares as its heart. Scorpius sits along the brightest part of the Milky Way, near the direction of our galaxy's centre.",
+      "A curling scorpion with the red supergiant Antares as its heart. Scorpius sits along the brightest part of the Milky Way, near the direction of our galaxy's center.",
     facts: [
       ["Heart", "Antares (red supergiant)"],
       ["Neighbours", "Sagittarius, Ophiuchus"],
@@ -143,8 +144,8 @@ export const LANDMARKS: Landmark[] = [
     constellation: "Sco",
     fov: 55,
     hotspots: [
-      { title: "Antares", at: { sky: [247.35, -26.43] }, body: "A red supergiant whose name means \"rival of Mars\" because of its red colour." },
-      { title: "Toward the galactic centre", at: { sky: [266.42, -29.0] }, body: "Just east of the scorpion's tail lies the centre of our galaxy, hidden behind thick clouds of dust.", link: "milky-way" },
+      { title: "Antares", at: { sky: [247.35, -26.43] }, body: "A red supergiant whose name means \"rival of Mars\" because of its red color." },
+      { title: "Toward the galactic center", at: { sky: [266.42, -29.0] }, body: "Just east of the scorpion's tail lies the center of our galaxy, hidden behind thick clouds of dust.", link: "milky-way" },
     ],
     patch: { ra: 252, dec: -30, fov: 40 },
   },
@@ -155,7 +156,7 @@ export const LANDMARKS: Landmark[] = [
     title: "Crux, the Southern Cross",
     subtitle: "Constellation · southern sky",
     description:
-      "The smallest of the 88 constellations and one of the most famous. It appears on the flags of Australia, New Zealand, Brazil and others, and helps travellers find south.",
+      "The smallest of the 88 constellations and one of the most famous. It appears on the flags of Australia, New Zealand, Brazil and others, and helps travelers find south.",
     facts: [
       ["Rank by size", "Smallest (88th)"],
       ["Next to", "the Coalsack dark nebula"],
@@ -212,7 +213,7 @@ export const LANDMARKS: Landmark[] = [
     planet: "mars",
     hotspots: [
       { title: "Polar ice cap", at: { body: [82, 0] }, body: "Water ice, topped in winter by a layer of frozen carbon dioxide (dry ice)." },
-      { title: "Red dust", at: { body: [5, 200] }, body: "Iron-rich dust gives Mars its colour: the planet is literally rusty." },
+      { title: "Red dust", at: { body: [5, 200] }, body: "Iron-rich dust gives Mars its color: the planet is literally rusty." },
     ],
   },
   {
@@ -244,7 +245,7 @@ export const LANDMARKS: Landmark[] = [
     title: "Saturn",
     subtitle: "Ringed gas giant · 6th from the Sun",
     description:
-      "Saturn's rings stretch hundreds of thousands of kilometres wide but are mostly only tens of metres thick. They are made largely of chunks of water ice.",
+      "Saturn's rings stretch hundreds of thousands of kilometers wide but are mostly only tens of meters thick. They are made largely of chunks of water ice.",
     facts: [
       ["Diameter", "116,460 km"],
       ["Distance from Sun", "≈ 9.5 AU"],
@@ -336,11 +337,11 @@ export const LANDMARKS: Landmark[] = [
     title: "The Milky Way galaxy",
     subtitle: "Our home galaxy, seen from outside",
     description:
-      "A barred spiral galaxy about 100,000 light-years across, holding hundreds of billions of stars. The Sun sits in a quiet spot about 26,000 light-years from the centre. (Artist's model: no one has seen it from outside.)",
+      "A barred spiral galaxy about 100,000 light-years across, holding hundreds of billions of stars. The Sun sits in a quiet spot about 26,000 light-years from the center. (Artist's model: no one has seen it from outside.)",
     facts: [
       ["Diameter", "≈ 100,000 light-years"],
       ["Stars", "100–400 billion"],
-      ["Sun to centre", "≈ 26,000 light-years"],
+      ["Sun to center", "≈ 26,000 light-years"],
     ],
     spherex:
       "SPHEREx maps hundreds of millions of galaxies beyond our own to build a 3D map of the Universe.",
@@ -348,7 +349,7 @@ export const LANDMARKS: Landmark[] = [
     fov: 70,
     hotspots: [
       { title: "Sagittarius A*", at: { anchor: "galaxy-centre" }, body: "A supermassive black hole at the galaxy's heart, about 4 million times the mass of the Sun." },
-      { title: "The Sun's orbit", at: { anchor: "sun-marker" }, body: "The Sun and its planets take about 230 million years to circle the galactic centre once.", link: "night-sky" },
+      { title: "The Sun's orbit", at: { anchor: "sun-marker" }, body: "The Sun and its planets take about 230 million years to circle the galactic center once.", link: "night-sky" },
     ],
   },
 ];

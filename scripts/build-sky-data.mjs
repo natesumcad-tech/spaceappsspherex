@@ -1,6 +1,9 @@
 // Builds public/data/sky.json from the d3-celestial star catalog
 // (Hipparcos/HYG-derived data, BSD-3-Clause). Run: npm run build:sky
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+//
+// Star distances come from the HYG database v4.1 (CC BY-SA 4.0, https://codeberg.org/astronexus/hyg).
+// Download hygdata_v41.csv and point HYG_CSV at it:  HYG_CSV=path/to/hygdata_v41.csv npm run build:sky
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 
 const SRC = "node_modules/d3-celestial/data";
 const read = (f) => JSON.parse(readFileSync(`${SRC}/${f}`, "utf8"));
@@ -8,6 +11,21 @@ const LANGS = ["en", "es", "fr", "zh", "hi", "ar", "ja", "de", "ru"];
 const MAG_LIMIT = 7.5;
 const r = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 const toRa = (lon) => r((lon + 360) % 360, 3);
+
+/** HYG distances in parsecs, keyed by Hipparcos number. */
+const distByHip = new Map();
+const hygPath = process.env.HYG_CSV;
+if (hygPath && existsSync(hygPath)) {
+  const lines = readFileSync(hygPath, "utf8").split("\n");
+  const cols = lines[0].split(",").map((c) => c.replace(/"/g, ""));
+  const H = cols.indexOf("hip"), D = cols.indexOf("dist");
+  for (const line of lines.slice(1)) {
+    const f = line.split(",");
+    const hip = f[H], d = parseFloat(f[D]);
+    if (hip && d > 0 && d < 100000) distByHip.set(Number(hip), d); // HYG uses 100000 for "unknown"
+  }
+  console.log(`HYG distances: ${distByHip.size}`);
+} else console.warn("HYG_CSV not set: stars will have no distances (3D constellation views need them).");
 
 const names = read("starnames.json");
 const stars = read("stars.8.json")
@@ -18,7 +36,8 @@ const starRows = [];
 const named = [];
 for (const f of stars) {
   const [lon, lat] = f.geometry.coordinates;
-  const row = [toRa(lon), r(lat, 3), r(f.properties.mag), r(parseFloat(f.properties.bv) || 0.6)];
+  const dist = distByHip.get(Number(f.id));
+  const row = [toRa(lon), r(lat, 3), r(f.properties.mag), r(parseFloat(f.properties.bv) || 0.6), dist ? r(dist, 1) : 0];
   starRows.push(row);
   const n = names[f.id];
   if (n && n.name && f.properties.mag <= 3) {
@@ -47,8 +66,8 @@ mkdirSync("public/data", { recursive: true });
 writeFileSync(
   "public/data/sky.json",
   JSON.stringify({
-    source: "d3-celestial (Hipparcos / HYG catalogue). RA/Dec in degrees, J2000.",
-    columns: ["ra", "dec", "mag", "bv"],
+    source: "d3-celestial (Hipparcos / HYG catalogue). RA/Dec in degrees, J2000. Distances (parsecs, 0 = unknown): HYG v4.1, CC BY-SA 4.0.",
+    columns: ["ra", "dec", "mag", "bv", "dist_pc"],
     stars: starRows,
     named,
     constellations,

@@ -142,7 +142,7 @@ function normalize(v: [number, number, number]): [number, number, number] {
   return [v[0] / l, v[1] / l, v[2] / l];
 }
 
-/** B−V colour index → CSS colour (black-body approximation). */
+/** B−V color index → CSS color (black-body approximation). */
 export function bvToCss(bv: number) {
   const k = 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62));
   const t = k / 100;

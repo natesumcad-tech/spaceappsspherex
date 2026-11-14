@@ -3,7 +3,8 @@
 
 import { registerLandmark } from "./landmarks";
 import { bvToKelvin, type SkyData } from "./astro";
-import type { Waypoint } from "@/lib/starmap/data";
+import { PRESET_WAYPOINTS, type Waypoint } from "@/lib/starmap/data";
+import type { Hotspot } from "./landmarks";
 
 const hms = (ra: number) => {
   const h = ra / 15, hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
@@ -23,6 +24,28 @@ const PATCH_FOV: Record<string, number> = {
   lmc: 14,
   vega: 12,
   etacar: 8,
+  m57: 2.5,
+  m51: 3,
+  m33: 4,
+  m8: 4,
+  m16: 4,
+  m20: 3,
+  helix: 3,
+  omegacen: 3,
+  "47tuc": 3,
+  smc: 8,
+  m44: 4,
+  m13: 3,
+  m104: 3,
+  m101: 4,
+  rhooph: 10,
+  taurusmc: 14,
+  ngc7000: 6,
+  rosette: 4,
+  horsehead: 3,
+  cena: 3,
+  cygx1: 4,
+  barnard: 4,
 };
 
 const TOUR_CONSTELLATIONS: Record<string, string> = { Ori: "orion", UMa: "ursa-major", Sco: "scorpius", Cru: "crux" };
@@ -55,12 +78,36 @@ export function waypointStop(wp: Waypoint): string {
   });
 }
 
+const angle = (ra1: number, d1: number, ra2: number, d2: number) => {
+  const r = Math.PI / 180;
+  const c = Math.sin(d1 * r) * Math.sin(d2 * r) + Math.cos(d1 * r) * Math.cos(d2 * r) * Math.cos((ra1 - ra2) * r);
+  return Math.acos(Math.min(1, Math.max(-1, c))) / r;
+};
+
 /** The 360° view for any of the 88 constellations. */
-export function constellationStop(con: SkyData["constellations"][number]): string {
+export function constellationStop(sky: SkyData, con: SkyData["constellations"][number]): string {
   if (TOUR_CONSTELLATIONS[con.id]) return TOUR_CONSTELLATIONS[con.id];
   const name = con.names.en;
   const stars = new Set(con.lines.flat().map(([ra, dec]) => `${ra},${dec}`)).size;
   const [ra, dec] = con.center;
+
+  // A diamond on each named star (it rides along with the star in 3D), and on deep-sky waypoints in view
+  const hotspots: Hotspot[] = [];
+  for (const n of sky.named) {
+    if (n.con !== con.id || sky.stars[n.i][2] > 3.5) continue;
+    const [, , mag, bv, dpc] = sky.stars[n.i];
+    const [kind] = STAR_KIND(bvToKelvin(bv));
+    const far = dpc > 0 ? ` about ${Math.round(dpc * 3.2616).toLocaleString()} light-years away` : "";
+    hotspots.push({
+      title: n.names.en,
+      body: `${kind[0].toUpperCase()}${kind.slice(1)},${far}, shining at magnitude ${mag.toFixed(2)}. Orbit or fly away to see how far it sits from its neighbors.`,
+      at: { anchor: `fig-${n.hip}` },
+      link: starStop(sky, n),
+    });
+  }
+  for (const wp of PRESET_WAYPOINTS)
+    if (angle(wp.ra, wp.dec, ra, dec) < 22)
+      hotspots.push({ title: wp.title, body: wp.description, at: { sky: [wp.ra, wp.dec] }, link: waypointStop(wp) });
   return registerLandmark({
     id: `con-${con.id}`,
     section: "Constellations",
@@ -78,6 +125,7 @@ export function constellationStop(con: SkyData["constellations"][number]): strin
     constellation: con.id,
     fov: 70,
     patch: { ra, dec, fov: 48 },
+    hotspots,
   });
 }
 

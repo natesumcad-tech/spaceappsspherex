@@ -3,17 +3,45 @@ import { LANDMARKS, byId, type Hotspot, type Landmark } from "./landmarks";
 import { DEG, bvToKelvin, dirToYawPitch, galacticToRaDec, kelvinToRGB, radecToVec, type SkyData } from "./astro";
 import { cloudTexture, glowTexture, planetTexture, ringTexture } from "./textures";
 import { SPHEREX_RGB, makeLoader, renderTile, type TileRequest } from "@/lib/starmap/hips";
+import { constellationStop, starStop } from "./dynamic";
+
+/** 3D constellations: 1 scene unit = 4 light-years. */
+const LY_PER_UNIT = 4;
+const PC_TO_LY = 3.2616;
 
 /** Narrowest zoom (degrees across), so small things like galaxies can fill the screen. */
 const FOV_MIN = 2.5;
 const PATCH_PX = 1024;
 
+export type NavMode = "look" | "orbit" | "fly";
+/** What the movement controls need to show. Angles in radians; r in scene units. */
+export type NavState = {
+  mode: NavMode;
+  canOrbit: boolean;
+  canFly: boolean;
+  az: number;
+  el: number;
+  r: number;
+  rMin: number;
+  rMax: number;
+  away: boolean;
+  /** Where you're looking (radians) and the zoom (degrees across), for the ring in Look / Free fly. */
+  yaw: number;
+  pitch: number;
+  fov: number;
+  fovMin: number;
+};
+
 export type EngineEvents = {
+  /** Movement mode or orbit position changed. */
+  onNav?: (s: NavState) => void;
   /** A portal (clickable constellation, star, galaxy…) inside a sphere was clicked. */
   onNavigate: (id: string) => void;
 };
 
 type Label = {
+  /** Optional extra condition for showing the label. */
+  when?: () => boolean;
   el: HTMLDivElement;
   layer: "sky" | "fg";
   pos: () => THREE.Vector3;
@@ -31,8 +59,6 @@ type HotspotEl = {
 };
 
 // Things you can click inside a sphere to jump to another stop.
-const CONSTELLATION_LINKS: Record<string, string> = { Ori: "orion", UMa: "ursa-major", Sco: "scorpius", Cru: "crux" };
-const STAR_LINKS: Record<number, string> = { 32349: "sirius", 11767: "polaris", 27989: "betelgeuse" };
 
 const POINT_VERT = /* glsl */ `
   attribute float size;
@@ -166,6 +192,18 @@ export class SkyEngine {
   private keys = new Set<string>();
   private flyRadius = 0;
   private flySpeed = 0;
+
+  // Movement: look around on the spot, orbit a pivot with the ring, or fly freely
+  private navMode: NavMode = "look";
+  private pivot: THREE.Vector3 | null = null;
+  private orbit = { az: 0, el: 0, r: 10 };
+  private rRange = { min: 1, max: 100 };
+  private navKey = "";
+  /** 3D constellation: real star positions (from HYG distances). */
+  private con3d: { stars: { pos: THREE.Vector3; absMag: number }[]; size: THREE.BufferAttribute; col: THREE.BufferAttribute; base: number[][]; mat: THREE.ShaderMaterial; home: number } | null = null;
+  /** 1 at the Sun (the view everyone knows), → 0 as you fly away from it. */
+  private homeK = 1;
+  private patchFade = 0;
   private pointers = new Map<number, { x: number; y: number }>();
   private pinchDist = 0;
 
@@ -236,17 +274,15 @@ export class SkyEngine {
     const skyPos = (local: THREE.Vector3) => () => local.clone().applyQuaternion(this.skyGroup.quaternion).add(this.skyGroup.position);
     for (const s of this.sky.named) {
       const [ra, dec, mag] = this.sky.stars[s.i];
-      const link = STAR_LINKS[s.hip];
-      if (mag > 1.65 && !link) continue;
-      this.addLabel("sky", "lbl lbl-star", s.names, skyPos(radecToVec(ra, dec, 860)), { link });
+      if (mag > 1.65) continue;
+      this.addLabel("sky", "lbl lbl-star", s.names, skyPos(radecToVec(ra, dec, 860)), { link: starStop(this.sky, s) });
     }
     for (const c of this.sky.constellations) {
-      const link = CONSTELLATION_LINKS[c.id];
-      if (c.rank > 2 && !link) continue;
-      this.addLabel("sky", "lbl lbl-con", c.names, skyPos(radecToVec(c.center[0], c.center[1], 860)), { id: c.id, link });
+      // All 88 constellations, each a portal to its own 360° view
+      this.addLabel("sky", "lbl lbl-con", c.names, skyPos(radecToVec(c.center[0], c.center[1], 860)), { id: c.id, link: constellationStop(this.sky, c) });
     }
     const gc = galacticToRaDec(0, 0);
-    this.addLabel("sky", "lbl lbl-con", { en: "Milky Way centre" }, skyPos(radecToVec(gc.ra, gc.dec + 6, 860)), { link: "milky-way" });
+    this.addLabel("sky", "lbl lbl-con", { en: "Milky Way center" }, skyPos(radecToVec(gc.ra, gc.dec + 6, 860)), { link: "milky-way" });
   }
 
   /** The Milky Way as a glowing band of faint particles along the galactic plane. */
@@ -299,6 +335,10 @@ export class SkyEngine {
     this.body = null;
     this.lookTarget = null;
     this.cam.position.set(0, 0, 0);
+    this.pivot = null;
+    this.con3d = null;
+    this.homeK = 1;
+    this.navMode = ["planet", "star", "orbit", "galaxy"].includes(lm.kind) ? "fly" : "look";
 
     // Point the sky so the landmark sits comfortably in front of you, north still up.
     let ra = lm.look?.[0] ?? 0, dec = lm.look?.[1] ?? 0;
@@ -329,14 +369,20 @@ export class SkyEngine {
     if (lm.kind === "planet") this.buildPlanetView(lm, desired, sunDir);
     if (lm.kind === "star") this.buildStarView(lm, desired, right);
     if (galaxy) this.buildGalaxyView(desired);
+    if (lm.kind === "constellation") this.buildConstellation3D(lm.constellation!);
     this.buildPatch(lm.patch);
+    if (this.pivot) {
+      const rel = this.cam.position.clone().sub(this.pivot);
+      this.orbit = { az: Math.atan2(rel.x, rel.z), el: Math.asin(THREE.MathUtils.clamp(rel.y / (rel.length() || 1), -1, 1)), r: THREE.MathUtils.clamp(rel.length(), this.rRange.min, this.rRange.max) };
+    }
+    this.navKey = "";
     this.fg.updateMatrixWorld(true);
     lm.hotspots?.forEach((h) => this.addHotspot(h));
   }
 
   /**
    * Wraps a SPHEREx DR1 cutout (fetched from IRSA and reprojected in a worker) onto a flat panel
-   * tangent to the sky at the patch centre, so it lines up exactly with the stars. Edges fade out.
+   * tangent to the sky at the patch center, so it lines up exactly with the stars. Edges fade out.
    */
   private buildPatch(patch: Landmark["patch"]) {
     const gen = ++this.patchGen;
@@ -384,12 +430,13 @@ export class SkyEngine {
       const N = new THREE.Vector3().crossVectors(C, E).normalize(); // north
       const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0 });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
-      // Seen from inside, east is on the left: local x = west, y = north, facing the centre.
+      // Seen from inside, east is on the left: local x = west, y = north, facing the center.
       mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(E.clone().negate(), N, C.clone().negate()));
       mesh.position.copy(C).multiplyScalar(R);
       mesh.renderOrder = -1; // stars and lines draw over it
       this.patchGroup.add(mesh);
       this.patchMat = mat;
+      this.patchFade = 0;
     };
     if (typeof Worker !== "undefined" && !this.worker) {
       try {
@@ -405,6 +452,159 @@ export class SkyEngine {
       this.patchLoad ??= makeLoader(40e6);
       renderTile(req, this.patchLoad).then((r) => done(r.px), () => done(null));
     }
+  }
+
+  private setPivot(p: THREE.Vector3, rMin: number, rMax: number) {
+    this.pivot = p.clone();
+    this.rRange = { min: rMin, max: rMax };
+  }
+
+  /**
+   * Places the constellation's stars at their real distances (HYG), joined by its figure lines.
+   * From the Sun it looks exactly like the familiar pattern; orbit or fly away and it comes apart.
+   */
+  private buildConstellation3D(conId: string) {
+    const con = this.sky.constellations.find((c) => c.id === conId);
+    if (!con) return;
+    const stars = this.sky.stars;
+    // Match each figure vertex to the nearest catalogue star
+    const match = new Map<string, number>();
+    const nearest = (ra: number, dec: number) => {
+      const key = `${ra},${dec}`;
+      if (match.has(key)) return match.get(key)!;
+      const v = radecToVec(ra, dec);
+      let best = -1, bd = Math.cos(0.25 * DEG);
+      const w = new THREE.Vector3();
+      for (let i = 0; i < stars.length; i++) {
+        if (stars[i][2] > 6.5) continue;
+        const d = radecToVec(stars[i][0], stars[i][1], 1, w).dot(v);
+        if (d > bd) [bd, best] = [d, i];
+      }
+      match.set(key, best);
+      return best;
+    };
+    const idx = new Set<number>();
+    for (const line of con.lines) for (const [ra, dec] of line) {
+      const i = nearest(ra, dec);
+      if (i >= 0) idx.add(i);
+    }
+    const named = this.sky.named.filter((n) => n.con === conId && stars[n.i][2] <= 3.5);
+    named.forEach((n) => idx.add(n.i));
+    const list = [...idx];
+    const known = list.map((i) => stars[i][4]).filter((d) => d > 0).sort((a, b) => a - b);
+    if (!known.length) return; // no distances: stay a flat pattern
+    const median = known[Math.floor(known.length / 2)];
+
+    const group = new THREE.Group();
+    group.quaternion.copy(this.skyGroup.quaternion); // same orientation as the sky
+    const local = new Map<number, THREE.Vector3>();
+    const recs = list.map((i) => {
+      const [ra, dec, mag, bv, dpc] = stars[i];
+      const pc = dpc > 0 ? dpc : median;
+      const p = radecToVec(ra, dec, (pc * PC_TO_LY) / LY_PER_UNIT);
+      local.set(i, p);
+      return { i, p, absMag: mag - 5 * Math.log10(pc / 10), rgb: kelvinToRGB(bvToKelvin(bv)) };
+    });
+    const pos = new Float32Array(recs.length * 3), col = new Float32Array(recs.length * 3), size = new Float32Array(recs.length);
+    recs.forEach((r, k) => r.p.toArray(pos, k * 3));
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const colAttr = new THREE.BufferAttribute(col, 3), sizeAttr = new THREE.BufferAttribute(size, 1);
+    geo.setAttribute("aColor", colAttr);
+    geo.setAttribute("size", sizeAttr);
+    const mat = pointsMaterial(this.renderer.getPixelRatio());
+    const pts = new THREE.Points(geo, mat);
+    pts.renderOrder = 10;
+    group.add(pts);
+
+    const seg: number[] = [];
+    for (const line of con.lines)
+      for (let k = 0; k < line.length - 1; k++) {
+        const a = local.get(nearest(line[k][0], line[k][1])), b = local.get(nearest(line[k + 1][0], line[k + 1][1]));
+        if (a && b) seg.push(...a.toArray(), ...b.toArray());
+      }
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute("position", new THREE.Float32BufferAttribute(seg, 3));
+    const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.85, depthWrite: false }));
+    lines.renderOrder = 9;
+    group.add(lines);
+
+    // The Sun, so you can see where "here" is once you leave it
+    const sun = this.glowSprite("#ffe28a", 3, new THREE.Vector3());
+    group.add(sun);
+    this.fg.add(group);
+    group.updateMatrixWorld(true);
+
+    const world = recs.map((r) => group.localToWorld(r.p.clone()));
+    this.con3d = { stars: recs.map((r, k) => ({ pos: world[k], absMag: r.absMag })), size: sizeAttr, col: colAttr, base: recs.map((r) => r.rgb), mat, home: 0 };
+    const centroid = world.reduce((a, b) => a.add(b), new THREE.Vector3()).divideScalar(world.length);
+    const extent = Math.max(...world.map((w) => w.distanceTo(centroid)));
+    this.con3d.home = centroid.length();
+    this.setPivot(centroid, Math.max(4, extent * 0.35), centroid.length() * 2.2 + extent);
+    this.flyRadius = centroid.length() + extent * 3;
+    this.flySpeed = Math.max(8, centroid.length() * 0.35);
+
+    // Names with real distances; hotspots can attach to these stars (anchor "fig-<hip>")
+    for (const n of named) {
+      const k = recs.findIndex((r) => r.i === n.i);
+      if (k < 0) continue;
+      const dpc = stars[n.i][4];
+      const lyText = dpc > 0 ? ` · ${Math.round(dpc * PC_TO_LY).toLocaleString()} ly` : "";
+      const w = world[k];
+      this.addLabel("fg", "lbl lbl-3d", { en: `${n.names.en}${lyText}` }, () => w, { when: () => this.homeK < 0.85 });
+      this.anchors[`fig-${n.hip}`] = () => w;
+    }
+    this.addLabel("fg", "lbl lbl-fg", { en: "Sun · Earth is here" }, () => new THREE.Vector3(0, 0, 0), { when: () => this.homeK < 0.6 });
+  }
+
+  /** Current movement state, for the on-screen controls. */
+  get nav(): NavState {
+    return {
+      mode: this.navMode,
+      canOrbit: !!this.pivot,
+      canFly: this.flyRadius > 0,
+      az: this.orbit.az,
+      el: this.orbit.el,
+      r: this.orbit.r,
+      rMin: this.rRange.min,
+      rMax: this.rRange.max,
+      away: this.homeK < 0.5,
+      yaw: this.yaw,
+      pitch: this.pitch,
+      fov: this.fov,
+      fovMin: FOV_MIN,
+    };
+  }
+
+  /** Turn and zoom on the spot (the ring and sliders in Look / Free fly). */
+  setLook(p: { yaw?: number; pitch?: number; fov?: number }) {
+    this.lookTarget = null;
+    this.vel = { yaw: 0, pitch: 0 };
+    if (p.yaw !== undefined) this.yaw = p.yaw;
+    if (p.pitch !== undefined) this.pitch = THREE.MathUtils.clamp(p.pitch, -89 * DEG, 89 * DEG);
+    if (p.fov !== undefined) this.fov = THREE.MathUtils.clamp(p.fov, FOV_MIN, 100);
+  }
+
+  setNavMode(mode: NavMode) {
+    if (mode === "orbit") {
+      if (!this.pivot) return;
+      const rel = this.cam.position.clone().sub(this.pivot);
+      const len = rel.length();
+      if (len > 1e-3) this.orbit = { az: Math.atan2(rel.x, rel.z), el: Math.asin(THREE.MathUtils.clamp(rel.y / len, -1, 1)), r: THREE.MathUtils.clamp(len, this.rRange.min, this.rRange.max) };
+    }
+    if (mode === "fly" && !this.flyRadius) return;
+    this.navMode = mode;
+    this.vel = { yaw: 0, pitch: 0 };
+    this.lookTarget = null;
+  }
+
+  /** Move around the pivot (switches to orbit mode). */
+  setOrbit(p: { az?: number; el?: number; r?: number }) {
+    if (!this.pivot) return;
+    if (this.navMode !== "orbit") this.setNavMode("orbit");
+    if (p.az !== undefined) this.orbit.az = p.az;
+    if (p.el !== undefined) this.orbit.el = THREE.MathUtils.clamp(p.el, -85 * DEG, 85 * DEG);
+    if (p.r !== undefined) this.orbit.r = THREE.MathUtils.clamp(p.r, this.rRange.min, this.rRange.max);
   }
 
   private glowSprite(color: string, scale: number, pos: THREE.Vector3, opacity = 1) {
@@ -451,6 +651,7 @@ export class SkyEngine {
     earth.add(body, clouds, atmo);
     this.fg.add(earth);
     this.occluders.push({ center: earth.position.clone(), radius: 1.02 });
+    this.setPivot(earth.position, 1.25, 6);
     this.spinners.push({ obj: body, speed: 0.01 }, { obj: clouds, speed: 0.013 });
     this.addSun(desired.clone().multiplyScalar(0.5).add(right.clone().multiplyScalar(0.6)).add(new THREE.Vector3(0, 0.35, 0)).normalize(), 1.8);
     this.addFgLabel("Earth", desired.clone().multiplyScalar(0.45).add(new THREE.Vector3(0, -0.55, 0)), "spherex-orbit");
@@ -477,6 +678,7 @@ export class SkyEngine {
     this.anchors.rings = () => tilt.localToWorld(new THREE.Vector3(1.55, 0, 0.75));
     this.anchors.cassini = () => tilt.localToWorld(new THREE.Vector3(-1.6, 0, 1.17));
     this.occluders.push({ center: tilt.position.clone(), radius: 1 });
+    this.setPivot(tilt.position, lm.planet === "saturn" ? 2.7 : 1.5, 20);
     this.spinners.push({ obj: body, speed: lm.planet === "jupiter" || lm.planet === "saturn" ? 0.08 : 0.03 });
     this.addSun(sunDir);
     this.addFgLabel(lm.title, () => tilt.position.clone().add(new THREE.Vector3(0, 1.25, 0)));
@@ -502,6 +704,7 @@ export class SkyEngine {
     this.fg.add(star, this.glowSprite(lm.star!.color, 5.2, star.position, 0.85));
     this.body = star;
     this.occluders.push({ center: star.position.clone(), radius: 1 });
+    this.setPivot(star.position, 1.6, 25);
     this.spinners.push({ obj: star, speed: 0.02 });
     this.addFgLabel(lm.title, star.position.clone().add(new THREE.Vector3(0, 1.35, 0)));
 
@@ -556,6 +759,7 @@ export class SkyEngine {
     galaxy.lookAt(0, 0, 0);
     galaxy.rotateX(-0.95);
     this.fg.add(galaxy);
+    this.setPivot(galaxy.position, 25, 260);
     this.spinners.push({ obj: disk, speed: 0.004 });
 
     const marker = this.glowSprite("#ffe28a", 6, new THREE.Vector3(Math.cos(2.4) * 26, Math.sin(2.4) * 26, 0)); // the Sun, ~26,000 ly out
@@ -577,7 +781,7 @@ export class SkyEngine {
 
   // ───────────────────────────── Labels & portals ─────────────────────────────
 
-  private addLabel(layer: Label["layer"], cls: string, names: Record<string, string>, pos: () => THREE.Vector3, opts: { id?: string; link?: string } = {}) {
+  private addLabel(layer: Label["layer"], cls: string, names: Record<string, string>, pos: () => THREE.Vector3, opts: { id?: string; link?: string; when?: () => boolean } = {}) {
     const el = document.createElement("div");
     el.className = cls;
     el.style.display = "none";
@@ -589,7 +793,7 @@ export class SkyEngine {
       });
     }
     this.labelLayer.appendChild(el);
-    const label: Label = { el, layer, pos, names, id: opts.id, link: opts.link };
+    const label: Label = { el, layer, pos, names, id: opts.id, link: opts.link, when: opts.when };
     this.setLabelText(label);
     this.labels.push(label);
   }
@@ -693,7 +897,8 @@ export class SkyEngine {
     const v = new THREE.Vector3();
     this.visibleLabels = [];
     for (const l of this.labels) {
-      let show = this.active && this.showLabels;
+      let show = this.active && this.showLabels && (!l.when || l.when());
+      if (show && l.layer === "sky" && this.homeK < 0.35) show = false;
       if (show && l.layer === "sky") {
         const isCon = l.el.classList.contains("lbl-con");
         show = this.skyGroup.visible && (!isCon || this.allLines.visible || !!l.link || l.id === this.current?.constellation);
@@ -719,7 +924,7 @@ export class SkyEngine {
       let show = this.active;
       if (show) {
         v.copy(hs.pos());
-        if (hs.sky && (!this.skyGroup.visible || this.isOccluded(v))) show = false;
+        if (hs.sky && (!this.skyGroup.visible || this.homeK < 0.35 || this.isOccluded(v))) show = false;
         if (show && hs.normal && hs.normal().dot(this.cam.position.clone().sub(v)) <= 0) show = false; // far side
       }
       if (show) {
@@ -857,6 +1062,14 @@ export class SkyEngine {
         this.pinchDist = d;
         return;
       }
+      if (this.navMode === "orbit") {
+        // Drag to swing around the object
+        this.orbit.az -= (e.clientX - p.x) * 0.006;
+        this.orbit.el = THREE.MathUtils.clamp(this.orbit.el + (e.clientY - p.y) * 0.006, -85 * DEG, 85 * DEG);
+        p.x = e.clientX;
+        p.y = e.clientY;
+        return;
+      }
       // Grab-and-drag like Street View: the sky follows your cursor.
       const k = (this.fov * DEG) / c.clientHeight;
       const dy = (e.clientX - p.x) * k, dp = (e.clientY - p.y) * k;
@@ -873,7 +1086,8 @@ export class SkyEngine {
     const wheel = (e: WheelEvent) => {
       if (!this.active) return;
       e.preventDefault();
-      this.fov = THREE.MathUtils.clamp(this.fov * (1 + e.deltaY * 0.0012), FOV_MIN, 100);
+      if (this.navMode === "orbit") this.orbit.r = THREE.MathUtils.clamp(this.orbit.r * Math.exp(e.deltaY * 0.0012), this.rRange.min, this.rRange.max);
+      else this.fov = THREE.MathUtils.clamp(this.fov * (1 + e.deltaY * 0.0012), FOV_MIN, 100);
     };
     const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
     const keydown = (e: KeyboardEvent) => {
@@ -907,11 +1121,24 @@ export class SkyEngine {
     });
   }
 
-  /** Arrow keys always look around; WASD flies where there's something to fly to, otherwise it looks. */
+  /**
+   * Look: WASD and arrows turn on the spot. Orbit: A/D go around, W/S closer/farther, Q/E down/up.
+   * Free fly: WASD move, Q/E down/up, arrows (or drag) look.
+   */
   private applyKeys(dt: number) {
     const has = (k: string) => this.keys.has(k);
     const look = 70 * DEG * dt * (this.fov / 70);
-    const fly = this.canFly;
+    if (this.navMode === "orbit") {
+      const sp = dt * 1.1 * (has("shift") ? 2.5 : 1);
+      if (has("a") || has("arrowleft")) this.orbit.az -= sp;
+      if (has("d") || has("arrowright")) this.orbit.az += sp;
+      if (has("e")) this.orbit.el = Math.min(this.orbit.el + sp * 0.7, 85 * DEG);
+      if (has("q")) this.orbit.el = Math.max(this.orbit.el - sp * 0.7, -85 * DEG);
+      if (has("w") || has("arrowup")) this.orbit.r = Math.max(this.rRange.min, this.orbit.r * Math.exp(-sp));
+      if (has("s") || has("arrowdown")) this.orbit.r = Math.min(this.rRange.max, this.orbit.r * Math.exp(sp));
+      return;
+    }
+    const fly = this.navMode === "fly" && this.flyRadius > 0;
     if (has("arrowleft") || (!fly && has("a"))) this.yaw += look;
     if (has("arrowright") || (!fly && has("d"))) this.yaw -= look;
     if (has("arrowup") || (!fly && has("w"))) this.pitch = Math.min(this.pitch + look, 89 * DEG);
@@ -960,9 +1187,20 @@ export class SkyEngine {
     const t = this.clock.elapsedTime;
     for (const s of this.spinners) s.obj.rotation.y += s.speed * dt;
     for (const u of this.starUniforms) u.uTime.value = t;
-    if (this.patchMat && this.patchMat.opacity < 1) this.patchMat.opacity = Math.min(1, this.patchMat.opacity + dt * 1.5);
+    if (this.patchMat && this.patchFade < 1) this.patchFade = Math.min(1, this.patchFade + dt * 1.5);
 
     this.applyKeys(dt);
+    if (this.navMode === "orbit" && this.pivot) {
+      const { az, el, r } = this.orbit;
+      this.cam.position.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).multiplyScalar(r).add(this.pivot);
+      const want = dirToYawPitch(this.pivot.clone().sub(this.cam.position));
+      let dy = want.yaw - this.yaw;
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      this.yaw += dy * 0.3; // ease in, so switching to orbit never jumps
+      this.pitch += (want.pitch - this.pitch) * 0.3;
+      this.vel = { yaw: 0, pitch: 0 };
+    }
     if (this.lookTarget) {
       this.yaw += (this.lookTarget.yaw - this.yaw) * 0.12;
       this.pitch += (this.lookTarget.pitch - this.pitch) * 0.12;
@@ -976,6 +1214,32 @@ export class SkyEngine {
     }
     this.cam.rotation.set(this.pitch, this.yaw, 0);
     this.skyGroup.position.copy(this.cam.position); // stars are infinitely far away
+
+    // Leaving the Sun: the flat sky pattern (lines, labels, SPHEREx patch) no longer applies, so fade it
+    this.homeK = this.con3d ? THREE.MathUtils.clamp(1 - this.cam.position.length() / (0.12 * this.con3d.home), 0, 1) : 1;
+    (this.allLines.material as THREE.LineBasicMaterial).opacity = 0.32 * this.homeK;
+    for (const h of this.highlight.children) ((h as THREE.LineSegments).material as THREE.LineBasicMaterial).opacity = 0.95 * this.homeK;
+    if (this.patchMat) this.patchMat.opacity = this.patchFade * (0.25 + 0.75 * this.homeK);
+    if (this.con3d) {
+      // Each star's brightness as seen from where you are now (real absolute magnitudes)
+      const { stars, size, col, base } = this.con3d;
+      for (let k = 0; k < stars.length; k++) {
+        const ly = Math.max(0.05, stars[k].pos.distanceTo(this.cam.position) * LY_PER_UNIT);
+        const m = stars[k].absMag + 5 * Math.log10(ly / PC_TO_LY / 10);
+        size.setX(k, THREE.MathUtils.clamp((7.5 - m) * 1.5, 2.5, 40));
+        const b = THREE.MathUtils.clamp(0.5 + (6 - m) / 5, 0.5, 1.6);
+        col.setXYZ(k, base[k][0] * b, base[k][1] * b, base[k][2] * b);
+      }
+      size.needsUpdate = true;
+      col.needsUpdate = true;
+      this.con3d.mat.uniforms.uScale.value = this.renderer.getPixelRatio() * THREE.MathUtils.clamp(Math.sqrt(70 / this.cam.fov), 0.85, 1.8);
+    }
+    const ns = this.nav;
+    const key = `${ns.mode}|${ns.canOrbit}|${ns.canFly}|${ns.az.toFixed(2)}|${ns.el.toFixed(2)}|${ns.r.toFixed(1)}|${ns.away}|${ns.yaw.toFixed(2)}|${ns.pitch.toFixed(2)}|${ns.fov.toFixed(0)}`;
+    if (key !== this.navKey) {
+      this.navKey = key;
+      this.events.onNav?.(ns);
+    }
     if (Math.abs(this.cam.fov - this.fov) > 0.01) {
       this.cam.fov += (this.fov - this.cam.fov) * 0.2;
       this.cam.updateProjectionMatrix();
