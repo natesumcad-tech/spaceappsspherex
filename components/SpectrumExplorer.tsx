@@ -178,10 +178,11 @@ export default function SpectrumExplorer() {
           Brightness
         </text>
 
-        {labels.map((lb) => (
+        {labels.map((lb, i) => (
           <g key={lb.name}>
             <line x1={x(lb.l)} x2={x(lb.l)} y1={M.t} y2={H - M.b} className="line-marker" />
-            <text x={x(lb.l) + 4} y={M.t + 10} className="line-label">
+            {/* stagger labels so close lines (like Hβ and [O III]) don't overlap */}
+            <text x={x(lb.l) + 4} y={M.t + 10 + (i % 2) * 14} className="line-label">
               {lb.name}
             </text>
           </g>

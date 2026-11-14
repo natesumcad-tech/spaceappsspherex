@@ -407,12 +407,12 @@ const StarMap = forwardRef<StarMapHandle, Props>(function StarMap({ sky, current
       <svg ref={svgRef} className="sm-svg" width="100%" height="100%" role="img" aria-label="Illustrated map of the tour">
         <defs>
           <linearGradient id="sm-space" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#1a1446" />
-            <stop offset="0.5" stopColor="#1d2a62" />
-            <stop offset="1" stopColor="#173a6e" />
+            <stop offset="0" stopColor="#b6c3ff" />
+            <stop offset="0.5" stopColor="#d3c8ff" />
+            <stop offset="1" stopColor="#ffd9e6" />
           </linearGradient>
           <pattern id="sm-dots" width="26" height="26" patternUnits="userSpaceOnUse">
-            <circle cx="3" cy="3" r="1.3" fill="#ffffff" opacity="0.08" />
+            <circle cx="3" cy="3" r="1.4" fill="#ffffff" opacity="0.45" />
           </pattern>
         </defs>
         <g
@@ -424,7 +424,7 @@ const StarMap = forwardRef<StarMapHandle, Props>(function StarMap({ sky, current
           <rect width={W} height={H} rx={40} fill="url(#sm-space)" />
           <rect width={W} height={H} rx={40} fill="url(#sm-dots)" />
           {art.bgSparkles.map(([x, y, s, t], i) => (
-            <path key={i} d={sparkle(x, y, s)} fill={t > 0.8 ? "#ffe9a8" : "#ffffff"} opacity={0.35 + t * 0.5} />
+            <path key={i} d={sparkle(x, y, s)} fill={t > 0.8 ? "#fff3c4" : "#ffffff"} opacity={0.55 + t * 0.45} />
           ))}
 
           {/* Floating decorations in space */}
@@ -438,9 +438,9 @@ const StarMap = forwardRef<StarMapHandle, Props>(function StarMap({ sky, current
             <circle cx={-6} cy={-5} r={5} fill="#d36f4c" />
           </g>
           <g transform="translate(925,770)" data-planet-x>
-            <circle r={26} fill="#2c2f5c" stroke="#8d93d6" strokeWidth={3} strokeDasharray="6 6" />
-            <text y={9} textAnchor="middle" fontSize={26} fontWeight={800} fill="#c3c8ff">?</text>
-            <text y={50} textAnchor="middle" fontSize={14} fontWeight={700} fill="#c3c8ff">Planet X?</text>
+            <circle r={26} fill="#f3f1ff" stroke="#8d93d6" strokeWidth={3} strokeDasharray="6 6" />
+            <text y={9} textAnchor="middle" fontSize={26} fontWeight={800} fill="#6f6bd8">?</text>
+            <text y={50} textAnchor="middle" fontSize={14} fontWeight={700} fill="#4a4f88">Planet X?</text>
           </g>
           <g transform="translate(70,960)">
             {Array.from({ length: 12 }, (_, i) => (
@@ -448,18 +448,18 @@ const StarMap = forwardRef<StarMapHandle, Props>(function StarMap({ sky, current
             ))}
             <circle r={36} fill="#ffcb3d" />
             <circle r={26} fill="#ffe17a" />
-            <text y={64} textAnchor="middle" fontSize={14} fontWeight={700} fill="#ffe17a">Sun</text>
+            <text y={64} textAnchor="middle" fontSize={14} fontWeight={700} fill="#a8641b">Sun</text>
           </g>
           <g transform="translate(880,1560) rotate(-28)">
-            <path d="M0,-9 L-90,-3 L-90,3 L0,9Z" fill="#bfe8ff" opacity={0.45} />
-            <circle r={11} fill="#e6f6ff" />
+            <path d="M0,-9 L-90,-3 L-90,3 L0,9Z" fill="#ffffff" opacity={0.75} />
+            <circle r={11} fill="#ffffff" stroke="#c9c2ff" strokeWidth={2} />
           </g>
           <g transform="translate(125,1640)">
             <rect x={-26} y={-5} width={52} height={10} rx={3} fill="#9fd8ff" />
             <path d="M-16,-6 L-22,-38 L22,-38 L16,-6Z" fill="#e9eef8" />
             <path d="M-12,-8 L-17,-30 L17,-30 L12,-8Z" fill="#c9d3e6" />
             <path d="M-8,-10 L-11,-22 L11,-22 L8,-10Z" fill="#aebbd6" />
-            <text y={28} textAnchor="middle" fontSize={14} fontWeight={700} fill="#e9eef8">SPHEREx</text>
+            <text y={28} textAnchor="middle" fontSize={14} fontWeight={700} fill="#4a4f88">SPHEREx</text>
           </g>
 
           {/* Islands */}
@@ -562,7 +562,7 @@ const StarMap = forwardRef<StarMapHandle, Props>(function StarMap({ sky, current
           <path d={art.path} fill="none" stroke="#ffd1d8" strokeWidth={3} strokeDasharray="2 18" strokeLinecap="round" className="sm-flow" />
           <g transform={`translate(${START[0]},${START[1]})`}>
             <rect x={-14} y={-14} width={28} height={28} rx={4} transform="rotate(45)" fill="#4e7bff" stroke="#fff" strokeWidth={4} />
-            <text y={40} textAnchor="middle" fontSize={13} fontWeight={800} fill="#ffffff">START</text>
+            <text y={40} textAnchor="middle" fontSize={13} fontWeight={800} fill="#4a4f88">START</text>
           </g>
 
           {/* Stops */}

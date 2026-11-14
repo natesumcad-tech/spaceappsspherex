@@ -1,200 +1,317 @@
-import Starfield from "@/components/Starfield";
+import Image from "next/image";
+import Link from "next/link";
 import SpectrumExplorer from "@/components/SpectrumExplorer";
 import { site, project, team, mission, resources } from "@/content/site";
+import "./home.css";
 
 const NAV = [
-  ["mission", "Mission"],
-  ["explore", "Explore"],
-  ["project", "Our project"],
-  ["team", "Team"],
-  ["resources", "Resources"],
+  ["#how", "How it works"],
+  ["#spectrum", "Spectrum"],
+  ["#mission", "Mission"],
+  ["#team", "Team"],
 ];
+
+// 102 bars: one for each SPHEREx band, shaped like a gentle spectrum
+const BARS = Array.from({ length: 102 }, (_, i) => {
+  const x = i / 101;
+  const h = 0.25 + 0.55 * Math.exp(-((x - 0.3) ** 2) / 0.05) + 0.25 * Math.abs(Math.sin(i * 1.7)) * (1 - x * 0.5);
+  return Math.min(1, h);
+});
 
 export default function Home() {
   return (
-    <>
-      <header className="nav">
-        <a href="#top" className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          {site.teamName}
-        </a>
-        <nav>
-          <a href="/explore">3D Explorer</a>
-          {NAV.map(([id, label]) => (
-            <a key={id} href={`#${id}`}>
-              {label}
-            </a>
-          ))}
+    <div className="home">
+      {/* ── Hero ── */}
+      <header className="h-hero">
+        <div className="h-sky" aria-hidden="true" />
+        <nav className="h-nav">
+          <Link href="/" className="h-logo">
+            <span className="h-logo-mark" aria-hidden="true" />
+            {site.teamName}
+          </Link>
+          <div className="h-links">
+            {NAV.map(([href, label]) => (
+              <a key={href} href={href}>
+                {label}
+              </a>
+            ))}
+          </div>
         </nav>
+
+        <div className="h-hero-copy">
+          <p className="h-kicker">NASA Space Apps · Planet X & SPHEREx</p>
+          <h1>
+            Step inside the sky
+            <br />
+            <em>SPHEREx</em> is mapping
+          </h1>
+          <p className="h-lede">
+            Walk a map of 14 landmarks, then step into each one: real stars, planets and the Milky Way in 360°. Hover to
+            learn, fly around with WASD.
+          </p>
+          <div className="h-ctas">
+            <Link href="/explore" className="h-btn">
+              <span aria-hidden="true">◎</span> Launch the Sky Explorer
+            </Link>
+            <a href="#how" className="h-btn-ghost">
+              See how it works
+            </a>
+          </div>
+        </div>
+
+        <div className="h-stage">
+          <div className="h-wallpaper" aria-hidden="true" />
+          <div className="h-pill" aria-hidden="true">
+            <span className="h-pill-dot" /> Sky Explorer <span className="h-pill-key">Esc</span> <span className="h-pill-sq" />
+          </div>
+          <Link href="/explore?stop=saturn" className="h-window" aria-label="Open the Saturn stop in the Sky Explorer">
+            <div className="h-chrome">
+              <span />
+              <span />
+              <span />
+              <div className="h-url">spaceappsspherex.vercel.app/explore</div>
+            </div>
+            <Image
+              src="/shots/explorer-saturn.jpg"
+              alt="The Sky Explorer inside the Saturn sphere, with a hotspot card about Saturn's rings open"
+              width={2560}
+              height={1520}
+              priority
+              sizes="(max-width: 1100px) 92vw, 960px"
+            />
+          </Link>
+        </div>
       </header>
 
-      <main id="top">
-        <section className="hero">
-          <Starfield />
-          <div className="hero-inner">
-            <p className="eyebrow">
-              {site.event} · SPHEREx
-            </p>
-            <h1>{site.projectName}</h1>
-            <p className="lede">{site.tagline}</p>
-            <div className="cta-row">
-              <a className="btn primary" href="/explore">
-                Launch the 3D Sky Explorer
-              </a>
-              <a className="btn" href="#explore">
-                Try the spectrum explorer
-              </a>
-              <a className="btn" href="#project">
-                See our project
-              </a>
-            </div>
-          </div>
-          <div className="spectrum-bar" aria-hidden="true" />
-        </section>
+      <main>
+        {/* ── How it works: two cards ── */}
+        <section id="how" className="h-section">
+          <h2 className="h-split">
+            How the Sky Explorer <span>takes you there</span>
+          </h2>
+          <div className="h-cards">
+            <article className="h-card h-card-color">
+              <h3>
+                SPHEREx <span className="h-chip">◉ sees</span> 102 colors of light
+              </h3>
+              <p>Every point on the sky, split into infrared colors our eyes can't see. We turned that idea into a place you can visit.</p>
+              <div className="h-counter">
+                <strong>102</strong>
+                <span>infrared bands</span>
+              </div>
+              <div className="h-bars" aria-hidden="true">
+                {BARS.map((h, i) => (
+                  <i key={i} style={{ height: `${h * 100}%` }} />
+                ))}
+              </div>
+              <div className="h-mini h-mini-blur" aria-hidden="true">
+                <Image src="/shots/explorer-map.jpg" alt="" width={2560} height={1520} sizes="420px" />
+              </div>
+            </article>
 
-        <section id="mission" className="section">
-          <div className="wrap">
-            <p className="eyebrow">The mission</p>
-            <h2>A rainbow map of the entire sky</h2>
-            <p className="section-lede">
-              Most sky surveys take pictures in a handful of colors. NASA's SPHEREx splits near-infrared
-              light into <strong>102 colors</strong> for every point on the sky, building the first all-sky
-              spectral map. It answers questions from the birth of the Universe to the origins of water in
-              planetary systems.
-            </p>
-
-            <div className="stats">
-              {mission.stats.map((s) => (
-                <div className="stat" key={s.label}>
-                  <div className="stat-value">{s.value}</div>
-                  <div className="stat-label">{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="cards">
-              {mission.goals.map((g, i) => (
-                <article className="card" key={g.title}>
-                  <span className="card-num">0{i + 1}</span>
-                  <h3>{g.title}</h3>
-                  <p>{g.body}</p>
-                </article>
-              ))}
-            </div>
-
-            <dl className="facts">
-              {mission.facts.map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
+            <article className="h-card h-card-light">
+              <h3>
+                When you&apos;re curious, hover and it <span className="h-chip light">✦ explains</span> instantly
+              </h3>
+              <p>
+                Diamonds mark the good stuff. Hover one to unfold a fact card, or press <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd>{" "}
+                <kbd>D</kbd> to fly around a planet.
+              </p>
+              <div className="h-mini" aria-hidden="true">
+                <Image src="/shots/explorer-orion.jpg" alt="" width={2560} height={1520} sizes="420px" />
+              </div>
+            </article>
           </div>
         </section>
 
-        <section id="explore" className="section alt">
-          <div className="wrap">
-            <p className="eyebrow">Interactive</p>
-            <h2>See the sky the way SPHEREx does</h2>
-            <p className="section-lede">
-              Each dot is one of SPHEREx's 102 bands. Drag the slider to push a galaxy farther away and watch
-              its light stretch to longer wavelengths, or switch to an icy cloud to see the chemical
-              fingerprints of frozen water and CO₂.
-            </p>
+        {/* ── Showcase panel ── */}
+        <section className="h-section">
+          <h2 className="h-split center">
+            A map of the sky <span>you can walk through</span>
+          </h2>
+          <p className="h-sub">Fourteen stops along one route, from Earth orbit to the edge of the galaxy.</p>
+          <div className="h-panel">
+            <Link href="/explore" className="h-panel-window" aria-label="Open the illustrated map">
+              <div className="h-chrome light">
+                <span />
+                <span />
+                <span />
+                <div className="h-url">Sky Explorer · Map</div>
+              </div>
+              <Image
+                src="/shots/explorer-map.jpg"
+                alt="The illustrated region map with the route through the Solar System and Constellations islands"
+                width={2560}
+                height={1520}
+                sizes="(max-width: 900px) 92vw, 760px"
+              />
+            </Link>
+          </div>
+          <ul className="h-features">
+            <li>
+              <b>25,700 real stars</b>
+              <span>Hipparcos catalogue, true positions and colors</span>
+            </li>
+            <li>
+              <b>Portals</b>
+              <span>Click Orion ↗ or Sirius ↗ to jump there</span>
+            </li>
+            <li>
+              <b>Export & share</b>
+              <span>Save any view as a PNG or share a link</span>
+            </li>
+            <li>
+              <b>6 languages</b>
+              <span>Star names in English, Spanish, French, Chinese, Hindi, Arabic</span>
+            </li>
+          </ul>
+        </section>
+
+        {/* ── Spectrum explorer ── */}
+        <section id="spectrum" className="h-section">
+          <h2 className="h-split center">
+            See light <span>the way SPHEREx does</span>
+          </h2>
+          <p className="h-sub">
+            Each dot is one of SPHEREx&apos;s 102 bands. Push a galaxy farther away and watch its light stretch, or switch to an
+            icy cloud to see the fingerprints of frozen water and CO₂.
+          </p>
+          <div className="h-wide">
             <SpectrumExplorer />
           </div>
         </section>
 
-        <section id="project" className="section">
-          <div className="wrap">
-            <p className="eyebrow">Our project</p>
-            <h2>{project.challenge}</h2>
-            <div className="two-col">
-              <div>
-                <h3>The problem</h3>
-                <p>{project.problem}</p>
-                <h3>Our solution</h3>
-                <p>{project.solution}</p>
+        {/* ── Mission ── */}
+        <section id="mission" className="h-section">
+          <h2 className="h-split center">
+            The mission <span>behind the map</span>
+          </h2>
+          <p className="h-sub">
+            NASA&apos;s SPHEREx splits near-infrared light into 102 colors for every point on the sky, building the first all-sky
+            spectral map.
+          </p>
+          <div className="h-stats">
+            {mission.stats.map((s, i) => (
+              <div className={`h-stat tint-${i % 4}`} key={s.label}>
+                <strong>{s.value}</strong>
+                <span>{s.label}</span>
               </div>
-              <div>
-                <h3>How it works</h3>
-                <ol className="steps">
-                  {project.howItWorks.map((s) => (
-                    <li key={s}>{s}</li>
-                  ))}
-                </ol>
-                <h3>Built with</h3>
-                <ul className="chips">
-                  {project.tools.map((t) => (
-                    <li key={t}>{t}</li>
-                  ))}
-                </ul>
+            ))}
+          </div>
+          <div className="h-goals">
+            {mission.goals.map((g, i) => (
+              <article key={g.title} className={`h-goal tint-${(i + 1) % 4}`}>
+                <span className="h-goal-num">0{i + 1}</span>
+                <h3>{g.title}</h3>
+                <p>{g.body}</p>
+              </article>
+            ))}
+          </div>
+          <dl className="h-facts">
+            {mission.facts.map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
               </div>
+            ))}
+          </dl>
+        </section>
+
+        {/* ── Project ── */}
+        <section id="project" className="h-section">
+          <h2 className="h-split center">
+            Our project <span>{project.challenge}</span>
+          </h2>
+          <div className="h-project">
+            <div className="h-box">
+              <h3>The problem</h3>
+              <p>{project.problem}</p>
+              <h3>Our solution</h3>
+              <p>{project.solution}</p>
+            </div>
+            <div className="h-box">
+              <h3>How it works</h3>
+              <ol>
+                {project.howItWorks.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ol>
+              <h3>Built with</h3>
+              <ul className="h-tags">
+                {project.tools.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>
 
-        <section id="team" className="section alt">
-          <div className="wrap">
-            <p className="eyebrow">The team</p>
-            <h2>{site.teamName}</h2>
-            <ul className="team">
-              {team.map((m) => (
-                <li key={m.name}>
-                  <span className="avatar" aria-hidden="true">
-                    {m.name
-                      .split(" ")
-                      .map((w) => w[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </span>
-                  <span className="team-name">{m.name}</span>
-                  <span className="team-role">{m.role}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* ── Team ── */}
+        <section id="team" className="h-section">
+          <h2 className="h-split center">
+            Made by <span>{site.teamName}</span>
+          </h2>
+          <ul className="h-team">
+            {team.map((m, i) => (
+              <li key={m.name}>
+                <span className={`h-avatar tint-${i % 4}`} aria-hidden="true">
+                  {m.name
+                    .split(" ")
+                    .map((w) => w[0])
+                    .join("")
+                    .slice(0, 2)}
+                </span>
+                <b>{m.name}</b>
+                <span>{m.role}</span>
+              </li>
+            ))}
+          </ul>
         </section>
 
-        <section id="resources" className="section">
-          <div className="wrap">
-            <p className="eyebrow">Resources</p>
-            <h2>Data & references</h2>
-            <ul className="resources">
-              {resources.map((r) => (
-                <li key={r.url}>
-                  <a href={r.url} target="_blank" rel="noreferrer">
-                    <span>{r.title}</span>
-                    <small>{r.note} ↗</small>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* ── Resources + final CTA ── */}
+        <section className="h-section">
+          <h2 className="h-split center">
+            Data <span>& references</span>
+          </h2>
+          <ul className="h-resources">
+            {resources.map((r) => (
+              <li key={r.url}>
+                <a href={r.url} target="_blank" rel="noreferrer">
+                  <b>{r.title}</b>
+                  <span>{r.note} ↗</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="h-final">
+          <h2>
+            Ready to <em>step inside?</em>
+          </h2>
+          <Link href="/explore" className="h-btn">
+            <span aria-hidden="true">◎</span> Launch the Sky Explorer
+          </Link>
         </section>
       </main>
 
-      <footer className="footer">
-        <div className="wrap">
-          <span>
-            Built for the {site.event} by {site.teamName}.
-          </span>
-          <span>
-            <a href={site.teamPageUrl} target="_blank" rel="noreferrer">
-              Team page
-            </a>{" "}
-            ·{" "}
-            <a href={site.repoUrl} target="_blank" rel="noreferrer">
-              Source code
-            </a>
-          </span>
-          <span className="fine-print">
-            SPHEREx mission information courtesy of NASA/JPL-Caltech. This site is a student hackathon project
-            and is not an official NASA website.
-          </span>
-        </div>
+      <footer className="h-footer">
+        <span>
+          Built for the {site.event} by {site.teamName}.
+        </span>
+        <span>
+          <a href={site.teamPageUrl} target="_blank" rel="noreferrer">
+            Team page
+          </a>{" "}
+          ·{" "}
+          <a href={site.repoUrl} target="_blank" rel="noreferrer">
+            Source code
+          </a>
+        </span>
+        <span className="h-fine">
+          SPHEREx mission information courtesy of NASA/JPL-Caltech. A student hackathon project, not an official NASA website.
+        </span>
       </footer>
-    </>
+    </div>
   );
 }

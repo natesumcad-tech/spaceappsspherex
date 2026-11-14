@@ -5,9 +5,9 @@
 
 export const site = {
   teamName: "Team SPHEREx Explorers", // TODO: your Space Apps team name
-  projectName: "Mapping the Colors of the Cosmos", // TODO: your project title
+  projectName: "Sky Explorer",
   tagline:
-    "Exploring NASA's SPHEREx all-sky survey: 102 colors of infrared light, every point on the sky.",
+    "Step inside the sky NASA's SPHEREx is mapping: real stars, planets and the Milky Way in 360°.",
   event: "NASA Space Apps Challenge",
   // TODO: link to your team page on spaceappschallenge.org
   teamPageUrl: "https://www.spaceappschallenge.org/",
@@ -16,17 +16,17 @@ export const site = {
 };
 
 export const project = {
-  challenge: "TODO: name of the Space Apps challenge you picked",
+  challenge: "Planet X & SPHEREx",
   problem:
-    "TODO: one or two sentences on the problem you are solving. What question about SPHEREx data, or about the sky, does your project answer?",
+    "SPHEREx is mapping the entire sky in 102 infrared colors, but its data lives in archives built for astronomers. Most people never get to see what it is exploring, or why it matters.",
   solution:
-    "TODO: what you built. For example: an interactive tool that pulls SPHEREx spectral images from IRSA and lets anyone explore the infrared spectrum of any point on the sky.",
+    "Sky Explorer: an illustrated map of 14 landmarks you can step inside. Each stop is a 360° sphere built from real star data, with hover cards, WASD flight and links between stops, so anyone can explore the sky SPHEREx is mapping.",
   howItWorks: [
-    "TODO: step 1, e.g. fetch SPHEREx Quick Release images from NASA/IPAC IRSA",
-    "TODO: step 2, e.g. extract a 102-band spectrum at the chosen coordinates",
-    "TODO: step 3, e.g. visualise it and flag water-ice and CO₂ absorption features",
+    "Pick a stop on the illustrated map, from Earth orbit out to the Milky Way",
+    "Step inside a 360° sphere built from 25,700 real Hipparcos stars",
+    "Hover the diamonds to learn, fly with WASD, and follow ↗ links to the next landmark",
   ],
-  tools: ["Next.js", "TypeScript", "Vercel", "SPHEREx data (IRSA)"], // TODO
+  tools: ["Next.js", "three.js", "TypeScript", "Vercel", "Hipparcos star catalogue"],
 };
 
 export const team: { name: string; role: string }[] = [
