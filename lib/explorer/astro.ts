@@ -75,3 +75,22 @@ export type SkyData = {
     lines: [number, number][][];
   }[];
 };
+
+/**
+ * A constellation's stick figure flattened onto a plane (gnomonic projection around its centre),
+ * oriented as it looks in the sky (east left, north up) and scaled to fit in [-1, 1].
+ */
+export function constellationFigure(con: SkyData["constellations"][number]) {
+  const center = radecToVec(con.center[0], con.center[1]);
+  const east = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), center).normalize();
+  const north = new THREE.Vector3().crossVectors(center, east).normalize();
+  const lines = con.lines.map((line) =>
+    line.map(([ra, dec]) => {
+      const v = radecToVec(ra, dec);
+      const d = v.dot(center);
+      return [-v.dot(east) / d, -v.dot(north) / d] as [number, number]; // screen coords: x right, y down
+    }),
+  );
+  const ext = Math.max(...lines.flat().map(([x, y]) => Math.max(Math.abs(x), Math.abs(y)))) || 1;
+  return lines.map((line) => line.map(([x, y]) => [x / ext, y / ext] as [number, number]));
+}

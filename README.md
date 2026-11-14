@@ -25,17 +25,20 @@ Every push to GitHub redeploys the site automatically.
 
 ## 3D Sky Explorer (`/explore`)
 
-A "Street View for space": a map of landmark spheres joined by a path. Click a sphere to step inside and drag to look around in 360°.
+A "Street View for space": an illustrated region map with a route through 14 stops. Tap a stop to step inside its 360° sphere.
 
-- **Map view:** drag to move, right-drag to rotate, scroll to zoom, click a sphere to enter.
-- **Sphere view:** drag to look around, scroll or pinch to zoom, Prev/Next to walk the path.
+- **Map view:** drag to move, scroll or pinch to zoom, tap a stop to enter.
+- **Sphere view:** drag to look around, scroll or pinch to zoom, Prev/Next to walk the route, Esc for the map.
+- **WASD:** fly around planets, stars and the galaxy (Q/E down/up, Shift faster, R reset). In sky-only stops WASD looks around.
+- **Portals:** names marked ↗ inside a sphere (Orion, Sirius, the Milky Way centre, Earth from the Moon…) take you to that stop.
 - **Real data:** 25,700 stars brighter than magnitude 7.5 (Hipparcos / HYG catalogue via `d3-celestial`), the 88 constellations, and star and constellation names in several languages.
 - **Extras:** PNG export, shareable links (`/explore?stop=orion`), star-name language picker.
 
 | File | What it does |
 | --- | --- |
 | `lib/explorer/landmarks.ts` | The stops on the tour (text, facts, look direction). Add new stops here. |
-| `lib/explorer/engine.ts` | three.js engine: the map, the 360° spheres, labels, export |
+| `components/explorer/StarMap.tsx` | The illustrated SVG map (islands, route, stop badges, pan/zoom) |
+| `lib/explorer/engine.ts` | three.js engine: the 360° spheres, WASD flight, portals, labels, export |
 | `lib/explorer/textures.ts` | Procedural planet, star and badge textures |
 | `lib/explorer/astro.ts` | Sky coordinate maths and star colors |
 | `components/explorer/Explorer.tsx` | The page UI around the 3D view |
