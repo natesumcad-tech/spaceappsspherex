@@ -75,7 +75,7 @@ export const LANDMARKS: Landmark[] = [
     fov: 95,
     hotspots: [
       { title: "The Pleiades", at: { sky: [56.75, 24.12] }, body: "The Seven Sisters: a cluster of young, hot stars about 444 light-years away, born together from the same cloud." },
-      { title: "Andromeda Galaxy", at: { sky: [10.68, 41.27] }, body: "Our nearest big neighbour galaxy, about 2.5 million light-years away. It is the most distant thing most people can see without a telescope." },
+      { title: "Andromeda Galaxy", at: { sky: [10.68, 41.27] }, body: "Our nearest big neighbor galaxy, about 2.5 million light-years away. It is the most distant thing most people can see without a telescope." },
     ],
   },
   {
@@ -177,7 +177,7 @@ export const LANDMARKS: Landmark[] = [
     title: "The Moon",
     subtitle: "Earth's natural satellite",
     description:
-      "Our nearest neighbour, about 384,000 km away. The same side always faces Earth. Look around and you'll find Earth hanging in the black sky.",
+      "Our nearest neighbor, about 384,000 km away. The same side always faces Earth. Look around and you'll find Earth hanging in the black sky.",
     facts: [
       ["Diameter", "3,474 km"],
       ["Distance", "≈ 384,400 km"],

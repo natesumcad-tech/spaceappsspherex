@@ -397,7 +397,7 @@ export function makeLoader(maxBytes = 120e6, maxConcurrent = 8) {
 
 /**
  * The SPHEREx DR1 map leaves the cores of very bright objects blank. Fill blank pixels that are
- * surrounded by near-saturated ones from their neighbours, so bright cores show as white, not black.
+ * surrounded by near-saturated ones from their neighbors, so bright cores show as white, not black.
  */
 function fillSaturated(px: Uint8ClampedArray, W: number, H: number) {
   for (let pass = 0; pass < 12; pass++) {
