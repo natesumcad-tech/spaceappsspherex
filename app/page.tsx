@@ -68,7 +68,7 @@ export default function Home() {
               <span />
               <span />
               <span />
-              <div className="h-url">spaceappsspherex.vercel.app/map</div>
+              <div className="h-url">nasaspaceappsbigbang.vercel.app/map</div>
             </div>
             <Image
               src="/shots/explorer-saturn.jpg"
@@ -137,7 +137,7 @@ export default function Home() {
                 <span />
                 <span />
                 <span />
-                <div className="h-url">spaceappsspherex.vercel.app/map</div>
+                <div className="h-url">nasaspaceappsbigbang.vercel.app/map</div>
               </div>
               <Image
                 src="/shots/starmap-2d.jpg"
