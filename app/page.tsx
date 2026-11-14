@@ -19,6 +19,7 @@ export default function Home() {
           {site.teamName}
         </a>
         <nav>
+          <a href="/explore">3D Explorer</a>
           {NAV.map(([id, label]) => (
             <a key={id} href={`#${id}`}>
               {label}
@@ -37,7 +38,10 @@ export default function Home() {
             <h1>{site.projectName}</h1>
             <p className="lede">{site.tagline}</p>
             <div className="cta-row">
-              <a className="btn primary" href="#explore">
+              <a className="btn primary" href="/explore">
+                Launch the 3D Sky Explorer
+              </a>
+              <a className="btn" href="#explore">
                 Try the spectrum explorer
               </a>
               <a className="btn" href="#project">
