@@ -129,6 +129,26 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
   const prev = idx >= 0 ? LANDMARKS[(idx - 1 + LANDMARKS.length) % LANDMARKS.length] : null;
   const next = idx >= 0 ? LANDMARKS[(idx + 1) % LANDMARKS.length] : null;
 
+  // Precache adjacent landmark assets during idle time for smoother transitions
+  useEffect(() => {
+    if (!ready) return;
+    const targets = [prev, next].filter((l): l is NonNullable<typeof l> => Boolean(l));
+    const run = () => {
+      for (const lm of targets) {
+        const imgUrl = (lm as { image?: string }).image;
+        if (imgUrl) {
+          const img = new Image();
+          img.src = imgUrl;
+        }
+      }
+    };
+    const id = "requestIdleCallback" in window ? window.requestIdleCallback(run) : setTimeout(run, 300);
+    return () => {
+      if ("cancelIdleCallback" in window && typeof id === "number") window.cancelIdleCallback(id);
+      else clearTimeout(id as ReturnType<typeof setTimeout>);
+    };
+  }, [ready, prev, next]);
+
   const exportImage = async (format: "png" | "jpg" | "webp") => {
     if (!current) return;
     const pngBlob = await engineRef.current!.exportPNG(`Planet X & SPHEREx · ${current.title}`);
