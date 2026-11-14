@@ -1,10 +1,16 @@
 import * as THREE from "three";
 import type { SkyData } from "@/lib/explorer/astro";
 import { DEG, MAP_H, MAP_W, planetPositions, projector, unprojector } from "./coords";
-import { StarField, renderOverview, renderRegion } from "./tiles";
+import { SPHEREX_RGB, makeLoader, renderTile, type TileRequest } from "./hips";
 import type { Waypoint } from "./data";
 
 export type Settings = {
+  /** Base imagery: the SPHEREx DR1 cube or 2MASS colour. */
+  layer: "spherex" | "2mass";
+  /** SPHEREx frame (0–101) for a single wavelength, or -1 for the three-colour view. */
+  band: number;
+  /** Extra IRSA surveys drawn on top where they have data. */
+  overlays: string[];
   glow: boolean;
   lines: boolean;
   names: boolean;
@@ -15,6 +21,9 @@ export type Settings = {
   quality: "auto" | "high" | "low";
 };
 export const DEFAULT_SETTINGS: Settings = {
+  layer: "spherex",
+  band: -1,
+  overlays: [],
   glow: true,
   lines: true,
   names: true,
@@ -25,7 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: "auto",
 };
 
-export type View = { x: number; y: number; d: number; phi: number; theta: number; radius: number; mode: "2d" | "3d"; tiles: number };
+export type View = { x: number; y: number; d: number; phi: number; theta: number; radius: number; mode: "2d" | "3d"; tiles: number; loading: number };
 
 type Events = {
   onView: (v: View) => void;
@@ -34,7 +43,7 @@ type Events = {
   onOverview: (c: HTMLCanvasElement) => void;
 };
 
-type TileEntry = { mesh: THREE.Mesh; tex: THREE.CanvasTexture; canvas: HTMLCanvasElement; version: string; used: number; L: number };
+type TileEntry = { mesh: THREE.Mesh; tex: THREE.DataTexture | null; px: number; version: string; used: number; L: number; retryAt?: number };
 type Tween = { start: number; ms: number; step: (t: number) => void; done?: () => void };
 type Overlay = { el: HTMLElement; x: number; y: number; kind: "con" | "star" | "planet" | "wp"; minD?: number; maxD?: number; wp?: Waypoint };
 
@@ -47,7 +56,7 @@ const SNAP_PHI = 12 * DEG; // let go of an orbit this close to top-down and it s
 const D_MIN = 1.2;
 const D_MAX = 260;
 const FOV = 40;
-const PLATE_DEPTH = 3;
+const PLATE_DEPTH = 0.6; // thin slab: just enough for a fine white edge
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -77,7 +86,12 @@ export class StarMapViewer {
   private settings: Settings = { ...DEFAULT_SETTINGS };
   private years = 0;
   private planetsOn = true;
-  private field: StarField;
+  private worker: Worker | null = null;
+  private fallbackLoad: ReturnType<typeof makeLoader> | null = null;
+  private reqId = 0;
+  private pending = new Map<number, { key: string; version: string; L: number; i: number; j: number } | { overview: true; version: string }>();
+  private inflight = new Map<string, string>(); // tile key → version being fetched
+  private overviewVersion = "";
   private version = "";
   private waypoints: Waypoint[] = [];
 
@@ -115,10 +129,10 @@ export class StarMapViewer {
     this.warp.style.display = "none";
     container.appendChild(this.warp);
 
-    this.scene.fog = new THREE.Fog(0xece6ff, 200, 400);
+    this.scene.fog = new THREE.Fog(0x000000, 200, 400); // distance fades to the black background
     this.buildPlate();
     this.scene.add(this.tileGroup, this.grid, this.lines, this.extraImages);
-    this.field = new StarField(sky, 0);
+    this.startWorker();
     this.rebuildEpochLayers();
     this.buildGrid();
     this.loadImageManifest();
@@ -127,7 +141,83 @@ export class StarMapViewer {
     this.ro.observe(container);
     this.bindInput();
     this.resize();
-    this.events.onOverview(renderOverview(this.field, { glow: this.settings.glow, years: 0 }));
+    this.requestOverview();
+  }
+
+  // ───────────────────────── IRSA tiles (background worker) ─────────────────────────
+
+  private startWorker() {
+    try {
+      this.worker = new Worker(new URL("./tile.worker.ts", import.meta.url), { type: "module" });
+      this.worker.onmessage = (e: MessageEvent<{ id: number; px?: Uint8ClampedArray; partial?: boolean }>) =>
+        this.onResult(e.data.id, e.data.px ?? null, !!e.data.partial);
+      this.worker.onerror = () => {
+        this.worker = null; // fall back to the page thread
+        this.fallbackLoad = makeLoader(60e6);
+      };
+    } catch {
+      this.fallbackLoad = makeLoader(60e6);
+    }
+  }
+
+  private send(req: TileRequest) {
+    if (this.worker) this.worker.postMessage(req);
+    else {
+      this.fallbackLoad ??= makeLoader(60e6);
+      renderTile(req, this.fallbackLoad).then(
+        (r) => this.onResult(req.id, r.px, r.partial),
+        () => this.onResult(req.id, null, true),
+      );
+    }
+  }
+
+  private imagery() {
+    const s = this.settings;
+    return {
+      base: s.layer,
+      frames: s.layer === "spherex" ? (s.band >= 0 ? [s.band] : [...SPHEREX_RGB]) : [0],
+      overlays: s.overlays,
+      light: s.glow,
+      detail: s.quality === "high" ? 1.5 : s.quality === "low" ? 0.6 : 1,
+    };
+  }
+
+  private requestOverview() {
+    const version = `${this.years.toFixed(2)}|${JSON.stringify(this.imagery())}`;
+    if (version === this.overviewVersion) return;
+    this.overviewVersion = version;
+    const id = ++this.reqId;
+    this.pending.set(id, { overview: true, version });
+    this.send({ id, x0: -180, y0: -90, w: 360, h: 180, W: 768, H: 384, years: this.years, ...this.imagery(), overlays: [], topDown: true });
+  }
+
+  private onResult(id: number, px: Uint8ClampedArray | null, partial = false) {
+    const job = this.pending.get(id);
+    this.pending.delete(id);
+    if (!job) return;
+    if ("overview" in job) {
+      if (!px || job.version !== this.overviewVersion) return;
+      if (partial) {
+        this.overviewVersion = ""; // some downloads failed: redraw the overview again shortly
+        setTimeout(() => this.requestOverview(), 3000);
+      }
+      const c = Object.assign(document.createElement("canvas"), { width: 768, height: 384 });
+      c.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(px), 768, 384), 0, 0);
+      this.events.onOverview(c);
+      return;
+    }
+    if (this.inflight.get(job.key) === job.version) this.inflight.delete(job.key);
+    if (!px || job.version !== this.version) {
+      this.invalidate();
+      return;
+    }
+    this.uploadTile(job.key, job.L, job.i, job.j, px, partial ? `${job.version}|partial` : job.version);
+    if (partial) {
+      // Some downloads failed: keep what arrived, and try this tile again shortly.
+      this.tiles.get(job.key)!.retryAt = performance.now() + 2500;
+      setTimeout(() => this.invalidate(), 2600);
+    }
+    this.invalidate();
   }
 
   dispose() {
@@ -135,6 +225,7 @@ export class StarMapViewer {
     this.ro.disconnect();
     this.cleanup.forEach((f) => f());
     for (const t of this.tiles.values()) this.disposeTile(t);
+    this.worker?.terminate();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.warp.remove();
@@ -146,13 +237,11 @@ export class StarMapViewer {
   /** The map sits on a thick baseplate. Its sides are white so you can see the edge when you tilt. */
   private buildPlate() {
     const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const top = new THREE.MeshBasicMaterial({ color: 0x0b1030 });
+    const top = new THREE.MeshBasicMaterial({ color: 0x000000 });
     const plate = new THREE.Mesh(new THREE.BoxGeometry(MAP_W, PLATE_DEPTH, MAP_H), [white, white, top, white, white, white]);
     plate.position.y = -PLATE_DEPTH / 2 - 0.002;
     plate.renderOrder = 0;
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(plate.geometry), new THREE.LineBasicMaterial({ color: 0xd8cffc }));
-    edges.position.copy(plate.position);
-    this.scene.add(plate, edges);
+    this.scene.add(plate);
   }
 
   private buildGrid() {
@@ -285,7 +374,7 @@ export class StarMapViewer {
     this.settings = { ...prev, ...s };
     this.lines.visible = this.settings.lines;
     this.grid.visible = this.settings.grid;
-    if (prev.glow !== this.settings.glow) this.events.onOverview(renderOverview(this.field, { glow: this.settings.glow, years: this.years }));
+    this.requestOverview();
     this.invalidate();
   }
 
@@ -293,9 +382,8 @@ export class StarMapViewer {
   setEpoch(years: number, showPlanets: boolean) {
     this.years = years;
     this.planetsOn = showPlanets;
-    this.field = new StarField(this.sky, years);
     this.rebuildEpochLayers();
-    this.events.onOverview(renderOverview(this.field, { glow: this.settings.glow, years }));
+    this.requestOverview();
     this.invalidate();
   }
 
@@ -411,7 +499,7 @@ export class StarMapViewer {
 
   /** Works out which tiles the camera can see, at what detail, and shows them (or a stand-in). Returns true if work is left. */
   private updateTiles(): boolean {
-    const version = `${this.years.toFixed(2)}|${this.settings.glow}|${this.tilePx}`;
+    const version = `${this.years.toFixed(2)}|${JSON.stringify(this.imagery())}|${this.tilePx}`;
     this.version = version;
     const R = this.renderRadius;
 
@@ -452,7 +540,8 @@ export class StarMapViewer {
         if (Math.hypot(nx - this.target.x, ny - this.target.y) > R) return; // beyond the fog
         const cx = clamp(camX, x0, x0 + s), cy = clamp(camY, y0, y0 + s);
         const dist = Math.hypot(cx - camX, cy - camY, camH);
-        if (L < LMAX && s / dist > threshold) {
+        // Level 0 is only a quick stand-in: its 30° tiles look blotchy when seen at an angle.
+        if (L === 0 || (L < LMAX && s / dist > threshold)) {
           for (let k = 0; k < 4; k++) visit(L + 1, i * 2 + (k & 1), j * 2 + (k >> 1));
         } else wanted.push({ L, i, j, dist });
       };
@@ -488,15 +577,24 @@ export class StarMapViewer {
       }
     }
 
-    // Render a few queued tiles per frame, most important first, within a small time budget.
+    // Always fetch the coarse level-0 tile under every visible tile first: it's cheap and acts as a
+    // blurry stand-in while the detailed tiles load, so the map never shows holes.
+    for (const t of wanted) {
+      const i0 = t.i >> t.L, j0 = t.j >> t.L, k0 = `0/${i0}/${j0}`;
+      const e0 = this.tiles.get(k0);
+      if (t.L > 0 && (!e0 || e0.version !== version) && !this.queue.has(k0)) this.queue.set(k0, { L: 0, i: i0, j: j0, pri: -100 + t.dist / Math.max(1, this.d) });
+    }
+
+    // Ask the worker for the most important missing tiles, a few at a time.
     const order = [...this.queue.entries()].sort((a, b) => a[1].pri - b[1].pri);
-    const budget = 7;
-    const t0 = performance.now();
     for (const [key, t] of order) {
-      if (performance.now() - t0 > budget) break;
-      this.renderTile(key, t.L, t.i, t.j, version);
-      this.queue.delete(key);
-      show.add(key);
+      if (this.inflight.size >= 6) break;
+      if (this.inflight.get(key) === version) continue;
+      if ((this.tiles.get(key)?.retryAt ?? 0) > performance.now()) continue;
+      const s = ROOT / 2 ** t.L, id = ++this.reqId;
+      this.inflight.set(key, version);
+      this.pending.set(id, { key, version, L: t.L, i: t.i, j: t.j });
+      this.send({ id, x0: t.i * s, y0: t.j * s, w: s, h: s, W: this.tilePx, H: this.tilePx, years: this.years, ...this.imagery() });
     }
 
     for (const [key, e] of this.tiles) {
@@ -506,29 +604,34 @@ export class StarMapViewer {
     }
     this.visibleTiles = show.size;
     this.evict(show);
-    return this.queue.size > 0;
+    return false; // tiles arrive asynchronously and request their own frame
   }
 
-  private renderTile(key: string, L: number, i: number, j: number, version: string) {
-    const s = ROOT / 2 ** L, px = this.tilePx;
+  private uploadTile(key: string, L: number, i: number, j: number, px: Uint8ClampedArray, version: string) {
+    const s = ROOT / 2 ** L, size = this.tilePx;
     let e = this.tiles.get(key);
-    if (!e || e.canvas.width !== px) {
+    if (!e || e.px !== size) {
       if (e) this.disposeTile(e);
-      const canvas = Object.assign(document.createElement("canvas"), { width: px, height: px });
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ map: tex }));
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ color: 0xffffff }));
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(i * s + s / 2, 0, -(j * s + s / 2));
       mesh.renderOrder = 1 + L; // finer tiles draw over their stand-ins
       mesh.material.depthWrite = false;
       this.tileGroup.add(mesh);
-      e = { mesh, tex, canvas, version, used: performance.now(), L };
+      e = { mesh, tex: null, px: size, version, used: performance.now(), L };
       this.tiles.set(key, e);
     }
-    renderRegion(e.canvas.getContext("2d")!, i * s, j * s, s, s, px, px, this.field, { glow: this.settings.glow, years: this.years });
-    e.tex.needsUpdate = true;
+    const tex = new THREE.DataTexture(new Uint8Array(px.buffer), size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    tex.needsUpdate = true;
+    e.tex?.dispose();
+    e.tex = tex;
+    (e.mesh.material as THREE.MeshBasicMaterial).map = tex;
+    (e.mesh.material as THREE.MeshBasicMaterial).needsUpdate = true;
     e.version = version;
   }
 
@@ -545,7 +648,7 @@ export class StarMapViewer {
     this.tileGroup.remove(e.mesh);
     e.mesh.geometry.dispose();
     (e.mesh.material as THREE.Material).dispose();
-    e.tex.dispose();
+    e.tex?.dispose();
   }
 
   private updateImages() {
@@ -808,8 +911,9 @@ export class StarMapViewer {
     const R = this.renderRadius;
     const fog = this.scene.fog as THREE.Fog;
     const camDist = this.camera.position.distanceTo(new THREE.Vector3(this.target.x, 0, -this.target.y));
-    fog.near = camDist + R * 0.35;
-    fog.far = camDist + R * 1.05;
+    // Fade fully to black before the edge of what we load, so the distance melts into the background.
+    fog.near = camDist + R * 0.15;
+    fog.far = camDist + R * 0.8;
 
     if (this.updateTiles()) busy = true;
     this.updateImages();
@@ -829,6 +933,7 @@ export class StarMapViewer {
       radius: this.d * Math.tan((FOV / 2) * DEG) * (1 + 0.9 * Math.sin(this.phi)),
       mode: this.phi < 0.5 * DEG ? "2d" : "3d",
       tiles: this.visibleTiles,
+      loading: this.inflight.size,
     });
     this.dirty = false;
     if (busy || this.drag) this.raf = requestAnimationFrame(this.frame);

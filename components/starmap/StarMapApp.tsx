@@ -5,6 +5,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import type { SkyData } from "@/lib/explorer/astro";
 import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
 import { raToX } from "@/lib/starmap/coords";
+import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById } from "@/lib/starmap/hips";
 import { DEFAULT_SETTINGS, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
 
 const STORE_WP = "starmap.waypoints.v1";
@@ -38,6 +39,7 @@ export default function StarMapApp() {
   const viewerRef = useRef<StarMapViewer | null>(null);
   const minimapRef = useRef<MinimapHandle>(null);
   const readoutRef = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef<HTMLDivElement>(null);
   const modeRef = useRef<"2d" | "3d">("2d");
 
   const [ready, setReady] = useState(false);
@@ -86,6 +88,10 @@ export default function StarMapApp() {
                 `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
                 `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
                 `<span><b>View</b> ${fmt(v.radius * 2, 0)}°</span><span><b>Tilt</b> ${fmt((v.phi * 180) / Math.PI, 0)}°</span>`;
+            }
+            if (loadingRef.current) {
+              loadingRef.current.style.opacity = v.loading ? "1" : "0";
+              loadingRef.current.textContent = `Loading IRSA tiles · ${v.loading}`;
             }
             if (v.mode !== modeRef.current) {
               modeRef.current = v.mode;
@@ -209,7 +215,9 @@ export default function StarMapApp() {
         <div className="mv-glass mv-minicard">
           <Minimap ref={minimapRef} onMove={(x, y) => viewerRef.current?.setTarget(x, y)} />
           <div ref={readoutRef} className="mv-readout" />
+          <ImageryControl settings={settings} set={set} />
         </div>
+        <div ref={loadingRef} className="mv-glass mv-loadpill" aria-live="polite" />
       </div>
 
       {/* Zoom & home */}
@@ -248,7 +256,14 @@ export default function StarMapApp() {
         onPointerLeave={() => hoverWp(null)}
         aria-live="polite"
       >
-        {hover && <WaypointDetails wp={hover} viewer={viewerRef.current} onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))} />}
+        {hover && (
+          <WaypointDetails
+            wp={hover}
+            viewer={viewerRef.current}
+            imaged={`${layerById(settings.layer).name}: ${layerById(settings.layer).observed}`}
+            onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))}
+          />
+        )}
       </aside>
 
       {/* Add-waypoint panel (Shift+G) */}
@@ -294,7 +309,7 @@ export default function StarMapApp() {
 
 // ───────────────────────── Waypoint details ─────────────────────────
 
-function WaypointDetails({ wp, viewer, onDelete }: { wp: Waypoint; viewer: StarMapViewer | null; onDelete: (id: string) => void }) {
+function WaypointDetails({ wp, viewer, imaged, onDelete }: { wp: Waypoint; viewer: StarMapViewer | null; imaged: string; onDelete: (id: string) => void }) {
   return (
     <>
       <span className="mv-kind" style={wp.color ? { background: wp.color } : undefined}>
@@ -308,8 +323,12 @@ function WaypointDetails({ wp, viewer, onDelete }: { wp: Waypoint; viewer: StarM
         </p>
       )}
       <dl>
+        <div className="wide">
+          <dt>Image taken</dt>
+          <dd>{imaged}</dd>
+        </div>
         <div>
-          <dt>Date</dt>
+          <dt>{wp.custom ? "Added" : "Recorded"}</dt>
           <dd>{wp.date || "—"}</dd>
         </div>
         <div>
@@ -411,6 +430,57 @@ function AddWaypoint({ at, toRadec, onCancel, onSave }: { at: { x: number; y: nu
         </button>
       </div>
     </form>
+  );
+}
+
+// ───────────────────────── Imagery (which IRSA data you're looking at) ─────────────────────────
+
+function ImageryControl({ settings, set }: { settings: Settings; set: (k: keyof Settings, v: Settings[keyof Settings]) => void }) {
+  const mode = settings.layer === "2mass" ? "2mass" : settings.band >= 0 ? "band" : "color";
+  const [band, setBand] = useState(settings.band >= 0 ? settings.band : 46);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (settings.band >= 0) setBand(settings.band);
+  }, [settings.band]);
+  const commit = (b: number) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => set("band", b), 250); // wait until the slider settles
+  };
+  return (
+    <div className="mv-imagery">
+      <div className="mv-imagery-seg" role="radiogroup" aria-label="Map imagery">
+        <button role="radio" aria-checked={mode === "color"} onClick={() => { set("layer", "spherex"); set("band", -1); }}>
+          SPHEREx color
+        </button>
+        <button role="radio" aria-checked={mode === "band"} onClick={() => { set("layer", "spherex"); set("band", band); }}>
+          One wavelength
+        </button>
+        <button role="radio" aria-checked={mode === "2mass"} onClick={() => set("layer", "2mass")}>
+          2MASS
+        </button>
+      </div>
+      {mode === "band" && (
+        <label className="mv-band">
+          <span>
+            <b>{SPHEREX_WL[band].toFixed(2)} µm</b> · band {Math.floor(band / 17) + 1}, channel {(band % 17) + 1}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={101}
+            value={band}
+            onChange={(e) => {
+              let b = +e.target.value;
+              if (BLANK_FRAMES.has(b)) b = b === 50 ? 49 : 52; // the two dichroic channels are empty in DR1
+              setBand(b);
+              commit(b);
+            }}
+            aria-label="SPHEREx wavelength"
+          />
+        </label>
+      )}
+      {mode === "color" && <p className="mv-imagery-note">Blue 1.0 µm · green 2.2 µm · red 3.3 µm (glowing dust)</p>}
+    </div>
   );
 }
 
@@ -582,7 +652,7 @@ function Timeline({ value, onChange }: { value: number; onChange: (i: number) =>
 // ───────────────────────── Settings window ─────────────────────────
 
 const TOGGLES: [keyof Settings, string, string][] = [
-  ["glow", "Light", "Milky Way glow and halos around bright stars"],
+  ["glow", "Light", "Brighter display, so faint dust and galaxies stand out"],
   ["lines", "Constellation mapping", "Stick-figure lines joining each constellation"],
   ["names", "Names", "Constellation, star and planet names"],
   ["descriptions", "Descriptions", "Detail cards that slide in when you hover a waypoint"],
@@ -618,6 +688,40 @@ function SettingsWindow({
             Done
           </button>
         </div>
+
+        <section>
+          <h3>Map imagery from IRSA</h3>
+          <p className="mv-note">Live tiles from NASA/IPAC&apos;s Infrared Science Archive, its most recent releases first.</p>
+          {BASE_LAYERS.map((l) => (
+            <label key={l.id} className="mv-toggle">
+              <span>
+                <b>{l.name}</b>
+                <small>
+                  Released {l.released} · observed {l.observed}
+                </small>
+              </span>
+              <input type="radio" name="mv-base" checked={settings.layer === l.id} onChange={() => set("layer", l.id as Settings["layer"])} />
+              <i aria-hidden="true" />
+            </label>
+          ))}
+          <h3 className="mv-subhead">Extra layers (where they have data)</h3>
+          {OVERLAYS.map((l) => (
+            <label key={l.id} className="mv-toggle">
+              <span>
+                <b>{l.name}</b>
+                <small>
+                  Released {l.released} · observed {l.observed}
+                </small>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.overlays.includes(l.id)}
+                onChange={(e) => set("overlays", e.target.checked ? [...settings.overlays, l.id] : settings.overlays.filter((x) => x !== l.id))}
+              />
+              <i aria-hidden="true" />
+            </label>
+          ))}
+        </section>
 
         <section>
           <h3>Display</h3>
@@ -702,8 +806,9 @@ function SettingsWindow({
         <section>
           <h3>About the data</h3>
           <p className="mv-note">
-            Stars: 25,700 stars from the Hipparcos catalogue, placed on a grid by their RA/Dec, starting from the origin (RA 0h, Dec 0°). The timeline
-            shifts the sky by precession (a simplified model), and planets use NASA JPL&apos;s approximate orbital elements.
+            The map is SPHEREx Data Release 1 (NASA/JPL-Caltech, served by IRSA), streamed as HiPS tiles and laid onto a grid by RA/Dec starting from the
+            origin (RA 0h, Dec 0°). Constellation lines and names come from the Hipparcos-based d3-celestial catalogue. The timeline shifts the sky by
+            precession (a simplified model), and planets use NASA JPL&apos;s approximate orbital elements.
           </p>
         </section>
       </div>

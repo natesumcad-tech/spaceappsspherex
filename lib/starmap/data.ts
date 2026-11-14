@@ -87,7 +87,8 @@ export const PRESET_WAYPOINTS: Waypoint[] = [
     ra: 270,
     dec: 66.561,
     description: "The point directly above the plane of Earth's orbit, in the constellation Draco.",
-    significance: "SPHEREx observes the sky around the ecliptic poles most often, building its deepest maps here.",
+    significance:
+      "SPHEREx observes around the ecliptic poles most often, building its deepest maps here. This patch is blank in the DR1 all-sky map; IRSA serves the deep-field images as a separate collection (spherex_dr1_deep).",
     date: "SPHEREx launched 11 Mar 2025",
   },
   {
@@ -97,7 +98,8 @@ export const PRESET_WAYPOINTS: Waypoint[] = [
     ra: 90,
     dec: -66.561,
     description: "The southern counterpart, close to the Large Magellanic Cloud.",
-    significance: "SPHEREx's second deep field: repeated visits let it see fainter objects here than anywhere else.",
+    significance:
+      "SPHEREx's second deep field, visited again and again to see fainter objects. The dark oval here is real: it's blank in the DR1 all-sky map, and IRSA serves the deep-field images separately (spherex_dr1_deep).",
     date: "SPHEREx launched 11 Mar 2025",
   },
   {

@@ -47,8 +47,8 @@ export default function Home() {
             <em>SPHEREx</em> is mapping
           </h1>
           <p className="h-lede">
-            Fly over a map of the whole sky in 2D or 3D, travel back in time, then step inside real stars, planets and the
-            Milky Way in 360°.
+            Fly over SPHEREx&apos;s brand-new all-sky map in 2D or 3D, scroll through its 102 infrared colors, travel back in
+            time, then step inside stars, planets and the Milky Way in 360°.
           </p>
           <div className="h-ctas">
             <Link href="/explore" className="h-btn">
@@ -131,8 +131,8 @@ export default function Home() {
             The whole sky <span>as a map you can fly</span>
           </h2>
           <p className="h-sub">
-            Pan, orbit and zoom like Google Maps, tilt into 3D, drag the timeline back 14,000 years, and hyperspace-jump between
-            waypoints.
+            SPHEREx Data Release 1, streamed live from NASA/IPAC&apos;s Infrared Science Archive. Pan, orbit and zoom like Google
+            Maps, tilt into 3D, and hyperspace-jump between waypoints.
           </p>
           <div className="h-panel">
             <Link href="/map" className="h-panel-window" aria-label="Open the Star Map">
@@ -153,8 +153,8 @@ export default function Home() {
           </div>
           <ul className="h-features">
             <li>
-              <b>25,700 real stars</b>
-              <span>Hipparcos catalogue, true positions and colors</span>
+              <b>Real SPHEREx data</b>
+              <span>DR1 all-sky map from IRSA, in all 102 colors, plus 2MASS, Spitzer and MSX layers</span>
             </li>
             <li>
               <b>2D ⇄ 3D</b>

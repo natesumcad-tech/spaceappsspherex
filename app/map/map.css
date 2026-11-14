@@ -14,7 +14,7 @@
   overflow: hidden;
   color: var(--text);
   font-family: var(--font-body), system-ui, sans-serif;
-  background: radial-gradient(120% 80% at 50% 0%, #c6d0ff 0%, #ddd3ff 45%, #ffe4ee 100%);
+  background: #000;
 }
 .mv strong { color: inherit; }
 .mv kbd {
@@ -45,7 +45,8 @@
   font-size: 1.8rem;
   padding: 24px;
   text-align: center;
-  background: radial-gradient(120% 80% at 50% 0%, #c6d0ff 0%, #ddd3ff 45%, #ffe4ee 100%);
+  background: #000;
+  color: #fff;
   z-index: 20;
 }
 
@@ -330,3 +331,18 @@
   .mv-title { display: none; }
   .mv-minicard { width: 150px; }
 }
+
+/* Imagery picker under the minimap */
+.mv-imagery { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
+.mv-imagery-seg { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #f3f0ff; }
+.mv-imagery-seg button { flex: 1; font: inherit; font-size: 0.72rem; font-weight: 600; border: 0; background: transparent; color: var(--muted); padding: 5px 4px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.mv-imagery-seg button[aria-checked="true"] { background: #fff; color: var(--text); box-shadow: 0 2px 8px rgba(60, 50, 140, 0.15); }
+.mv-imagery-note { margin: 6px 2px 0; font-size: 0.7rem; color: var(--muted); }
+.mv-band { display: block; margin-top: 8px; font-size: 0.72rem; color: var(--muted); }
+.mv-band b { color: var(--text); }
+.mv-band input { width: 100%; accent-color: var(--accent); margin-top: 4px; }
+.mv-loadpill { position: absolute; right: 0; top: calc(100% + 8px); padding: 5px 12px; border-radius: 999px; font-size: 0.72rem; color: var(--muted); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.mv-wpcard dl div.wide { grid-column: 1 / -1; }
+.mv-subhead { margin-top: 16px !important; }
+.mv-toggle input[type="radio"] + i { border-radius: 999px; }
+@media (max-width: 760px) { .mv-imagery-seg button { font-size: 0.66rem; } }
