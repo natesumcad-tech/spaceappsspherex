@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SiteTabs from "@/components/SiteTabs";
 import "./infrared-isolation.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { SkyData } from "@/lib/explorer/astro";
@@ -380,13 +381,7 @@ export default function StarMapApp() {
 
       {/* Top-left: title & 2D/3D */}
       <div className="mv-top-left">
-        <Link href="/" className="mv-glass mv-icon" aria-label="Back to home">
-          ←
-        </Link>
-        <div className="mv-glass mv-title">
-          <strong>Sky Explorer</strong>
-          <span>Planet X & SPHEREx</span>
-        </div>
+        <SiteTabs active="explorer" />
         <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
           <button
             role="tab"

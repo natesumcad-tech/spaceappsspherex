@@ -1,17 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import SiteTabs from "@/components/SiteTabs";
 import ScrollReveal from "@/components/ScrollReveal";
 import SpectrumExplorer from "@/components/SpectrumExplorer";
 import { site, project, team, mission, resources } from "@/content/site";
 import "./home.css";
-
-const NAV = [
-  ["/map", "Star Map"],
-  ["#how", "How it works"],
-  ["#spectrum", "Spectrum"],
-  ["#mission", "Mission"],
-  ["#team", "Team"],
-];
 
 // 102 bars: one for each SPHEREx band, shaped like a gentle spectrum
 const BARS = Array.from({ length: 102 }, (_, i) => {
@@ -27,19 +20,13 @@ export default function Home() {
       {/* ── Hero ── */}
       <header className="h-hero">
         <div className="h-sky" aria-hidden="true" />
-        <nav className="h-nav">
+        <div className="h-nav">
           <Link href="/" className="h-logo">
             <span className="h-logo-mark" aria-hidden="true" />
             {site.teamName}
           </Link>
-          <div className="h-links">
-            {NAV.map(([href, label]) => (
-              <a key={href} href={href}>
-                {label}
-              </a>
-            ))}
-          </div>
-        </nav>
+          <SiteTabs active="home" />
+        </div>
 
         <div className="h-hero-copy">
           <p className="h-kicker">NASA Space Apps · Planet X & SPHEREx</p>

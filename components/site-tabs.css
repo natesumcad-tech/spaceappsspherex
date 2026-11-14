@@ -1,0 +1,11 @@
+.site-tabs { display: inline-flex; align-items: center; gap: 4px; padding: 5px; border: 1px solid #cfc0a9; border-radius: 12px; background: #f0e6d6; }
+.site-tabs a { display: inline-flex; align-items: center; justify-content: center; padding: 9px 16px; border-radius: 8px; color: #514a40; text-decoration: none; font-size: .82rem; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s; }
+.site-tabs a:hover { background: #e2d4bd; color: #171512; }
+.site-tabs a[aria-current="page"] { background: #171512; color: #f7efdf; }
+.site-tabs a:focus-visible { outline: 2px solid #171512; outline-offset: 3px; }
+.mv-top-left .site-tabs { box-shadow: 0 8px 24px #0002; }
+.mv:not(.in-sphere) .mv-top-left { z-index: 25; }
+@media (max-width: 760px) {
+  .mv-top-left { max-width: calc(100vw - 28px); flex-wrap: wrap; }
+  .mv-top-left .site-tabs a { padding: 8px 10px; font-size: .75rem; }
+}
