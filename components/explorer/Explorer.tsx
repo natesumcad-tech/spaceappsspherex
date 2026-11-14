@@ -129,13 +129,36 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
   const prev = idx >= 0 ? LANDMARKS[(idx - 1 + LANDMARKS.length) % LANDMARKS.length] : null;
   const next = idx >= 0 ? LANDMARKS[(idx + 1) % LANDMARKS.length] : null;
 
-  const exportPng = async () => {
+  const exportImage = async (format: "png" | "jpg" | "webp") => {
     if (!current) return;
-    const blob = await engineRef.current!.exportPNG(`Planet X & SPHEREx · ${current.title}`);
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `spherex-${current.id}.png` });
+    const pngBlob = await engineRef.current!.exportPNG(`Planet X & SPHEREx · ${current.title}`);
+    let outBlob: Blob = pngBlob;
+
+    if (format !== "png") {
+      const bitmap = await createImageBitmap(pngBlob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d")!;
+      if (format === "jpg") {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const mime = format === "jpg" ? "image/jpeg" : "image/webp";
+      outBlob = await new Promise<Blob>((resolve) =>
+        canvas.toBlob((b) => resolve(b ?? pngBlob), mime, 0.92)
+      );
+    }
+
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(outBlob),
+      download: `spherex-${current.id}.${format}`,
+    });
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    flash("Image saved");
+    flash(`Saved ${format.toUpperCase()}`);
   };
   const share = async () => {
     try {
@@ -175,9 +198,26 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
           <button className="xp-iconbtn xp-hide-sm" onClick={share} disabled={!ready}>
             Share
           </button>
-          <button className="xp-iconbtn primary" onClick={exportPng} disabled={!ready}>
-            PNG
-          </button>
+          <select
+            className="xp-iconbtn primary"
+            aria-label="Export view as image"
+            defaultValue=""
+            disabled={!ready}
+            onChange={(e) => {
+              const fmt = e.target.value as "png" | "jpg" | "webp" | "";
+              if (fmt) {
+                exportImage(fmt);
+                e.target.value = "";
+              }
+            }}
+          >
+            <option value="" disabled>
+              Export ▾
+            </option>
+            <option value="png">Export PNG</option>
+            <option value="jpg">Export JPG</option>
+            <option value="webp">Export WEBP</option>
+          </select>
         </div>
 
         <aside id="xp-panel" className={`xp-panel ${panelOpen ? "open" : ""}`}>
