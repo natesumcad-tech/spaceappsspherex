@@ -11,7 +11,8 @@ import { DEFAULT_SETTINGS, type MapHover, type Settings, type StarMapViewer, typ
 import SphereView from "@/components/explorer/Explorer";
 import Collapsible from "@/components/ui/Collapsible";
 import { byId } from "@/lib/explorer/landmarks";
-import { waypointStop } from "@/lib/explorer/dynamic";
+import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
+import Assistant, { type AssistantAction } from "./Assistant";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v1";
@@ -64,6 +65,8 @@ export default function StarMapApp() {
   const [nearStop, setNearStop] = useState<string | null>(null);
   const sphereRef = useRef<string | null>(null);
   sphereRef.current = sphere;
+  const skyRef = useRef<SkyData | null>(null);
+  const [askOpen, setAskOpen] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setUrl = (stop: string | null) => {
@@ -154,6 +157,7 @@ export default function StarMapApp() {
           fetch("/data/sky.json").then((r) => r.json() as Promise<SkyData>),
         ]);
         if (cancelled) return;
+        skyRef.current = sky;
         viewer = new StarMapViewer(stageRef.current!, overlayRef.current!, sky, {
           onView: (v: View) => {
             viewRef.current = v;
@@ -237,6 +241,130 @@ export default function StarMapApp() {
   }, []);
 
   const set = (k: keyof Settings, v: Settings[keyof Settings]) => setSettings((s) => ({ ...s, [k]: v }));
+
+  // ── The sky guide (AI assistant): what it can see, and the actions it can take ──
+  const latest = useRef({ epoch, settings, custom, hover });
+  latest.current = { epoch, settings, custom, hover };
+
+  const assistantContext = () => {
+    const v = viewRef.current, viewer = viewerRef.current;
+    if (!v || !viewer) return {};
+    const { epoch: e, settings: st, custom: cu, hover: hv } = latest.current;
+    const [ra, dec] = viewer.toRadec(v.x, v.y);
+    const inView = [...PRESET_WAYPOINTS, ...cu]
+      .map((w) => {
+        const [x, y] = viewer.project(w.ra, w.dec);
+        return { w, d: Math.hypot(x - v.x, y - v.y) };
+      })
+      .filter((o) => o.d < Math.max(5, v.radius))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 12)
+      .map((o) => o.w.title);
+    return {
+      map_center: { ra_deg: +ra.toFixed(2), dec_deg: +dec.toFixed(2) },
+      field_of_view_deg: +(v.radius * 2).toFixed(1),
+      view: sphereRef.current ? "360° view" : v.mode,
+      in_360_view_of: sphereRef.current ? byId(sphereRef.current)?.title : null,
+      timeline: EPOCHS[e].label,
+      imagery: st.layer === "2mass" ? "2MASS" : st.band >= 0 ? `SPHEREx ${SPHEREX_WL[st.band].toFixed(2)} µm` : "SPHEREx color",
+      hovering: hv?.wp?.title ?? hv?.planet ?? null,
+      places_in_view: inView,
+    };
+  };
+
+  const runAction = (a: AssistantAction): string | null => {
+    const viewer = viewerRef.current, sky = skyRef.current;
+    if (!viewer || !sky) return null;
+    const norm = (t: unknown) => String(t ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const open = !!a.args.open_360;
+    const go = (stop: string | null, x: number, y: number, d: number, label: string) => {
+      if (open && stop) {
+        enterSphere(stop);
+        return `◎ Opened ${label} in 360°`;
+      }
+      const fly = () => viewer.flyTo(x, y, d, false);
+      if (sphereRef.current) {
+        exitSphere();
+        setTimeout(fly, 450);
+      } else fly();
+      return `✈ Flew to ${label}`;
+    };
+    switch (a.name) {
+      case "show_place": {
+        const id = String(a.args.id);
+        const wp = [...PRESET_WAYPOINTS, ...latest.current.custom].find((w) => w.id === id);
+        if (wp) {
+          const [x, y] = viewer.project(wp.ra, wp.dec);
+          return go(waypointStop(wp), x, y, 14, wp.title);
+        }
+        const lm = byId(id), at = stopXY(id);
+        return lm && at ? go(id, at[0], at[1], 10, lm.title) : null;
+      }
+      case "show_constellation": {
+        const n = norm(a.args.name);
+        const c = sky.constellations.find((k) => norm(k.id) === n || Object.values(k.names).some((nm) => norm(nm) === n));
+        if (!c) return `Couldn't find a constellation called “${a.args.name}”`;
+        const [x, y] = viewer.project(c.center[0], c.center[1]);
+        return go(constellationStop(sky, c), x, y, 20, c.names.en);
+      }
+      case "show_star": {
+        const n = norm(a.args.name);
+        const s = sky.named.find((k) => Object.values(k.names).some((nm) => norm(nm) === n));
+        if (!s) return `Couldn't find a star called “${a.args.name}” on the map`;
+        const [ra, dec] = sky.stars[s.i];
+        const [x, y] = viewer.project(ra, dec);
+        return go(starStop(sky, s), x, y, 10, s.names.en);
+      }
+      case "show_sky_position": {
+        const ra = Number(a.args.ra_deg), dec = Number(a.args.dec_deg);
+        if (!Number.isFinite(ra) || !Number.isFinite(dec) || Math.abs(dec) > 90) return null;
+        const [x, y] = viewer.project(((ra % 360) + 360) % 360, dec);
+        return go(null, x, y, 12, String(a.args.label ?? "that spot"));
+      }
+      case "set_timeline": {
+        const i = EPOCHS.findIndex((e) => e.label === a.args.epoch);
+        if (i < 0) return null;
+        setEpoch(i);
+        return `⧗ Timeline set to ${EPOCHS[i].label}`;
+      }
+      case "set_imagery": {
+        if (a.args.layer === "2mass") {
+          set("layer", "2mass");
+          return "Imagery: 2MASS";
+        }
+        set("layer", "spherex");
+        if (a.args.layer === "spherex-wavelength" && Number.isFinite(Number(a.args.wavelength_um))) {
+          const um = Number(a.args.wavelength_um);
+          let best = 0;
+          SPHEREX_WL.forEach((w, i) => {
+            if (!BLANK_FRAMES.has(i) && Math.abs(w - um) < Math.abs(SPHEREX_WL[best] - um)) best = i;
+          });
+          set("band", best);
+          return `Imagery: SPHEREx ${SPHEREX_WL[best].toFixed(2)} µm`;
+        }
+        set("band", -1);
+        return "Imagery: SPHEREx color";
+      }
+      case "set_view": {
+        if (sphereRef.current) exitSphere();
+        viewer.set2D(a.args.mode === "2d");
+        return a.args.mode === "2d" ? "View: 2D" : "View: 3D";
+      }
+      default:
+        return null;
+    }
+  };
+
+  // "/" opens the guide
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || (e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
+      e.preventDefault();
+      setAskOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const all = [...PRESET_WAYPOINTS, ...custom];
   const ep = EPOCHS[epoch];
 
@@ -280,6 +408,9 @@ export default function StarMapApp() {
             3D
           </button>
         </div>
+        <button className={`mv-glass mv-ask ${askOpen ? "on" : ""}`} onClick={() => setAskOpen((o) => !o)} aria-expanded={askOpen} title="Ask the sky guide (/)">
+          ✦ Ask
+        </button>
       </div>
 
       {/* Top-right: actions, minimap, readout */}
@@ -414,6 +545,8 @@ export default function StarMapApp() {
       </Collapsible>
 
       {travel && !sphere && <div className="mv-travel">Traveling to {travel}…</div>}
+
+      <Assistant open={askOpen} onClose={() => setAskOpen(false)} getContext={assistantContext} runAction={runAction} />
 
       {/* The 360° sphere opens right here, over the map */}
       {sphere && (

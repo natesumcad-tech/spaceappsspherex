@@ -54,6 +54,14 @@ A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street 
 | `lib/starmap/data.ts` | Preset waypoints and timeline dates |
 | `components/starmap/StarMapApp.tsx` | Page UI: minimap, timeline, settings, waypoint panels |
 
+### Sky guide (AI assistant)
+
+Click **✦ Ask** (or press `/`) for a chat guide that finds things, explains what you're looking at and answers follow-up questions. It can act on the map: fly to any waypoint, planet, star, constellation or RA/Dec, open 360° views, move the timeline, switch imagery and toggle 2D/3D. It sees your current view (center, zoom, date, imagery, nearby places) and suggests follow-up questions.
+
+- Runs on Google's Gemini API through `app/api/chat/route.ts`; the key never reaches the browser and is sent in a header, not the URL.
+- **Setup:** add `GEMINI_API_KEY` in Vercel → Settings → Environment Variables, then redeploy. Optional: `GEMINI_MODEL` (default `gemini-2.5-flash`).
+- Without a key the panel shows a setup message instead of failing.
+
 ### 360° views
 
 **Moving around:** every view has a movement panel. **Look** turns you on the spot (drag the ring to turn, tilt and zoom sliders). **Orbit** circles the object: drag the ring to go around, with height and distance sliders (or A/D around, W/S closer/farther, Q/E lower/higher). **Free fly** moves you with WASD. Constellations are built in real 3D from star distances (HYG database v4.1, CC BY-SA 4.0), so from the Sun they look like the familiar figure, and from the side they come apart.
