@@ -5,6 +5,7 @@ import { DEG, bvToKelvin, dirToYawPitch, galacticToRaDec, kelvinToRGB, radecToVe
 import { cloudTexture, glowTexture, planetTexture, ringTexture } from "./textures";
 import { SPHEREX_RGB, makeLoader, renderTile, type TileRequest } from "@/lib/starmap/hips";
 import { constellationStop, starStop } from "./dynamic";
+import { KeyState, isShiftToken } from "../starmap/keyState";
 
 /** 3D constellations: 1 scene unit = 4 light-years. */
 const LY_PER_UNIT = 4;
@@ -142,7 +143,11 @@ function gaussian(rand = Math.random) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand());
 }
 
-const FLY_KEYS = ["w", "a", "s", "d", "q", "e", "shift"];
+const FLY_KEYS = new Set([
+  "w", "a", "s", "d", "q", "e",
+  "arrowup", "arrowdown", "arrowleft", "arrowright",
+  "shiftleft", "shiftright", "shift",
+]);
 
 export class SkyEngine {
   private renderer: THREE.WebGLRenderer;
@@ -194,7 +199,7 @@ export class SkyEngine {
   private fov = 70;
   private zoomExit = new ZoomExitGesture();
   private vel = { yaw: 0, pitch: 0 };
-  private keys = new Set<string>();
+  private keys = new KeyState();
   private flyRadius = 0;
   private flySpeed = 0;
 
@@ -1217,15 +1222,21 @@ export class SkyEngine {
     };
     const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
     const keydown = (e: KeyboardEvent) => {
-      if (!this.active || typing(e) || e.metaKey || e.ctrlKey) return;
-      const k = e.key.toLowerCase();
-      if (FLY_KEYS.includes(k) || k.startsWith("arrow")) {
-        this.keys.add(k);
-        if (k !== "shift") e.preventDefault();
-      } else if (k === "r") this.resetView();
+      if (!this.active || typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+      const { token } = this.keys.keydown(e, FLY_KEYS);
+      if (token) {
+        if (!isShiftToken(token)) e.preventDefault();
+        return;
+      }
+      if (!e.repeat && (e.code === "KeyR" || e.key.toLowerCase() === "r")) this.resetView();
     };
-    const keyup = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase());
+    const keyup = (e: KeyboardEvent) => {
+      this.keys.keyup(e);
+    };
     const blur = () => this.keys.clear();
+    const onVisibility = () => {
+      if (document.hidden) this.keys.clear();
+    };
 
     c.addEventListener("pointerdown", down);
     c.addEventListener("pointermove", move);
@@ -1236,6 +1247,7 @@ export class SkyEngine {
     window.addEventListener("keydown", keydown);
     window.addEventListener("keyup", keyup);
     window.addEventListener("blur", blur);
+    document.addEventListener("visibilitychange", onVisibility);
     this.cleanup.push(() => {
       c.removeEventListener("pointerdown", down);
       c.removeEventListener("pointermove", move);
@@ -1246,6 +1258,7 @@ export class SkyEngine {
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("keyup", keyup);
       window.removeEventListener("blur", blur);
+      document.removeEventListener("visibilitychange", onVisibility);
     });
   }
 
@@ -1257,7 +1270,7 @@ export class SkyEngine {
     const has = (k: string) => this.keys.has(k);
     const look = 70 * DEG * dt * (this.fov / 70);
     if (this.navMode === "orbit") {
-      const sp = dt * 1.1 * (has("shift") ? 2.5 : 1);
+      const sp = dt * 1.1 * (this.keys.shift ? 2.5 : 1);
       if (has("a") || has("arrowleft")) this.orbit.az -= sp;
       if (has("d") || has("arrowright")) this.orbit.az += sp;
       if (has("e")) this.orbit.el = Math.min(this.orbit.el + sp * 0.7, 85 * DEG);
@@ -1284,7 +1297,7 @@ export class SkyEngine {
     if (has("q")) move.y -= 1;
     if (!move.lengthSq()) return;
     this.lookTarget = null;
-    move.normalize().multiplyScalar(this.flySpeed * dt * (has("shift") ? 3 : 1));
+    move.normalize().multiplyScalar(this.flySpeed * dt * (this.keys.shift ? 3 : 1));
     const p = this.cam.position.add(move);
     if (p.length() > this.flyRadius) p.setLength(this.flyRadius);
     for (const o of this.occluders) {

@@ -5,6 +5,7 @@ import { DEG, MAP_H, MAP_W, planetPositions, projector, unprojector } from "./co
 import { SPHEREX, SPHEREX_RGB, applyLive, layerById, makeLoader, renderTile, type LiveCatalog, type TileRequest } from "./hips";
 import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import type { Waypoint } from "./data";
+import { KeyState, isShiftToken } from "./keyState";
 
 export type Settings = {
   /** Base imagery: the SPHEREx DR1 cube or 2MASS color. */
@@ -122,6 +123,12 @@ const EDGE_FADE = 10; // degrees over which the map dissolves into the black voi
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+const CAM_KEYS = new Set([
+  "w", "a", "s", "d", "q", "e", "r", "f", "z", "x", "=", "-",
+  "arrowup", "arrowdown", "arrowleft", "arrowright",
+  "shiftleft", "shiftright", "shift",
+]);
+
 export class StarMapViewer {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -160,9 +167,10 @@ export class StarMapViewer {
   private waypoints: Waypoint[] = [];
 
   private raf = 0;
+  private inFrame = false;
   private dirty = true;
   private tweens: Tween[] = [];
-  private keys = new Set<string>();
+  private keys = new KeyState();
   private keyVel = { x: 0, y: 0 };
   private drag: { mode: "pan" | "orbit"; x: number; y: number; anchor: THREE.Vector2 | null; id: number } | null = null;
   private touches = new Map<number, { x: number; y: number }>();
@@ -870,6 +878,8 @@ export class StarMapViewer {
   setEnabled(on: boolean) {
     this.enabled = on;
     this.keys.clear();
+    this.keyVel.x = 0;
+    this.keyVel.y = 0;
     this.drag = null;
     if (on) this.invalidate();
   }
@@ -888,7 +898,10 @@ export class StarMapViewer {
   /** Ask for a frame. Nothing is drawn unless something changed. */
   invalidate() {
     this.dirty = true;
-    if (!this.raf) this.raf = requestAnimationFrame(this.frame);
+    if (!this.raf && !this.inFrame) {
+      this.lastTime = performance.now();
+      this.raf = requestAnimationFrame(this.frame);
+    }
   }
 
   // ───────────────────────── Camera ─────────────────────────
@@ -1369,20 +1382,40 @@ export class StarMapViewer {
       this.invalidate();
     };
     const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
-    const camKeys = ["w", "a", "s", "d", "q", "e", "r", "f", "z", "x", "=", "+", "-", "arrowup", "arrowdown", "arrowleft", "arrowright"];
     const onKey = (e: KeyboardEvent) => {
       if (!this.enabled || typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+      const { token, added } = this.keys.keydown(e, CAM_KEYS);
+      if (token) {
+        if (!isShiftToken(token)) {
+          e.preventDefault();
+          if (e.repeat) return;
+          if (added) {
+            if (this.tweens.length) {
+              this.tweens = [];
+              this.warpT = 0;
+            }
+            this.invalidate();
+          }
+        }
+        return;
+      }
+      if (e.repeat) return;
       const k = e.key.toLowerCase();
-      if (camKeys.includes(k) && !(e.shiftKey && k === "g")) {
-        this.keys.add(k);
-        e.preventDefault();
-        this.invalidate();
-      } else if (k === "t") this.set2D(this.phi > 0);
-      else if (k === "h" || e.key === "Home") this.home();
+      if (e.code === "KeyT" || k === "t") this.set2D(this.phi > 0);
+      else if (e.code === "KeyH" || k === "h" || e.key === "Home") this.home();
     };
-    const onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.key.toLowerCase());
+    const onKeyUp = (e: KeyboardEvent) => {
+      this.keys.keyup(e);
+    };
     const prevent = (e: Event) => e.preventDefault();
-    const onBlur = () => this.keys.clear();
+    const onBlur = () => {
+      this.keys.clear();
+      this.keyVel.x = 0;
+      this.keyVel.y = 0;
+    };
+    const onVisibility = () => {
+      if (document.hidden) onBlur();
+    };
 
     el.addEventListener("pointerdown", onDown);
     el.addEventListener("pointermove", onMove);
@@ -1395,10 +1428,12 @@ export class StarMapViewer {
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibility);
     this.cleanup.push(() => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVisibility);
     });
   }
 
@@ -1463,10 +1498,11 @@ export class StarMapViewer {
   }
 
   private applyKeys(dt: number) {
-    const safeDt = Math.min(0.033, dt);
-    const has = (...k: string[]) => k.some((x) => this.keys.has(x));
+    const safeDt = clamp(dt, 0.004, 0.05);
+    const has = (...k: string[]) => this.keys.has(...k);
     const st = Math.sin(this.theta), ct = Math.cos(this.theta);
-    const speed = this.d * 0.85;
+    const boost = this.keys.shift ? 2 : 1;
+    const speed = this.d * 0.85 * boost;
     let mx = 0, my = 0;
     if (has("w", "arrowup")) my += 1;
     if (has("s", "arrowdown")) my -= 1;
@@ -1478,15 +1514,19 @@ export class StarMapViewer {
       my *= inv;
     }
 
+    const hasMoveInput = mx !== 0 || my !== 0;
     const goalVx = (mx * ct - my * st) * speed;
     const goalVy = (mx * st + my * ct) * speed;
-    const blend = 1 - Math.exp(-14 * safeDt);
+    const blend = 1 - Math.exp(-(hasMoveInput ? 32 : 18) * safeDt);
     this.keyVel.x += (goalVx - this.keyVel.x) * blend;
     this.keyVel.y += (goalVy - this.keyVel.y) * blend;
 
-    const moving = Math.hypot(this.keyVel.x, this.keyVel.y) > 0.002 * this.d;
+    const moving = hasMoveInput || Math.hypot(this.keyVel.x, this.keyVel.y) > 0.0015 * this.d;
     if (moving) {
-      this.setTarget(this.target.x + this.keyVel.x * safeDt, this.target.y + this.keyVel.y * safeDt);
+      this.target.set(
+        clamp(this.target.x + this.keyVel.x * safeDt, -180, 180),
+        clamp(this.target.y + this.keyVel.y * safeDt, -90, 90),
+      );
     } else {
       this.keyVel.x = 0;
       this.keyVel.y = 0;
@@ -1497,9 +1537,9 @@ export class StarMapViewer {
     if (has("e")) { this.theta -= 1.2 * safeDt; rotated = true; }
     if (has("r")) { this.phi = clamp(this.phi + 0.9 * safeDt, 0, PHI_MAX); rotated = true; }
     if (has("f")) { this.phi = clamp(this.phi - 0.9 * safeDt, 0, PHI_MAX); rotated = true; }
-    if (has("z", "=", "+")) { this.d = clamp(this.d * Math.exp(-1.6 * safeDt), D_MIN, D_MAX); rotated = true; }
-    if (has("x", "-")) { this.d = clamp(this.d * Math.exp(1.6 * safeDt), D_MIN, D_MAX); rotated = true; }
-    return moving || rotated || this.keys.size > 0;
+    if (has("z", "=")) { this.d = clamp(this.d * Math.exp(-1.6 * boost * safeDt), D_MIN, D_MAX); rotated = true; }
+    if (has("x", "-")) { this.d = clamp(this.d * Math.exp(1.6 * boost * safeDt), D_MIN, D_MAX); rotated = true; }
+    return moving || rotated || this.keys.hasActiveMotion;
   }
 
   // ───────────────────────── Frame loop (on demand) ─────────────────────────
@@ -1550,6 +1590,7 @@ export class StarMapViewer {
 
   private frame = () => {
     this.raf = 0;
+    this.inFrame = true;
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
@@ -1586,6 +1627,7 @@ export class StarMapViewer {
     }
     this.updateImages();
     if (this.settings.grid) this.updateGrid();
+    this.dirty = false;
     this.renderer.render(this.scene, this.camera);
     this.updateOverlays();
     this.updateGridLabels();
@@ -1605,7 +1647,9 @@ export class StarMapViewer {
       tiles: this.visibleTiles,
       loading: this.inflight.size,
     });
-    this.dirty = false;
-    if (busy || this.drag) this.raf = requestAnimationFrame(this.frame);
+    this.inFrame = false;
+    if ((busy || this.drag || this.dirty) && !this.raf) {
+      this.raf = requestAnimationFrame(this.frame);
+    }
   };
 }
