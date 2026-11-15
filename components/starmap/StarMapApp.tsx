@@ -3,7 +3,7 @@
 import Link from "next/link";
 import SiteTabs from "@/components/SiteTabs";
 import "./infrared-isolation.css";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { SkyData } from "@/lib/explorer/astro";
 import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
 import { raToX } from "@/lib/starmap/coords";
@@ -15,6 +15,7 @@ import Collapsible from "@/components/ui/Collapsible";
 import { byId } from "@/lib/explorer/landmarks";
 import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import Assistant, { type AssistantAction } from "./Assistant";
+import Search, { type SearchItem } from "./Search";
 import type { CosmicView, Galaxy } from "@/lib/starmap/cosmic";
 import CoordSearchBar from "./CoordSearchBar";
 import BlinkPlayer, { type CompareMode } from "./BlinkPlayer";
@@ -436,6 +437,46 @@ export default function StarMapApp() {
     }
   };
 
+  // ── Search: every named star, all 88 constellations, the Sun and planets, and every waypoint ──
+  const searchItems = useMemo<SearchItem[]>(() => {
+    const sky = skyRef.current;
+    if (!sky) return [];
+    const conName = (id: string) => sky.constellations.find((c) => c.id === id)?.names.en ?? id;
+    const out: SearchItem[] = [];
+    const wpTitles = new Set([...PRESET_WAYPOINTS, ...custom].map((w) => w.title.toLowerCase()));
+    for (const n of sky.named) {
+      if (wpTitles.has(n.names.en.toLowerCase())) continue; // listed once, as its waypoint
+      const mag = sky.stars[n.i][2];
+      out.push({ id: n.names.en, name: n.names.en, kind: "Star", sub: `${conName(n.con)} · mag ${mag.toFixed(1)}`, alt: Object.values(n.names) });
+    }
+    for (const c of sky.constellations)
+      out.push({ id: c.id, name: c.names.en, kind: "Constellation", sub: c.id, alt: [c.id, ...Object.values(c.names)] });
+    for (const id of ["sun", "mercury", "venus", "moon", "mars", "jupiter", "saturn", "uranus", "neptune"]) {
+      const lm = byId(id);
+      if (lm) out.push({ id, name: lm.title, kind: "Planet", sub: lm.subtitle, alt: [] });
+    }
+    for (const w of [...PRESET_WAYPOINTS, ...custom])
+      out.push({ id: w.id, name: w.title, kind: w.custom ? "Your waypoint" : "Place", sub: w.kind, alt: [w.id] });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, custom]);
+
+  const pickSearch = (it: SearchItem) => {
+    if (it.id === "moon") {
+      // The Moon has no fixed spot on the map: open its 360° view
+      if (cosmicOn.current) leaveCosmic(false);
+      enterSphere("moon");
+      return;
+    }
+    const action: AssistantAction =
+      it.kind === "Star"
+        ? { name: "show_star", args: { name: it.id } }
+        : it.kind === "Constellation"
+          ? { name: "show_constellation", args: { name: it.id } }
+          : { name: "show_place", args: { id: it.id } };
+    runAction(action);
+  };
+
   // "/" opens the guide
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -544,6 +585,7 @@ export default function StarMapApp() {
         <button className={`mv-glass mv-ask ${askOpen ? "on" : ""}`} onClick={() => setAskOpen((o) => !o)} aria-expanded={askOpen} title="Ask the sky guide (/)">
           ✦ Ask
         </button>
+        <Search items={searchItems} onPick={pickSearch} />
         </div>
         <CoordSearchBar
           centerRa={centerCoord.ra}

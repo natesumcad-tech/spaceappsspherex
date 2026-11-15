@@ -919,3 +919,34 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .mv-gl.g0 { translate: 6px 4px; }
 .mv.in-cosmic .mv-gridlabels, .mv.in-sphere .mv-gridlabels { display: none; }
 .mv-gl.gy.right { translate: calc(-100% - 6px) -50%; }
+
+/* ── Search (magnifying glass) ── */
+.mv-search { position: relative; display: flex; }
+.mv-search-btn { width: 50px; display: grid; place-items: center; color: #171512; cursor: pointer; box-shadow: 0 8px 24px #0002; }
+.mv-search.open .mv-search-btn, .mv-search-btn:hover { background: #171512 !important; color: #f7efdf; border-color: #171512 !important; }
+.mv-search-panel {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 60;
+  width: min(380px, calc(100vw - 28px)); padding: 8px; border-radius: 16px;
+}
+.mv-search-panel input {
+  width: 100%; font: inherit; font-size: 0.92rem; color: #171512; background: #f7efdf;
+  border: 1px solid #d9ccb7; border-radius: 10px; padding: 9px 11px;
+}
+.mv-search-panel input:focus { outline: 2px solid #bfae93; border-color: #bfae93; }
+.mv-search-panel ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; max-height: 360px; overflow-y: auto; }
+.mv-search-panel li button {
+  width: 100%; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center;
+  text-align: left; font: inherit; color: #171512; background: transparent; border: 0; border-radius: 10px; padding: 7px 8px; cursor: pointer;
+}
+.mv-search-panel li[aria-selected="true"] button { background: #e5d7bf; }
+.mv-search-kind {
+  grid-row: 1 / span 2; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; padding: 3px 7px; border-radius: 999px; background: #ece0cb; color: #514a40; min-width: 92px; text-align: center;
+}
+.mv-search-kind.k-planet { background: #f0d9b5; }
+.mv-search-kind.k-constellation { background: #dcd6c6; }
+.mv-search-kind.k-place { background: #e6dcc9; }
+.mv-search-kind.k-mine { background: #171512; color: #f7efdf; }
+.mv-search-name { font-weight: 600; font-size: 0.9rem; }
+.mv-search-sub { font-size: 0.74rem; color: #625b50; }
+.mv-search-empty, .mv-search-hint { font-size: 0.78rem; color: #625b50; padding: 8px 6px 2px; margin: 0; }
