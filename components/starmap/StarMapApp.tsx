@@ -79,6 +79,11 @@ export default function StarMapApp() {
   sphereRef.current = sphere;
   const skyRef = useRef<SkyData | null>(null);
   const [askOpen, setAskOpen] = useState(false);
+  const [assistantDraft, setAssistantDraft] = useState<{ id: number; text: string } | null>(null);
+  const askAbout = (name: string) => {
+    setAssistantDraft(previous => ({ id: (previous?.id ?? 0) + 1, text: `Tell me about ${name}. What can SPHEREx help us learn about it?` }));
+    setAskOpen(true);
+  };
 
   // ── Zoomed out: the galaxies (CosmicView). The tool opens here; dive into the Sun to reach the sky map ──
   const cosmicStageRef = useRef<HTMLDivElement>(null);
@@ -779,6 +784,7 @@ export default function StarMapApp() {
                 onTravel={() => viewerRef.current?.flyTo(hover.x, hover.y, 10, false)}
               />
             )}
+            <button className="mv-primary" onClick={() => askAbout(hover.wp?.title ?? hover.planet ?? "this object")}>Ask about this</button>
           </div>,
           viewerRef.current.cardHost,
         )}
@@ -818,13 +824,13 @@ export default function StarMapApp() {
 
       {travel && !sphere && <div className="mv-travel">Traveling to {travel}…</div>}
 
-      <Assistant open={askOpen} onClose={() => setAskOpen(false)} getContext={assistantContext} runAction={runAction} />
+      <Assistant draft={assistantDraft} open={askOpen} onClose={() => setAskOpen(false)} getContext={assistantContext} runAction={runAction} />
 
       {/* The 360° sphere opens right here, over the map */}
       {sphere && (
         <>
           <div className={`mv-sphere ${closing ? "closing" : ""}`} onAnimationEnd={(e) => e.animationName === "mv-sphere-out" && finishExit()}>
-            <SphereView stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
+            <SphereView onAsk={askAbout} stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
           </div>
           {closing && <div className="mv-iris" aria-hidden="true" />}
         </>
