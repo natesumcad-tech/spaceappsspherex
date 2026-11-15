@@ -975,3 +975,48 @@ button.cv-label:hover { background: #fff; color: #171512; }
 @media (max-width: 760px) {
   .mv-top-row { flex-wrap: wrap; max-width: calc(100vw - 28px); }
 }
+
+/* ── First-visit tutorial: a spotlight on each control, with a card that explains it ── */
+.tut { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.tut-dim { position: absolute; inset: 0; background: rgba(12, 10, 6, 0.55); animation: tut-fade 0.35s ease both; }
+.tut-spot {
+  position: absolute; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(12, 10, 6, 0.55), 0 0 0 2px #f7efdf, 0 0 24px 4px rgba(247, 239, 223, 0.45);
+  transition: left 0.35s cubic-bezier(0.3, 0.7, 0.3, 1), top 0.35s cubic-bezier(0.3, 0.7, 0.3, 1), width 0.35s ease, height 0.35s ease;
+}
+.tut.interactive .tut-spot { box-shadow: 0 0 0 9999px rgba(12, 10, 6, 0.25), 0 0 0 2px #f7efdf, 0 0 24px 4px rgba(247, 239, 223, 0.45); }
+.tut-card {
+  position: absolute; width: min(340px, calc(100vw - 28px)); pointer-events: auto;
+  background: rgba(247, 239, 223, 0.98); color: #171512; border: 1px solid #d9ccb7; border-radius: 14px;
+  box-shadow: 0 18px 50px -12px rgba(20, 14, 6, 0.6); padding: 14px 16px 12px;
+  animation: tut-pop 0.3s cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+.tut-card.solo { width: min(420px, calc(100vw - 28px)); padding: 20px 22px 16px; }
+.tut-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.tut-count { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: #625b50; }
+.tut-skip { all: unset; cursor: pointer; font-size: 0.74rem; color: #625b50; text-decoration: underline; text-underline-offset: 3px; }
+.tut-skip:hover { color: #171512; }
+.tut-skip:focus-visible { outline: 2px solid #171512; outline-offset: 2px; border-radius: 3px; }
+.tut-card h2 { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 1.2rem; line-height: 1.15; margin: 6px 0 6px; }
+.tut-card.solo h2 { font-size: 1.55rem; }
+.tut-card p { margin: 0 0 10px; font-size: 0.86rem; line-height: 1.5; color: #3d372e; }
+.tut-try {
+  font-size: 0.8rem !important; font-weight: 600; color: #514a40 !important; padding: 7px 10px; border-radius: 8px;
+  background: #fffaf1; border: 1px dashed #bfae93; animation: tut-breathe 1.8s ease-in-out infinite;
+}
+.tut-try.done { border-style: solid; border-color: #6b8f4e; color: #3f5f2a !important; background: #eef4e4; animation: none; }
+.tut-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.tut-actions .mv-primary, .tut-actions .mv-secondary { font-size: 0.8rem; padding: 7px 13px; }
+.tut-dots { list-style: none; display: flex; gap: 4px; justify-content: center; margin: 12px 0 0; padding: 0; }
+.tut-dots li { width: 6px; height: 6px; border-radius: 50%; background: #d9ccb7; }
+.tut-dots li.past { background: #8a7f6f; }
+.tut-dots li.now { background: #171512; width: 16px; border-radius: 3px; }
+.tut-card.solo .tut-dots { display: none; }
+@keyframes tut-pop { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes tut-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tut-breathe { 50% { border-color: #8a7f6f; } }
+.mv-tour-btn { font-weight: 700; }
+@media (prefers-reduced-motion: reduce) {
+  .tut-spot { transition: none; }
+  .tut-card, .tut-dim, .tut-try { animation: none; }
+}

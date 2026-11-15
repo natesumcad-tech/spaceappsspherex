@@ -19,6 +19,7 @@ import Search, { type SearchItem } from "./Search";
 import type { CosmicView, Galaxy } from "@/lib/starmap/cosmic";
 import CoordSearchBar from "./CoordSearchBar";
 import BlinkPlayer, { type CompareMode } from "./BlinkPlayer";
+import Tutorial, { tourDone } from "./Tutorial";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v2"; // v2: the measurement grid is on by default
@@ -92,6 +93,7 @@ export default function StarMapApp() {
   const cosmicHudRef = useRef<HTMLDivElement>(null);
   const [cosmic, setCosmic] = useState(true);
   const [intro, setIntro] = useState(false);
+  const [tour, setTour] = useState(false);
   const cosmicOn = useRef(true);
   const [galaxy, setGalaxy] = useState<(Pick<Galaxy, "name" | "kind" | "size" | "dist" | "description"> & { wp?: string }) | null>(null);
 
@@ -189,6 +191,16 @@ export default function StarMapApp() {
     finishTimer.current = setTimeout(finishExit, quick ? 350 : 1100); // fallback if the animation never reports
   }, [finishExit]);
 
+
+  // First visit: once the opening cutscene has landed on the sky map, offer the guided tour (only ever once)
+  const tourOffered = useRef(false);
+  useEffect(() => {
+    if (tourOffered.current || !ready || cosmic || sphere || intro) return;
+    tourOffered.current = true;
+    if (tourDone()) return;
+    const t = setTimeout(() => setTour(true), 1400);
+    return () => clearTimeout(t);
+  }, [ready, cosmic, sphere, intro]);
 
   // Load settings & custom waypoints saved in this browser
   useEffect(() => {
@@ -753,7 +765,12 @@ export default function StarMapApp() {
         <button className="mv-glass" onClick={() => viewerRef.current?.home()} aria-label="Back to the origin" title="Back to the origin (H)">
           ⌂
         </button>
+        <button className="mv-glass mv-tour-btn" onClick={() => setTour(true)} aria-label="Show the tour again" title="Show the tour again">
+          ?
+        </button>
       </div>
+
+      <Tutorial open={tour && !sphere && !cosmic} onClose={() => setTour(false)} />
 
       {/* Controls help */}
       <Collapsible id="map-controls" className="mv-glass mv-help" title={<span className="cl-label">Controls</span>} defaultOpen={help}>
