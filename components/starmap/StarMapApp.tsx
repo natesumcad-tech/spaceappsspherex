@@ -94,6 +94,15 @@ export default function StarMapApp() {
   const [cosmic, setCosmic] = useState(true);
   const [intro, setIntro] = useState(false);
   const [tour, setTour] = useState(false);
+  // The page is a fixed, full-screen map: if focusing something ever scrolls it, snap straight back
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const reset = () => (el.scrollLeft || el.scrollTop) && el.scrollTo(0, 0);
+    el.addEventListener("scroll", reset);
+    return () => el.removeEventListener("scroll", reset);
+  }, []);
   const cosmicOn = useRef(true);
   const [galaxy, setGalaxy] = useState<(Pick<Galaxy, "name" | "kind" | "size" | "dist" | "description"> & { wp?: string }) | null>(null);
 
@@ -548,7 +557,7 @@ export default function StarMapApp() {
   const ep = EPOCHS[epoch];
 
   return (
-    <div className={`mv ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
+    <div ref={rootRef} className={`mv ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
       <div ref={stageRef} className="mv-stage">
         <div ref={overlayRef} className="mv-overlay" />
       </div>

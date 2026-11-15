@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { hush, preload, speak, unlockAudio } from "@/lib/ui/speech";
-import { STEPS, stepSpeech } from "@/lib/ui/tourSteps";
+import { STEPS, type Step } from "@/lib/ui/tourSteps";
 
 /** Remembered in a cookie (and browser storage as a backup) so the tour only plays once. */
 const COOKIE = "sx_tour_done_v2"; // bump the version to show the tour to everyone again
@@ -32,32 +31,42 @@ function markTourDone() {
   } catch {}
 }
 
-
-/** The first visible diamond near the middle of the screen (not hidden under a panel). */
+/** The visible diamond or planet nearest the middle of the screen (not hidden under a panel). */
 function findLandmark(): HTMLElement | null {
   const w = window.innerWidth, h = window.innerHeight;
   let best: HTMLElement | null = null, bestD = Infinity;
   document.querySelectorAll<HTMLElement>(".mv-overlay .mv-wp, .mv-overlay .mv-planet").forEach((el) => {
     if (el.style.display === "none") return;
     const r = el.getBoundingClientRect();
-    if (!r.width || r.left < 40 || r.right > w - 40 || r.top < 160 || r.bottom > h - 200) return;
+    if (!r.width || r.left < 40 || r.right > w - 40 || r.top < 180 || r.bottom > h - 160) return;
     const d = Math.hypot(r.left - w / 2, r.top - h / 2);
     if (d < bestD) (best = el), (bestD = d);
   });
   return best;
 }
 
-function findTarget(sel?: string): HTMLElement | null {
-  if (!sel) return null;
+function findOne(sel: string): HTMLElement | null {
   const el = sel === "visible-landmark" ? findLandmark() : document.querySelector<HTMLElement>(sel);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight ? el : null;
 }
+/** Focus a button without letting the browser scroll anything to reveal it. */
+const focusQuietly = (el: HTMLButtonElement | null) => el?.focus({ preventScroll: true });
+const selectors = (s: Step) => (s.target ? (Array.isArray(s.target) ? s.target : [s.target]) : []);
+
+/** One box around all of a step's controls. */
+function targetRect(els: HTMLElement[]) {
+  if (!els.length) return null;
+  const rs = els.map((e) => e.getBoundingClientRect());
+  const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top));
+  return { left: l, top: t, width: Math.max(...rs.map((r) => r.right)) - l, height: Math.max(...rs.map((r) => r.bottom)) - t };
+}
+type Box = NonNullable<ReturnType<typeof targetRect>>;
 
 /**
- * First-visit walkthrough of the Sky Explorer, in the same game-style dialogue box as the Campaign:
- * the guide spotlights each control in turn, and some steps wait for you to try the thing.
+ * First-visit walkthrough of the Sky Explorer: a small card at the top of the screen while a soft
+ * spotlight picks out each control. Steps that ask you to try something move on by themselves.
  */
 export default function Tutorial({
   open,
@@ -74,23 +83,19 @@ export default function Tutorial({
   onClose: () => void;
 }) {
   const [i, setI] = useState(0);
-  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [rect, setRect] = useState<Box | null>(null);
   const [did, setDid] = useState(false);
-  const [shown, setShown] = useState(0); // characters typed out so far
-  const [voice, setVoice] = useState(false);
+  const [cardH, setCardH] = useState(0);
   const [modeFrom, setModeFrom] = useState<"2d" | "3d">("2d"); // the view the 2D/3D step started in
   const [modeChanges, setModeChanges] = useState(0);
   const lastMode = useRef(mode);
-  const targetRef = useRef<HTMLElement | null>(null);
+  const card = useRef<HTMLDivElement>(null);
 
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
-  const text = step.body;
-  const typing = shown < text.length;
-  const locked = !!step.wait && !did; // every "try it" step has to be done
+  const count = STEPS.length - 2; // the welcome and closing cards aren't numbered
 
   const finish = useCallback(() => {
-    hush();
     markTourDone();
     setI(0);
     onClose();
@@ -100,37 +105,13 @@ export default function Tutorial({
   const go = useCallback(
     (to: number) => {
       let n = to;
-      while (n > 0 && n < STEPS.length - 1 && STEPS[n].target && STEPS[n].target !== "visible-landmark" && !findTarget(STEPS[n].target)) n += to >= i ? 1 : -1;
+      while (n > 0 && n < STEPS.length - 1 && STEPS[n].target && STEPS[n].target !== "visible-landmark" && !selectors(STEPS[n]).some(findOne)) n += to >= i ? 1 : -1;
       setDid(false);
       setModeChanges(0);
-      setShown(0);
       setI(Math.max(0, Math.min(STEPS.length - 1, n)));
     },
     [i],
   );
-
-  /** Click / Enter: finish typing the line first, then move on (unless the step still needs doing). */
-  const advance = useCallback(() => {
-    if (typing) return setShown(text.length);
-    if (last) return finish();
-    if (!locked) go(i + 1);
-  }, [typing, text.length, last, finish, locked, go, i]);
-
-  // Type the line out
-  useEffect(() => {
-    if (!open || hidden) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return setShown(text.length);
-    const t = setInterval(() => setShown((n) => (n >= text.length ? (clearInterval(t), n) : n + 2)), 22);
-    return () => clearInterval(t);
-  }, [open, hidden, text]);
-
-  // Read aloud (and fetch the next step's audio while this one plays)
-  useEffect(() => {
-    if (!open || hidden || !voice) return;
-    speak(stepSpeech(step));
-    if (STEPS[i + 1]) preload(stepSpeech(STEPS[i + 1]));
-  }, [open, hidden, voice, step, i]);
-  useEffect(() => () => hush(), []);
 
   // 2D/3D step: switch one way, then back
   useEffect(() => {
@@ -151,20 +132,26 @@ export default function Tutorial({
     if (open && inSphere && STEPS[i].wait?.kind === "sphere") setDid(true);
   }, [open, inSphere, i]);
 
-  // Follow the spotlighted control as panels move and the map animates
+  // Keep the spotlight on its control(s) as panels move and the map animates
   useEffect(() => {
     if (!open || hidden) return;
-    let raf = 0;
-    targetRef.current = findTarget(step.target);
-    const tick = () => {
-      if (step.target && (!targetRef.current || !targetRef.current.isConnected || targetRef.current.style.display === "none")) targetRef.current = findTarget(step.target);
-      const r = targetRef.current?.getBoundingClientRect() ?? null;
-      setRect((prev) => (r && prev && Math.abs(r.left - prev.left) < 0.5 && Math.abs(r.top - prev.top) < 0.5 && Math.abs(r.width - prev.width) < 0.5 && Math.abs(r.height - prev.height) < 0.5 ? prev : r));
+    let raf = 0, els: HTMLElement[] = [], lastFind = 0;
+    const tick = (t: number) => {
+      if (t - lastFind > 250 || els.some((e) => !e.isConnected || e.style.display === "none")) {
+        lastFind = t;
+        els = selectors(step).map(findOne).filter((e): e is HTMLElement => !!e);
+      }
+      const r = targetRect(els);
+      setRect((p) => (!r || !p ? r : Math.abs(r.left - p.left) + Math.abs(r.top - p.top) + Math.abs(r.width - p.width) + Math.abs(r.height - p.height) < 1 ? p : r));
       raf = requestAnimationFrame(tick);
     };
-    tick();
+    raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [open, hidden, step.target, i]);
+  }, [open, hidden, step]);
+
+  useEffect(() => {
+    if (card.current) setCardH(card.current.offsetHeight);
+  }, [i, did, open, hidden, modeChanges]);
 
   // "Try it" steps: notice when the visitor does the thing
   useEffect(() => {
@@ -199,123 +186,114 @@ export default function Tutorial({
     };
   }, [open, hidden, step.wait, did]);
 
-  // Done it: give them a moment to see it worked, then move on
+  // Done it: a beat to see the tick, then on to the next step
   useEffect(() => {
     if (!did || !open || hidden) return; // back on the map first (after a 360° view)
-    const t = setTimeout(() => go(i + 1), 1300);
+    const t = setTimeout(() => go(i + 1), 900);
     return () => clearTimeout(t);
   }, [did, open, hidden, go, i]);
 
-  // Keyboard: Enter / → continue, ← back, Esc skips the tour
+  // Keyboard: Enter / → next (when there's nothing to try), ← back; Esc only skips from the first card
   useEffect(() => {
     if (!open || hidden) return; // Esc inside a 360° view leaves the view, not the tour
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.("input, textarea, select, button, a")) return;
-      if (e.key === "Escape" && i === 0) finish(); // once they've started, the tour can't be skipped
-      else if (e.key === "Enter" || e.key === "ArrowRight") advance();
+      if (e.key === "Escape" && i === 0) finish();
+      else if ((e.key === "Enter" || e.key === "ArrowRight") && !step.wait) last ? finish() : go(i + 1);
       else if (e.key === "ArrowLeft" && i > 1) go(i - 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, hidden, finish, advance, go, i]);
+  }, [open, hidden, finish, go, i, last, step.wait]);
 
   if (!open) return null;
   if (hidden)
     return step.wait?.kind === "sphere" && inSphere ? (
-      <div className="tut-banner" role="status">
-        <b>Tour</b> You&apos;re inside a 360° view! Drag to look around, then scroll out or press Esc to return to the map.
+      <div className="tour-banner" role="status">
+        <span className="tour-check" aria-hidden="true">✓</span>
+        You&apos;re in a 360° view. Look around, then scroll out or press Esc to finish the tour.
       </div>
     ) : null;
 
-  const pad = 8;
-  const interactive = !!step.wait;
-  // The box sits at the bottom, like the Campaign's, unless the spotlight is down there
-  const w = typeof window !== "undefined" ? window.innerWidth : 1280, h = typeof window !== "undefined" ? window.innerHeight : 800;
-  const half = Math.min(430, (w - 32) / 2);
-  const atTop = !!rect && rect.bottom > h - 240 && rect.left < w / 2 + half && rect.right > w / 2 - half;
+  const pad = 6;
+  const W = typeof window !== "undefined" ? window.innerWidth : 1280;
+  const cw = Math.min(430, W - 24);
+  // The card lives at the top centre. If the spotlight is up there too, it slides beside it,
+  // and only drops below it when there's no room to the side.
+  let left = (W - cw) / 2, top = 14;
+  const overlaps = (l: number) => !!rect && rect.top < 14 + cardH + 10 && rect.left - pad < l + cw && rect.left + rect.width + pad > l;
+  if (rect && overlaps(left)) {
+    const right = rect.left + rect.width + pad + 12, leftSide = rect.left - pad - 12 - cw;
+    if (right + cw <= W - 12) left = right;
+    else if (leftSide >= 12) left = leftSide;
+    else top = rect.top + rect.height + pad + 12;
+  }
+  const progress = i === 0 ? 0 : last ? 1 : (i - (did ? 0 : 1)) / count;
   const other = modeFrom === "2d" ? "3D" : "2D", back = modeFrom === "2d" ? "2D" : "3D";
-  const count = STEPS.length - 2;
 
   return (
-    <div className={`tut ${interactive ? "interactive" : ""}`}>
+    <div className={`tour ${step.wait ? "trying" : ""}`}>
       {rect ? (
-        <div className="tut-spot" style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} aria-hidden="true" />
+        <div className="tour-spot" style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} aria-hidden="true" />
       ) : (
-        !interactive && <div className="tut-dim" aria-hidden="true" />
+        !step.wait && <div className="tour-dim" aria-hidden="true" />
       )}
 
-      <section className={`mv-glass cp-dialog tut-dialog ${atTop ? "at-top" : ""}`} role="dialog" aria-label="Sky Explorer tour" aria-live="polite">
-        <header>
-          <span className="cp-speaker">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <circle cx="12" cy="12" r="4" fill="currentColor" />
-              <path d="M3 12a9 9 0 0 1 18 0M6.5 12a5.5 5.5 0 0 1 11 0" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            </svg>
-            Sky guide
-          </span>
-          <span className="cp-where">
-            {i === 0 ? "Quick tour" : last ? "Tour complete" : `Tour · ${i} of ${count}`} · {step.title}
-          </span>
-          <ol className="cp-dots" aria-hidden="true">
-            {STEPS.slice(1, -1).map((_, k) => (
-              <li key={k} className={k + 1 < i || last ? "past" : k + 1 === i ? "now" : ""} />
-            ))}
-          </ol>
-          {i === 0 && (
-            <button className="tut-skip" onClick={finish}>
-              Skip tutorial
-            </button>
-          )}
-        </header>
-
-        <button className="cp-text" onClick={advance} aria-label={typing ? "Show the whole line" : "Continue"}>
-          {text.slice(0, shown)}
-          <span className="cp-ghost" aria-hidden="true">
-            {text.slice(shown)}
-          </span>
-        </button>
-
-        {step.wait?.kind === "modes" ? (
-          <ul className={`tut-checks ${did ? "done" : ""}`}>
-            <li className={modeChanges >= 1 ? "ok" : ""}>Switch to {other}</li>
-            <li className={modeChanges >= 2 ? "ok" : ""}>Switch back to {back}</li>
-          </ul>
-        ) : (
-          step.wait && <p className={`tut-try ${did ? "done" : ""}`}>{did ? "Nice! That's it." : step.wait.prompt}</p>
-        )}
-
-        <footer>
-          <div className="cp-tools">
-            <button className="cp-tool" onClick={() => go(i - 1)} disabled={i <= 1} aria-label="Previous step">
-              ◂
-            </button>
-            <button
-              className={`cp-tool ${voice ? "on" : ""}`}
-              onClick={() => {
-                if (voice) hush();
-                else unlockAudio(); // let audio play later, after it downloads (Safari wants a tap first)
-                setVoice(!voice);
-              }}
-              aria-pressed={voice}
-              title="Read aloud"
-            >
-              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-                <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
-                {voice && <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
-              </svg>
-              {voice ? "Listening" : "Listen"}
-            </button>
-            {last && (
-              <Link className="cp-tool" href="/campaign" onClick={markTourDone}>
-                Open the Campaign ▸
-              </Link>
+      <div ref={card} className="tour-card" style={{ top, left, width: cw }} role="dialog" aria-labelledby="tour-title" aria-describedby="tour-body">
+        <div className="tour-bar" aria-hidden="true">
+          <span style={{ width: `${progress * 100}%` }} />
+        </div>
+        <div className="tour-inner" key={i}>
+          <div className="tour-meta">
+            <span>{i === 0 ? "Quick tour" : last ? "Done" : `Step ${i} of ${count}`}</span>
+            {i === 0 && (
+              <button className="tour-link" onClick={finish}>
+                Skip tutorial
+              </button>
             )}
           </div>
-          <button className="cp-next" onClick={advance} disabled={!typing && locked}>
-            {typing ? "Skip ▸▸" : i === 0 ? "Show me around ▸" : last ? "Start exploring ✓" : locked ? "Try it to continue" : "Next ▸"}
-          </button>
-        </footer>
-      </section>
+          <h2 id="tour-title">{step.title}</h2>
+          <p id="tour-body">{step.body}</p>
+
+          <div className="tour-foot">
+            {step.wait?.kind === "modes" ? (
+              <div className="tour-task">
+                <span className={`tour-chip ${modeChanges >= 1 ? "ok" : ""}`}>{modeChanges >= 1 ? "✓" : "1"} Switch to {other}</span>
+                <span className={`tour-chip ${modeChanges >= 2 ? "ok" : ""}`}>{modeChanges >= 2 ? "✓" : "2"} Back to {back}</span>
+              </div>
+            ) : step.wait ? (
+              <div className="tour-task">
+                <span className={`tour-chip ${did ? "ok" : "live"}`}>{did ? "✓ Nice!" : step.wait.prompt}</span>
+              </div>
+            ) : (
+              <span />
+            )}
+            <div className="tour-actions">
+              {i > 1 && (
+                <button className="tour-ghost" onClick={() => go(i - 1)} aria-label="Previous step">
+                  Back
+                </button>
+              )}
+              {last ? (
+                <>
+                  <Link className="tour-ghost" href="/campaign" onClick={markTourDone}>
+                    Try the Campaign
+                  </Link>
+                  <button className="tour-go" onClick={finish} ref={focusQuietly}>
+                    Start exploring
+                  </button>
+                </>
+              ) : (
+                !step.wait && (
+                  <button className="tour-go" onClick={() => go(i + 1)} ref={focusQuietly}>
+                    {i === 0 ? "Start tour" : "Next"}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,87 +2,49 @@
 
 export type Wait = "move" | "hover" | "modes" | "sphere";
 export type Step = {
-  /** CSS selector of the control to spotlight (none: a card in the middle of the screen). */
-  target?: string;
+  /** CSS selector(s) of the control(s) to spotlight (none: nothing highlighted). */
+  target?: string | string[];
   title: string;
   body: string;
-  /** Something to try: the step notices when you do it, and you can't move on until you have. */
+  /** Something to try: the step notices when you do it and moves on by itself. */
   wait?: { kind: Wait; prompt: string };
-  place?: "center" | "top";
 };
 
 export const STEPS: Step[] = [
   {
     title: "Welcome to the Sky Explorer",
-    body: "This is the whole sky, built from NASA's SPHEREx telescope and streamed live from the IRSA archive. Here's a one-minute tour of what you can do.",
+    body: "The whole sky, built from NASA's SPHEREx telescope. This quick tour takes under a minute.",
   },
   {
-    title: "Move around",
-    body: "Drag the map (or use W A S D) to pan, and scroll to zoom. Right-drag tilts the view.",
-    wait: { kind: "move", prompt: "Try it: drag or scroll the map" },
-    place: "top",
-  },
-  {
-    target: "visible-landmark",
-    title: "Landmarks",
-    body: "Diamonds mark landmarks, and planets wear their names. Hover one for a summary card.",
-    wait: { kind: "hover", prompt: "Try it: hover over a diamond" },
+    title: "Look around",
+    body: "Drag to pan and scroll to zoom.",
+    wait: { kind: "move", prompt: "Drag or scroll the map" },
   },
   {
     target: ".mv-top-row .mv-seg",
-    title: "2D and 3D",
-    body: "See the sky as a flat star chart, or tilt it into a 3D view. Try both.",
+    title: "Tilt into 3D",
+    body: "Flip between a flat star chart and a tilted 3D view.",
     wait: { kind: "modes", prompt: "" },
   },
   {
-    title: "Step inside: 360° views",
-    body: "Every constellation, planet and landmark has a Street View–style 360° view. Click a name or diamond to fly there, then click it again (or choose View in 360° on its card). Zooming in close works too.",
-    wait: { kind: "sphere", prompt: "Step inside any 360° view to continue" },
-    place: "top",
+    target: "visible-landmark",
+    title: "Step inside",
+    body: "Every planet, star and diamond has a 360° view. Click one to fly there, then click it again to step inside.",
+    wait: { kind: "sphere", prompt: "Open any 360° view" },
   },
   {
-    target: ".mv-search-btn",
-    title: "Search",
-    body: "Find any star, constellation, planet or landmark and fly straight to it. Shortcut: Ctrl + K.",
-  },
-  {
-    target: ".mv-ask",
-    title: "Ask the sky guide",
-    body: "Ask questions in plain words, like “Where does SPHEREx look for ice?”, and the guide answers and can fly the map for you.",
-  },
-  {
-    target: ".mv-coord-form",
-    title: "Exact coordinates",
-    body: "Type a J2000 RA/Dec to jump to a precise spot, pick a benchmark target, or share a link to what you're looking at.",
+    target: [".mv-search-btn", ".mv-ask"],
+    title: "Find anything",
+    body: "Search for a star, planet or constellation, or ask the sky guide a question.",
   },
   {
     target: ".mv-blink-bar",
-    title: "Blink: the Planet X tool",
-    body: "SPHEREx photographs each patch of sky about six months apart. Flip between the passes, or compare them with B − A: stars stay put, but anything in our solar system shifts.",
+    title: "Hunt for Planet X",
+    body: "Blink flips between SPHEREx's six-month passes. Stars stay put; anything nearer that moves will jump.",
   },
   {
-    target: ".mv-minicard",
-    title: "Overview and colors",
-    body: "The minimap shows where you are (click it to jump). Below it, choose SPHEREx color, isolate a single infrared wavelength, or switch to 2MASS.",
-  },
-  {
-    target: ".mv-timeline",
-    title: "Timeline",
-    body: "Slide through time and watch the stars drift over thousands of years.",
-  },
-  {
-    target: ".mv-zoom",
-    title: "Zoom and the galaxy",
-    body: "＋ and − zoom, ⌂ takes you home, and ⊙ pulls all the way out to the Milky Way. The ? button replays this tour.",
-  },
-  {
-    target: ".mv-actions",
-    title: "Make it yours",
-    body: "Drop your own waypoints with Shift + G, and choose what's shown (grid, names, lines) with the settings wrench.",
-  },
-  {
-    title: "You're ready",
-    body: "Explore freely, or try the Campaign tab for a guided story of SPHEREx and the hunt for Planet X.",
+    title: "You're all set",
+    body: "Press the ? button any time to see this again.",
   },
 ];
 

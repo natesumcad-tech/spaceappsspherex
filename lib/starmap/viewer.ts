@@ -422,6 +422,8 @@ export class StarMapViewer {
   }
 
   /** Numbers on the major lines: along the axes when they're in view, else pinned to the screen edges. */
+  private obstacles: { l: number; r: number; t: number; b: number }[] = [];
+  private obstaclesAt = 0;
   private updateGridLabels() {
     const layer = this.gridLabelLayer;
     if (!this.settings.grid || !this.enabled) {
@@ -438,11 +440,17 @@ export class StarMapViewer {
     const xAnchor = THREE.MathUtils.clamp(0, b[0] + pad, b[1] - pad);
     const items: { text: string; x: number; y: number; cls: string }[] = [];
     // Panels on screen: numbers hop just clear of them instead of hiding underneath
-    const cr = this.container.getBoundingClientRect();
-    const obstacles = [...document.querySelectorAll<HTMLElement>(".mv-glass, .mv-blink-bar, .mv-coord-form, .mv-wrench, .mv-cardhost .mv-pop")]
-      .map((el) => el.getBoundingClientRect())
-      .filter((r) => r.width > 0 && r.height > 0)
-      .map((r) => ({ l: r.left - cr.left - 4, r: r.right - cr.left + 4, t: r.top - cr.top - 4, b: r.bottom - cr.top + 4 }));
+    // (measured a few times a second, not every frame: measuring forces the page to re-lay itself out)
+    const tNow = performance.now();
+    if (tNow - this.obstaclesAt > 300) {
+      this.obstaclesAt = tNow;
+      const cr = this.container.getBoundingClientRect();
+      this.obstacles = [...document.querySelectorAll<HTMLElement>(".mv-glass, .mv-blink-bar, .mv-coord-form, .mv-wrench, .mv-cardhost .mv-pop")]
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0)
+        .map((r) => ({ l: r.left - cr.left - 4, r: r.right - cr.left + 4, t: r.top - cr.top - 4, b: r.bottom - cr.top + 4 }));
+    }
+    const obstacles = this.obstacles;
     const pinRight = xAnchor > b[0] + (b[1] - b[0]) / 2; // y numbers sit on the side the axis is on
     const push = (wx: number, wy: number, text: string, cls: string) => {
       v.set(wx, 0, -wy).project(this.camera);
