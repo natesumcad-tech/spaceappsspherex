@@ -1,0 +1,96 @@
+/* Shared UI: collapsible panels and the tool's type system
+   Headings: Space Grotesk (--font-display). Labels, readouts, coordinates, keys: JetBrains Mono (--font-mono). */
+
+.cl-head { display: flex; align-items: center; gap: 8px; }
+.cl-title { flex: 1; min-width: 0; cursor: pointer; }
+.cl-summary { margin-left: 8px; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.7rem; color: var(--muted, #625b50); }
+.cl-toggle {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border, #d9ccb7);
+  background: #fff;
+  color: var(--muted, #625b50);
+  cursor: pointer;
+  transition: transform 0.25s, color 0.15s, border-color 0.15s;
+}
+.cl-toggle:hover { color: var(--text, #171512); border-color: #bfae93; }
+.cl.closed .cl-toggle { transform: rotate(-90deg); }
+.cl-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.3s ease, opacity 0.2s; }
+.cl.closed .cl-body { grid-template-rows: 0fr; opacity: 0; }
+.cl-inner { min-height: 0; overflow: hidden; }
+.cl-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted, #625b50);
+}
+@media (prefers-reduced-motion: reduce) { .cl-body, .cl-toggle { transition: none; } }
+
+/* Instrument-panel text: mono for small labels, readouts and keys */
+.mv-readout, .mv-readout b,
+.mv-kind, .xp-eyebrow, .mv-tl-mark span, .mv-add-pos,
+.mv-wpcard dt, .xp-facts dt, .mv-wpcard dd, .xp-facts dd,
+.mv-band span, .mv-imagery-note, .mv-loadpill, .mv-title span,
+.mv kbd, .xp kbd, .home kbd, .mv-360, .xp-sliders span, .xp-move-note,
+.h-kicker, .h-url, .xp-section h2, .mv-settings h3, .h-features span, .xp-credit {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+.mv-readout { font-size: 0.68rem; }
+.mv-kind, .xp-eyebrow { letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.64rem !important; }
+.mv-wpcard dt, .xp-facts dt, .xp-sliders span { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.62rem; }
+.mv-wpcard dd, .xp-facts dd { font-size: 0.8rem; }
+.h-kicker { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.68rem; }
+
+/* Headings: geometric, tight */
+.home .h-hero h1 { font-weight: 600; letter-spacing: -0.035em; line-height: 1.02; }
+.home .h-hero h1 em, .home .h-final em { font-style: normal; }
+.h-split { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.03em; }
+.xp-card h1, .mv-wpcard h2, .mv-addcard h2 { font-size: 1.6rem; line-height: 1.1; }
+.mv-title strong { font-size: 1.1rem; }
+.mv-tl-head strong { font-size: 1.15rem; }
+.mv-settings-head h2 { font-size: 1.6rem; }
+.hs-card strong { font-size: 1.05rem; }
+.lbl-fg { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0; }
+.h-stat strong { font-size: 1.7rem; }
+.home .h-final h2 { font-size: clamp(1.8rem, 4.5vw, 2.6rem); }
+.mv-loading, .xp-loading { font-family: var(--font-display), system-ui, sans-serif !important; font-weight: 600; font-size: 1.3rem !important; letter-spacing: -0.01em; }
+.mv-travel { font-family: var(--font-display), system-ui, sans-serif !important; font-weight: 600; font-size: 1.6rem !important; }
+
+/* Homepage section headings: small mono label above a plain heading */
+.home .h-split { display: flex; flex-direction: column-reverse; gap: 8px; font-size: clamp(1.5rem, 3.2vw, 2rem); }
+.home .h-split.center { align-items: center; text-align: center; }
+.home .h-split span {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #514a40;
+}
+.home .h-card h3 { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.02em; }
+.h-final-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.home .h-hero h1 em { color: #514a40; }
+
+/* Collapsed panels shrink to their label */
+.cl.closed .cl-title { flex: 0 1 auto; }
+.cl.closed .cl-head { gap: 12px; }
+.mv-help.closed, .mv-minicard.closed { width: auto !important; min-width: 0 !important; }
+.mv-timeline .mv-tl { padding: 12px 34px 22px !important; }
+.mv-tl-mark span { font-size: 0.62rem; }
+/* A folded body shouldn't hold the panel open sideways */
+.cl.closed .cl-body { contain: inline-size; }
+.xp-move.closed { width: auto !important; min-width: 0 !important; }
+.home .h-hero h1 { max-width: 19ch; margin-left: auto; margin-right: auto; text-wrap: balance; font-size: clamp(2.4rem, 6.4vw, 4.2rem); }
