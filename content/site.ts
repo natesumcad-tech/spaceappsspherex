@@ -4,13 +4,13 @@
 // ─────────────────────────────────────────────────────────────
 
 export const site = {
-  teamName: "Team SPHEREx Explorers", // TODO: your Space Apps team name
+  teamName: "Team Big Band", 
   projectName: "Sky Explorer",
   tagline:
     "Step inside the sky NASA's SPHEREx is mapping: real stars, planets and the Milky Way in 360°.",
   event: "NASA Space Apps Challenge",
   // TODO: link to your team page on spaceappschallenge.org
-  teamPageUrl: "https://www.spaceappschallenge.org/",
+  teamPageUrl: "https://www.spaceappschallenge.org/2026/find-a-team/bigbang/",
   // TODO: link to your GitHub repo
   repoUrl: "https://github.com/natesumcad-tech/spaceappsspherex",
 };
@@ -32,9 +32,9 @@ export const project = {
 export const team: { name: string; role: string }[] = [
   // TODO: replace with your teammates
   { name: "Nate", role: "Team lead · Web" },
-  { name: "Teammate 2", role: "Data & science" },
-  { name: "Teammate 3", role: "Design" },
-  { name: "Teammate 4", role: "Presentation" },
+  { name: "Curtis", role: "Full Stack" },
+  { name: "Devansh", role: "Data & Sciences" },
+  { name: "David", role: "Style & Presentation" },
 ];
 
 export const mission = {
