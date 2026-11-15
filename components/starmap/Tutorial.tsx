@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { hush, speak } from "@/lib/ui/speech";
 
 /** Remembered in a cookie (and browser storage as a backup) so the tour only plays once. */
-const COOKIE = "sx_tour_done";
-const STORE = "starmap.tour.v1";
+const COOKIE = "sx_tour_done_v2"; // bump the version to show the tour to everyone again
+const STORE = "starmap.tour.v2";
 
 export function tourDone() {
   if (typeof document === "undefined") return true;
