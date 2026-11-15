@@ -10,6 +10,7 @@ An interactive 2D/3D map of the infrared sky built for the **NASA Space Apps Cha
 4. **Blink & compare** sequential 6-month SPHEREx passes (`Normal`, `B − A` subtract, `B + A` add) with an adjustable FOV slider
 5. **Step inside 360° views** of landmarks, planets, bright stars, and 3D constellations, and export snapshots as PNG, JPG, or WEBP
 6. **Ask the Sky Guide** (`/` or **✦ Ask**) to explain what's in view or fly the camera directly to any target
+7. **Play the optional rescue mission** ("Signal from the Dark", offered after the tutorial or from the radio button): guide a fictional crew home by finding stars, reading and entering real J2000 coordinates, and switching SPHEREx colors. Every image is a live SPHEREx cutout from IRSA, and every number comes from the star catalogue or real planetary orbits
 
 ## Architecture
 

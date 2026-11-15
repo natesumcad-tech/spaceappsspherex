@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STEPS, type Step } from "@/lib/ui/tourSteps";
+import { topSlot } from "@/lib/ui/placement";
 
 /** Remembered in a cookie (and browser storage as a backup) so the tour only plays once. */
 const COOKIE = "sx_tour_done_v2"; // bump the version to show the tour to everyone again
@@ -236,11 +237,12 @@ export default function Tutorial({
 
   const pad = 6;
   const W = typeof window !== "undefined" ? window.innerWidth : 1280;
-  const cw = Math.min(430, W - 24);
-  // The card lives at the top centre. If the spotlight is up there too, it slides beside it,
-  // and only drops below it when there's no room to the side.
-  let left = (W - cw) / 2, top = 14;
-  const overlaps = (l: number) => !!rect && rect.top < 14 + cardH + 10 && rect.left - pad < l + cw && rect.left + rect.width + pad > l;
+  // The card lives at the top, in the free gap between the controls. If the spotlight is up there
+  // too, it slides beside it, and only drops below it when there's no room to the side.
+  const slot = typeof window !== "undefined" ? topSlot(430) : { left: (W - 430) / 2, top: 14, width: 430 };
+  const cw = slot.width;
+  let left = slot.left, top = slot.top;
+  const overlaps = (l: number) => !!rect && rect.top < top + cardH + 10 && rect.left - pad < l + cw && rect.left + rect.width + pad > l;
   if (rect && overlaps(left)) {
     const right = rect.left + rect.width + pad + 12, leftSide = rect.left - pad - 12 - cw;
     if (right + cw <= W - 12) left = right;

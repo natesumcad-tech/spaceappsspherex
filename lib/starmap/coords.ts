@@ -117,6 +117,13 @@ function heliocentric(name: string, T: number): [number, number, number] {
   ];
 }
 
+/** How far a planet is from the Sun and from Earth (AU), on a given (fractional) year. */
+export function planetDistance(name: string, year: number) {
+  const T = (year - 2000) / 100;
+  const p = heliocentric(name, T), e = heliocentric("Earth", T);
+  return { sunAU: Math.hypot(...p), earthAU: Math.hypot(p[0] - e[0], p[1] - e[1], p[2] - e[2]) };
+}
+
 /** Geocentric J2000 RA/Dec of the Sun and planets for a (fractional) year. */
 export function planetPositions(year: number) {
   const T = (year - 2000) / 100;

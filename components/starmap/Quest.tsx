@@ -1,0 +1,441 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MISSION, type Line, type MissionCtx, type PlanetInfo, type StarInfo } from "@/lib/quest/mission";
+import { spherexCutout } from "@/lib/starmap/cutout";
+import { topSlot } from "@/lib/ui/placement";
+
+/** Mission progress lives in this browser, so it survives a reload. */
+const STORE = "starmap.quest.v1";
+type Saved = { offered?: boolean; started?: number; step?: number; done?: boolean; finishedIn?: number; reading?: MissionCtx["reading"] };
+export function loadQuest(): Saved {
+  try {
+    return JSON.parse(localStorage.getItem(STORE) ?? "{}") ?? {};
+  } catch {
+    return {};
+  }
+}
+function saveQuest(s: Saved) {
+  try {
+    localStorage.setItem(STORE, JSON.stringify(s));
+  } catch {}
+}
+/** Testing helper (front page): forget the mission. */
+export function resetQuest() {
+  try {
+    localStorage.removeItem(STORE);
+  } catch {}
+}
+
+/** "5h55m", "5 55 10", "5:55", "5.92" → hours; "88.8°" or anything over 24 → degrees. */
+function parseRA(text: string): number | null {
+  const n = text.match(/\d+(\.\d+)?/g)?.map(Number);
+  if (!n?.length) return null;
+  const v = n[0] + (n[1] ?? 0) / 60 + (n[2] ?? 0) / 3600;
+  return /°|deg|d\b/i.test(text) || v > 24 ? v : v * 15; // → degrees
+}
+function parseDec(text: string): number | null {
+  const n = text.match(/\d+(\.\d+)?/g)?.map(Number);
+  if (!n?.length) return null;
+  const v = n[0] + (n[1] ?? 0) / 60 + (n[2] ?? 0) / 3600;
+  return /^\s*[-−–]/.test(text) ? -v : v;
+}
+const sep = (ra1: number, d1: number, ra2: number, d2: number) => {
+  const r = Math.PI / 180;
+  const c = Math.sin(d1 * r) * Math.sin(d2 * r) + Math.cos(d1 * r) * Math.cos(d2 * r) * Math.cos((ra1 - ra2) * r);
+  return Math.acos(Math.min(1, Math.max(-1, c))) / r;
+};
+
+/** The name a map label shows (stars and constellations: their text; planets: their name; diamonds: their title). */
+function labelName(el: HTMLElement) {
+  if (el.classList.contains("mv-wp")) return (el.getAttribute("aria-label") ?? "").replace(/^Waypoint:\s*/, "");
+  if (el.classList.contains("mv-planet")) return el.querySelector("span")?.textContent ?? "";
+  const aria = el.getAttribute("aria-label"); // e.g. "Polaris: travel, explore or ask a question"
+  if (aria) return aria.split(":")[0];
+  return (el.textContent ?? "").replace("View in 360°", "");
+}
+
+function Portrait() {
+  return (
+    <svg className="q-face" viewBox="0 0 48 48" aria-hidden="true">
+      <defs>
+        <linearGradient id="q-visor" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3a4a63" />
+          <stop offset="0.55" stopColor="#141a26" />
+          <stop offset="1" stopColor="#c9a46a" />
+        </linearGradient>
+      </defs>
+      <circle cx="24" cy="24" r="23" fill="#e9dcc4" />
+      <path d="M8 46c2-9 9-13 16-13s14 4 16 13" fill="#cdbb9c" />
+      <circle cx="24" cy="21" r="13" fill="#f7efdf" stroke="#b9a383" strokeWidth="1.5" />
+      <rect x="14" y="15" width="20" height="12" rx="6" fill="url(#q-visor)" />
+      <path d="M17 18.5c2-1.5 4-2 6-2" stroke="#fff" strokeOpacity=".55" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <circle cx="35" cy="12" r="2" fill="#c28a2c" />
+    </svg>
+  );
+}
+
+/** A real SPHEREx cutout, drawn in the background; shimmers while it loads. */
+function RealImage({ cut }: { cut: NonNullable<Line["image"]> }) {
+  const [src, setSrc] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    setSrc(undefined);
+    spherexCutout(cut.ra, cut.dec, cut.fov).then((s) => live && setSrc(s));
+    return () => {
+      live = false;
+    };
+  }, [cut.ra, cut.dec, cut.fov]);
+  const ra = cut.ra / 15, h = Math.floor(ra), m = Math.round((ra - h) * 60);
+  return (
+    <figure className="q-img">
+      {src ? <img src={src} alt={`${cut.caption}: real SPHEREx infrared image`} /> : <div className={`q-img-wait ${src === null ? "failed" : ""}`}>{src === null ? "Image unavailable right now" : "Receiving image…"}</div>}
+      <figcaption>
+        <b>Real data</b> {cut.caption} · RA {h}h {String(m).padStart(2, "0")}m, Dec {cut.dec >= 0 ? "+" : "−"}
+        {Math.abs(cut.dec).toFixed(1)}° · {cut.fov}° wide · SPHEREx DR1 via IRSA
+      </figcaption>
+    </figure>
+  );
+}
+
+type Phase = "offer" | "talk" | "seek" | "done";
+
+/**
+ * "Signal from the Dark": an optional rescue mission. The map stays free; clicking the right stars and
+ * planets (or using the right tools) moves the story on. Images and numbers are real data.
+ */
+export default function Quest({
+  open,
+  hidden,
+  sphere,
+  center,
+  bandUm,
+  star,
+  planet,
+  onClose,
+}: {
+  open: boolean;
+  /** Galaxy view or the tour is up: stay out of the way. */
+  hidden: boolean;
+  /** The 360° view that's open, if any. */
+  sphere: string | null;
+  /** J2000 RA/Dec of the middle of the map. */
+  center: { ra: number; dec: number };
+  bandUm: number | null;
+  star: (name: string) => StarInfo | null;
+  planet: (name: string) => PlanetInfo | null;
+  onClose: () => void;
+}) {
+  const [saved, setSaved] = useState<Saved>({});
+  const [phase, setPhase] = useState<Phase>("offer");
+  const [queue, setQueue] = useState<Line[]>([]);
+  const [li, setLi] = useState(0);
+  const [hint, setHint] = useState(false);
+  const [mini, setMini] = useState(false);
+  const [raIn, setRaIn] = useState("");
+  const [decIn, setDecIn] = useState("");
+  const [nope, setNope] = useState<string | null>(null);
+  const [flash, setFlash] = useState(false);
+  // Sit in the free space at the top, clear of the controls (re-checked as panels open and close)
+  const [slot, setSlot] = useState<{ left: number; top: number; width: number } | null>(null);
+  useEffect(() => {
+    if (!open || hidden) return;
+    const place = () =>
+      setSlot((p) => {
+        const n = topSlot(420);
+        return p && Math.abs(p.left - n.left) + Math.abs(p.top - n.top) + Math.abs(p.width - n.width) < 1 ? p : n;
+      });
+    place();
+    const t = setInterval(place, 400);
+    window.addEventListener("resize", place);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, hidden, sphere]);
+
+  const stepIdx = saved.step ?? 0;
+  const step = MISSION[Math.min(stepIdx, MISSION.length - 1)];
+  const ctx = useMemo<MissionCtx>(() => ({ star, planet, bandUm, reading: saved.reading ?? null }), [star, planet, bandUm, saved.reading]);
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
+
+  const update = useCallback((patch: Saved) => {
+    setSaved((s) => {
+      const next = { ...s, ...patch };
+      saveQuest(next);
+      return next;
+    });
+  }, []);
+
+  // Opening: offer, resume, or show the summary
+  useEffect(() => {
+    if (!open) return;
+    const s = loadQuest();
+    setSaved(s);
+    setMini(false);
+    if (s.done) setPhase("done");
+    else if (s.started) {
+      setQueue([]);
+      setPhase("seek");
+    } else setPhase("offer");
+  }, [open]);
+
+  const accept = () => {
+    update({ offered: true, started: Date.now(), step: 0, done: false, reading: null });
+    setQueue(MISSION[0].intro(ctxRef.current));
+    setLi(0);
+    setPhase("talk");
+  };
+  const decline = () => {
+    update({ offered: true });
+    onClose();
+  };
+
+  /** The objective is done: the commander reacts, then sets the next one. */
+  const complete = useCallback(
+    (extra: Saved = {}) => {
+      const c = { ...ctxRef.current, reading: extra.reading ?? ctxRef.current.reading };
+      const i = stepIdx;
+      const lines = [...MISSION[i].success(c), ...(MISSION[i + 1]?.intro(c) ?? [])];
+      const last = i + 1 >= MISSION.length;
+      update({ ...extra, step: i + 1, ...(last ? { done: true, finishedIn: Date.now() - (saved.started ?? Date.now()) } : {}) });
+      setQueue(lines);
+      setLi(0);
+      setHint(false);
+      setMini(false);
+      setNope(null);
+      setFlash(true);
+      setPhase("talk");
+    },
+    [stepIdx, saved.started, update],
+  );
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(false), 900);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  const nextLine = () => {
+    if (li < queue.length - 1) return setLi(li + 1);
+    setPhase(saved.done ? "done" : "seek");
+  };
+
+  const seeking = open && phase === "seek" && !saved.done;
+  const check = step.check;
+
+  // Clicking a quest target on the map
+  useEffect(() => {
+    if (!seeking || check.kind !== "click") return;
+    const onClick = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement).closest?.<HTMLElement>(".mv-overlay .mv-ov, .mv-overlay .mv-wp");
+      if (el && labelName(el).trim().toLowerCase() === check.name.toLowerCase()) setTimeout(() => complete(), 350);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [seeking, check, complete]);
+
+  // Arriving at the coordinates
+  useEffect(() => {
+    if (!seeking || check.kind !== "goto") return;
+    if (sep(center.ra, center.dec, check.ra, check.dec) <= check.radius) {
+      const t = setTimeout(() => complete(), 900); // let the flight land first
+      return () => clearTimeout(t);
+    }
+  }, [seeking, check, center.ra, center.dec, complete]);
+
+  // A single SPHEREx color chosen
+  useEffect(() => {
+    if (seeking && check.kind === "band" && bandUm !== null) complete();
+  }, [seeking, check, bandUm, complete]);
+
+  // Stepping inside the 360° view
+  useEffect(() => {
+    if (seeking && check.kind === "sphere" && sphere === check.stop) complete();
+  }, [seeking, check, sphere, complete]);
+
+  // Make the target pulse on the map, and the control we're asking about glow
+  useEffect(() => {
+    if (!seeking) return;
+    const mark = () => {
+      document.querySelectorAll(".quest-target").forEach((e) => e.classList.remove("quest-target"));
+      if (check.kind === "click")
+        document.querySelectorAll<HTMLElement>(".mv-overlay .mv-ov, .mv-overlay .mv-wp").forEach((el) => {
+          if (labelName(el).trim().toLowerCase() === check.name.toLowerCase()) el.classList.add("quest-target");
+        });
+      if (step.glow) document.querySelector(step.glow)?.classList.add("quest-target");
+    };
+    mark();
+    const t = setInterval(mark, 500);
+    return () => {
+      clearInterval(t);
+      document.querySelectorAll(".quest-target").forEach((e) => e.classList.remove("quest-target"));
+    };
+  }, [seeking, check, step.glow]);
+
+  const submitReading = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (check.kind !== "report") return;
+    const truth = star(check.star);
+    const ra = parseRA(raIn), dec = parseDec(decIn);
+    if (!truth) return complete();
+    if (ra === null || dec === null) return setNope("I need both numbers: RA like 5h 55m, and Dec like +7.4.");
+    const dRA = Math.abs(((ra - truth.ra + 540) % 360) - 180), dDec = Math.abs(dec - truth.dec);
+    if (dDec > 1.5) return setNope(`That Dec doesn't match my backup chart. Is ${check.star} right in the middle of your map? Read the second number on the “Center J2000” line.`);
+    if (dRA > 4) return setNope(`Close, but the RA is off. RA is in hours and minutes: read the first number on the “Center J2000” line.`);
+    complete({ reading: { ra, dec, offDeg: sep(ra, dec, truth.ra, truth.dec) } });
+  };
+
+  if (!open || hidden) return null;
+
+  const where = sphere ? " in-sphere" : "";
+  const pos = slot ? { left: slot.left, top: slot.top, width: slot.width } : { visibility: "hidden" as const };
+
+  if (phase === "offer")
+    return (
+      <div style={pos} className={`q-card q-offer${where}`} role="dialog" aria-label="Incoming transmission">
+        <div className="q-signal" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </div>
+        <div className="q-body">
+          <span className="q-kicker">Incoming transmission · optional mission</span>
+          <h2>Signal from the Dark</h2>
+          <p>A survey ship has lost power past Neptune. Use the real SPHEREx sky to guide its crew home. About 5 minutes.</p>
+          <div className="q-actions">
+            <button className="q-ghost" onClick={decline}>
+              Not now
+            </button>
+            <button className="q-go" onClick={accept}>
+              Answer the call
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+
+  if (phase === "done") {
+    const mins = saved.finishedIn ? Math.max(1, Math.round(saved.finishedIn / 60000)) : null;
+    return (
+      <div style={pos} className={`q-card q-done${where}`} role="dialog" aria-label="Mission complete">
+        <div className="q-badge" aria-hidden="true">
+          <svg viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="30" fill="#171512" />
+            <circle cx="32" cy="32" r="24" fill="none" stroke="#c9a46a" strokeWidth="2" strokeDasharray="3 4" />
+            <path d="M32 14l4.5 11.5L48 27l-9 8 3 12-10-6.5L22 47l3-12-9-8 11.5-1.5z" fill="#f7efdf" />
+          </svg>
+        </div>
+        <div className="q-body">
+          <span className="q-kicker">Mission complete</span>
+          <h2>The Wren is coming home</h2>
+          <p>You navigated by the stars, read real coordinates, found fuel with SPHEREx data and tracked a ship past Neptune.</p>
+          <ul className="q-stats">
+            {mins && <li><b>{mins} min</b> mission time</li>}
+            {saved.reading && <li><b>{saved.reading.offDeg.toFixed(1)}°</b> off on Betelgeuse</li>}
+            <li><b>6/6</b> objectives</li>
+          </ul>
+          <div className="q-actions">
+            <button className="q-ghost" onClick={accept}>
+              Play again
+            </button>
+            <button className="q-go" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "talk") {
+    const line = queue[li];
+    if (!line) return null;
+    return (
+      <div style={pos} className={`q-card q-talk${where} ${flash ? "flash" : ""}`} role="dialog" aria-label="Commander Ada Reyes">
+        {flash && <span className="q-done-tick">✓ Objective complete</span>}
+        <div className="q-who">
+          <Portrait />
+          <div>
+            <b>Cmdr. Ada Reyes</b>
+            <span>Survey ship Wren · fictional</span>
+          </div>
+          <span className="q-count">
+            {li + 1}/{queue.length}
+          </span>
+        </div>
+        <p className="q-line" key={`${stepIdx}-${li}`}>
+          {line.text}
+        </p>
+        {line.image && <RealImage cut={line.image} />}
+        {line.facts && line.facts.length > 0 && (
+          <dl className="q-facts">
+            {line.facts.map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        <div className="q-actions">
+          <button className="q-go" onClick={nextLine} ref={(el) => el?.focus({ preventScroll: true })}>
+            {li < queue.length - 1 ? "Continue" : saved.done ? "Finish" : "On it"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Seeking: the objective bar
+  if (mini || sphere)
+    return (
+      <button style={slot ? { left: slot.left + slot.width / 2, top: slot.top } : undefined} className={`q-mini${where}`} onClick={() => setMini(false)} aria-label="Show mission objective">
+        <Portrait />
+        <span>{step.objective}</span>
+      </button>
+    );
+  return (
+    <div style={pos} className="q-card q-seek" role="region" aria-label="Mission objective">
+      <div className="q-who">
+        <Portrait />
+        <div>
+          <span className="q-kicker">
+            Objective {stepIdx + 1} of {MISSION.length}
+          </span>
+          <b className="q-obj">{step.objective}</b>
+        </div>
+        <button className="q-x" onClick={() => setMini(true)} aria-label="Minimize">
+          –
+        </button>
+      </div>
+      {check.kind === "report" && (
+        <form className="q-form" onSubmit={submitReading}>
+          <label>
+            RA
+            <input value={raIn} onChange={(e) => setRaIn(e.target.value)} placeholder="5h 55m" inputMode="text" />
+          </label>
+          <label>
+            Dec
+            <input value={decIn} onChange={(e) => setDecIn(e.target.value)} placeholder="+7.4°" inputMode="text" />
+          </label>
+          <button className="q-go" type="submit">
+            Send
+          </button>
+        </form>
+      )}
+      {nope && <p className="q-nope">{nope}</p>}
+      <div className="q-seek-foot">
+        <div className="q-progress" aria-hidden="true">
+          {MISSION.map((m, k) => (
+            <i key={m.id} className={k < stepIdx ? "past" : k === stepIdx ? "now" : ""} />
+          ))}
+        </div>
+        <button className="q-link" onClick={() => setHint((h) => !h)} aria-expanded={hint}>
+          {hint ? "Hide hint" : "Need a hint?"}
+        </button>
+      </div>
+      {hint && <p className="q-hint">{step.hint}</p>}
+    </div>
+  );
+}

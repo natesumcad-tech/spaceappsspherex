@@ -58,6 +58,19 @@ export function parseRaDec(raw: string): { ok: true; coord: ParsedCoord } | { ok
     return { ok: true, coord: { ra, dec } };
   }
 
+  // Short sexagesimal with an explicit "h": `4h 32m +26`, `4h32m, +26° 30'`, `5h55m10s +7°24'25"`
+  const short = input.match(
+    /^\s*(\d{1,2}(?:\.\d+)?)\s*h\s*(?:(\d{1,2}(?:\.\d+)?)\s*m)?\s*(?:(\d{1,2}(?:\.\d+)?)\s*s)?\s*[,;]?\s*([+\-−]?)\s*(\d{1,2}(?:\.\d+)?)\s*(?:°|d)?\s*(?:(\d{1,2}(?:\.\d+)?)\s*['′m])?\s*(?:(\d{1,2}(?:\.\d+)?)\s*["″s]?)?\s*$/i
+  );
+  if (short) {
+    const [, rh, rm = "0", rs = "0", sign, dd, dm = "0", ds = "0"] = short;
+    const ra = (Number(rh) + Number(rm) / 60 + Number(rs) / 3600) * 15;
+    const dec = (sign === "-" || sign === "−" ? -1 : 1) * (Number(dd) + Number(dm) / 60 + Number(ds) / 3600);
+    if (!(ra >= 0 && ra < 360) || Number(rm) >= 60 || Number(rs) >= 60) return { ok: false, error: "RA must be 00h–23h 59m 59s" };
+    if (!(Math.abs(dec) <= 90) || Number(dm) >= 60 || Number(ds) >= 60) return { ok: false, error: "Dec must be between -90° and +90°" };
+    return { ok: true, coord: { ra, dec } };
+  }
+
   // Decimal degrees: two numbers separated by comma or whitespace
   const decMatch = input.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*[,;\s]+\s*([+-]?\d+(?:\.\d+)?)\s*$/);
   if (decMatch) {

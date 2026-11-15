@@ -6,7 +6,7 @@ import "./infrared-isolation.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { SkyData } from "@/lib/explorer/astro";
 import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
-import { raToX } from "@/lib/starmap/coords";
+import { planetDistance, planetPositions, raToX } from "@/lib/starmap/coords";
 import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById } from "@/lib/starmap/hips";
 import { createPortal } from "react-dom";
 import { DEFAULT_SETTINGS, type MapHover, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
@@ -20,6 +20,7 @@ import type { CosmicView, Galaxy } from "@/lib/starmap/cosmic";
 import CoordSearchBar from "./CoordSearchBar";
 import BlinkPlayer, { type CompareMode } from "./BlinkPlayer";
 import Tutorial, { tourDone } from "./Tutorial";
+import Quest, { loadQuest } from "./Quest";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v2"; // v2: the measurement grid is on by default
@@ -94,6 +95,7 @@ export default function StarMapApp() {
   const [cosmic, setCosmic] = useState(true);
   const [intro, setIntro] = useState(false);
   const [tour, setTour] = useState(false);
+  const [questOpen, setQuestOpen] = useState(false);
   // The page is a fixed, full-screen map: if focusing something ever scrolls it, snap straight back
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -206,10 +208,33 @@ export default function StarMapApp() {
   useEffect(() => {
     if (tourOffered.current || !ready || cosmic || sphere || intro) return;
     tourOffered.current = true;
-    if (tourDone()) return;
+    if (tourDone()) {
+      // Seen the tour before: offer the optional mission once (or pick an unfinished one back up)
+      const q = loadQuest();
+      if (q.offered && !(q.started && !q.done)) return;
+      const t = setTimeout(() => setQuestOpen(true), 1600);
+      return () => clearTimeout(t);
+    }
     const t = setTimeout(() => setTour(true), 1400);
     return () => clearTimeout(t);
   }, [ready, cosmic, sphere, intro]);
+
+  // Real data for the mission: catalogue stars and today's planet positions
+  const questStar = useCallback((name: string) => {
+    const sky = skyRef.current;
+    const n = sky?.named.find((k) => k.names.en.toLowerCase() === name.toLowerCase());
+    if (!sky || !n) return null;
+    const [ra, dec, mag, , pc] = sky.stars[n.i];
+    return { ra, dec, mag, ly: pc > 0 ? pc * 3.2616 : null };
+  }, []);
+  const questPlanet = useCallback((name: string) => {
+    const now = new Date();
+    const year = now.getUTCFullYear() + (now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 1)) / (365.25 * 864e5);
+    const p = planetPositions(year).find((q) => q.name.toLowerCase() === name.toLowerCase());
+    if (!p) return null;
+    const cap = name[0].toUpperCase() + name.slice(1).toLowerCase();
+    return { ra: p.ra, dec: p.dec, ...planetDistance(cap, year) };
+  }, []);
 
   // Load settings & custom waypoints saved in this browser
   useEffect(() => {
@@ -777,9 +802,29 @@ export default function StarMapApp() {
         <button className="mv-glass mv-tour-btn" onClick={() => setTour(true)} aria-label="Show the tour again" title="Show the tour again">
           ?
         </button>
+        <button className="mv-glass mv-quest-btn" onClick={() => setQuestOpen(true)} aria-label="Rescue mission" title="Rescue mission (optional)">
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+            <circle cx="12" cy="13" r="2" fill="currentColor" />
+            <path d="M8.5 9.5a5 5 0 0 0 0 7M15.5 9.5a5 5 0 0 1 0 7M5.6 6.6a9 9 0 0 0 0 12.8M18.4 6.6a9 9 0 0 1 0 12.8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
-      <Tutorial open={tour} hidden={!!sphere || cosmic} mode={mode} inSphere={!!sphere} sphereKind={sphere ? (byId(sphere)?.kind ?? null) : null} onClose={() => setTour(false)} />
+      <Tutorial open={tour} hidden={!!sphere || cosmic} mode={mode} inSphere={!!sphere} sphereKind={sphere ? (byId(sphere)?.kind ?? null) : null} onClose={() => {
+          setTour(false);
+          if (!loadQuest().offered) setTimeout(() => setQuestOpen(true), 700); // then offer the optional mission
+        }}
+      />
+      <Quest
+        open={questOpen}
+        hidden={cosmic || tour}
+        sphere={sphere}
+        center={centerCoord}
+        bandUm={settings.layer === "spherex" && settings.band >= 0 ? SPHEREX_WL[settings.band] : null}
+        star={questStar}
+        planet={questPlanet}
+        onClose={() => setQuestOpen(false)}
+      />
 
       {/* Controls help */}
       <Collapsible id="map-controls" className="mv-glass mv-help" title={<span className="cl-label">Controls</span>} defaultOpen={help}>

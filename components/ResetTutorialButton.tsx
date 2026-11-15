@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { resetTour } from "@/components/starmap/Tutorial";
+import { resetQuest } from "@/components/starmap/Quest";
 
-/** Testing only: show the Sky Explorer tour again, in this browser. */
+/** Testing only: show the Sky Explorer tour (and the rescue mission offer) again, in this browser. */
 export default function ResetTutorialButton() {
   const [done, setDone] = useState(false);
   return (
@@ -12,6 +13,7 @@ export default function ResetTutorialButton() {
       className="h-reset-tour"
       onClick={() => {
         resetTour();
+        resetQuest();
         setDone(true);
         setTimeout(() => setDone(false), 2200);
       }}

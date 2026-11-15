@@ -1038,3 +1038,110 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .mv-wp.near .mv-360, .mv-planet.link.near .mv-360, .mv-con.link.near .mv-360, .mv-star.link.near .mv-360 { pointer-events: auto; cursor: pointer; }
 .mv-ov.near .mv-360:hover, .mv-wp.near .mv-360:hover { background: #171512; color: #f7efdf; }
 .mv-ov.near .mv-360:hover::before, .mv-wp.near .mv-360:hover::before { color: #f7efdf; }
+
+/* ── Optional rescue mission ("Signal from the Dark") ── */
+.q-card {
+  position: absolute; top: 14px; left: 50%; z-index: 55;
+  width: min(420px, calc(100vw - 24px)); max-height: calc(100vh - 110px); overflow: auto;
+  background: #fbf6ec; color: #171512; border: 1px solid #ddd0bb; border-radius: 16px; padding: 14px 16px;
+  box-shadow: 0 1px 0 #fff inset, 0 20px 50px -18px rgba(20, 14, 6, 0.55), 0 4px 14px -6px rgba(20, 14, 6, 0.25);
+  animation: q-in 0.4s cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+@keyframes q-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+.q-card h2 { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.015em; font-size: 1.15rem; margin: 2px 0 4px; }
+.q-card p { margin: 0; font-size: 0.88rem; line-height: 1.5; color: #4a4338; }
+.q-kicker { display: block; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: #8a7f6f; }
+.q-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+.q-go, .q-ghost, .q-link, .q-x { font: inherit; cursor: pointer; }
+.q-go { font-size: 0.8rem; font-weight: 600; padding: 7px 14px; border-radius: 10px; border: 0; background: #171512; color: #fbf6ec; }
+.q-go:hover { background: #2d2922; }
+.q-ghost { font-size: 0.78rem; font-weight: 600; padding: 7px 10px; border-radius: 10px; border: 0; background: transparent; color: #625b50; }
+.q-ghost:hover { background: #f1e8d8; color: #171512; }
+.q-link { all: unset; cursor: pointer; font-size: 0.74rem; color: #8a7f6f; text-decoration: underline; text-underline-offset: 3px; }
+.q-link:hover { color: #171512; }
+.q-go:focus-visible, .q-ghost:focus-visible, .q-link:focus-visible, .q-x:focus-visible { outline: 2px solid #171512; outline-offset: 2px; }
+
+/* Incoming transmission */
+.q-offer { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+.q-signal { position: relative; width: 44px; height: 44px; margin-top: 4px; border-radius: 50%; background: #171512; }
+.q-signal i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #c9a46a; animation: q-ping 2.4s ease-out infinite; }
+.q-signal i:nth-child(2) { animation-delay: 0.8s; }
+.q-signal i:nth-child(3) { animation-delay: 1.6s; }
+.q-signal::after { content: ""; position: absolute; inset: 15px; border-radius: 50%; background: #c9a46a; }
+@keyframes q-ping { from { transform: scale(0.6); opacity: 1; } to { transform: scale(1.7); opacity: 0; } }
+
+/* Commander's dialogue */
+.q-who { display: flex; align-items: center; gap: 10px; }
+.q-who b { display: block; font-size: 0.86rem; }
+.q-who span:not(.q-kicker):not(.q-count) { display: block; font-size: 0.68rem; color: #8a7f6f; }
+.q-face { width: 38px; height: 38px; flex: none; }
+.q-count { margin-left: auto; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.64rem; color: #8a7f6f; }
+.q-line { margin-top: 10px !important; font-size: 0.95rem !important; color: #171512 !important; animation: tour-swap 0.3s ease both; }
+.q-talk.flash { box-shadow: 0 0 0 3px #b9cfa0, 0 20px 50px -18px rgba(20, 14, 6, 0.55); }
+.q-done-tick { display: inline-block; margin-bottom: 8px; font-size: 0.74rem; font-weight: 700; color: #3d5a28; background: #e6efd9; border: 1px solid #b9cfa0; padding: 3px 9px; border-radius: 999px; }
+.q-img { margin: 12px 0 0; border-radius: 12px; overflow: hidden; background: #0b0a08; border: 1px solid #ddd0bb; }
+.q-img img, .q-img-wait { display: block; width: 100%; height: 190px; object-fit: cover; }
+.q-img-wait { display: grid; place-items: center; color: #b8ab95; font-size: 0.78rem; background: linear-gradient(100deg, #15130f 30%, #2a251d 50%, #15130f 70%) 0 0 / 200% 100%; animation: q-shimmer 1.4s linear infinite; }
+.q-img-wait.failed { animation: none; background: #15130f; }
+@keyframes q-shimmer { to { background-position: -200% 0; } }
+.q-img figcaption { padding: 7px 10px; font-size: 0.66rem; line-height: 1.4; color: #d9cdb7; background: #171512; }
+.q-img figcaption b, .q-facts::before {
+  font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #171512; background: #c9a46a; padding: 1px 6px; border-radius: 999px; margin-right: 6px; font-weight: 700;
+}
+.q-facts { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 0 0; padding-top: 18px; }
+.q-facts::before { content: "Real data"; position: absolute; top: 0; left: 0; }
+.q-facts div { background: #fffaf1; border: 1px solid #e6dac6; border-radius: 9px; padding: 6px 9px; }
+.q-facts dt { font-size: 0.62rem; color: #8a7f6f; }
+.q-facts dd { margin: 1px 0 0; font-size: 0.8rem; font-weight: 600; }
+
+/* Objective bar */
+.q-seek { padding: 11px 14px; }
+.q-obj { font-size: 0.92rem !important; margin-top: 1px; }
+.q-x { margin-left: auto; align-self: flex-start; width: 26px; height: 26px; border-radius: 8px; border: 0; background: transparent; color: #8a7f6f; font-size: 1rem; }
+.q-x:hover { background: #f1e8d8; color: #171512; }
+.q-form { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px; }
+.q-form label { display: grid; gap: 3px; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: #8a7f6f; flex: 1; }
+.q-form input { font: inherit; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.86rem; letter-spacing: 0; text-transform: none; color: #171512; padding: 7px 9px; border-radius: 9px; border: 1px solid #d9ccb7; background: #fff; min-width: 0; }
+.q-form input:focus { outline: 2px solid #171512; outline-offset: 1px; }
+.q-nope { margin-top: 8px !important; font-size: 0.8rem !important; color: #8a3b1b !important; }
+.q-seek-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.q-progress { display: flex; gap: 4px; }
+.q-progress i { width: 16px; height: 4px; border-radius: 2px; background: #e6dac6; }
+.q-progress i.past { background: #8a7f6f; }
+.q-progress i.now { background: #c28a2c; }
+.q-hint { margin-top: 8px !important; font-size: 0.8rem !important; background: #f6eedf; border-radius: 9px; padding: 8px 10px; }
+.q-mini {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 55; display: flex; align-items: center; gap: 8px;
+  font: inherit; font-size: 0.8rem; font-weight: 600; color: #171512; cursor: pointer; max-width: calc(100vw - 24px);
+  padding: 5px 14px 5px 5px; border-radius: 999px; border: 1px solid #ddd0bb; background: #fbf6ec; box-shadow: 0 10px 30px -14px rgba(20, 14, 6, 0.6);
+}
+.q-mini .q-face { width: 28px; height: 28px; }
+
+/* Mission complete */
+.q-done { display: grid; grid-template-columns: auto 1fr; gap: 14px; }
+.q-badge svg { width: 56px; height: 56px; animation: q-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+@keyframes q-pop { from { transform: scale(0.4) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.q-stats { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 10px 0 0; }
+.q-stats li { font-size: 0.74rem; color: #514a40; background: #f1e8d8; border-radius: 999px; padding: 4px 10px; }
+
+/* Inside the 360° view */
+.q-banner {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 10px;
+  max-width: calc(100vw - 24px); background: #fbf6ec; color: #171512; border: 1px solid #ddd0bb; border-radius: 14px;
+  padding: 8px 14px 8px 8px; font-size: 0.84rem; box-shadow: 0 20px 50px -18px rgba(20, 14, 6, 0.6); pointer-events: none;
+}
+.q-banner .q-face { width: 32px; height: 32px; }
+
+/* What the mission is asking about: a pulsing ring on the map label, a glow on a control */
+.mv-overlay .quest-target { outline: 2px solid #f0c674; outline-offset: 4px; border-radius: 999px; animation: q-target 1.4s ease-in-out infinite; z-index: 3; }
+.mv-overlay .mv-planet.quest-target { outline: none; animation: none; }
+.mv-overlay .mv-planet.quest-target > span, .mv-overlay .mv-planet.quest-target > i { outline: 2px solid #f0c674; outline-offset: 3px; border-radius: 999px; animation: q-target 1.4s ease-in-out infinite; }
+@keyframes q-target { 50% { outline-color: rgba(240, 198, 116, 0.25); outline-offset: 8px; } }
+.mv-coord-form.quest-target, .mv-minicard.quest-target { box-shadow: 0 0 0 2px #f0c674, 0 0 22px 4px rgba(240, 198, 116, 0.45) !important; animation: q-glow 1.6s ease-in-out infinite; }
+@keyframes q-glow { 50% { box-shadow: 0 0 0 2px rgba(240, 198, 116, 0.5), 0 0 8px 1px rgba(240, 198, 116, 0.2) !important; } }
+.mv-quest-btn { display: grid; place-items: center; }
+@media (prefers-reduced-motion: reduce) {
+  .q-card, .q-line, .q-signal i, .q-img-wait, .q-badge svg, .mv-overlay .quest-target, .mv-overlay .quest-target > *, .mv-coord-form.quest-target, .mv-minicard.quest-target { animation: none !important; }
+}
+
