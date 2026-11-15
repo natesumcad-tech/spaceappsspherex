@@ -699,6 +699,7 @@ export class SkyEngine {
     );
     earth.add(body, clouds, atmo);
     this.fg.add(earth);
+    this.addEquator(earth, 1);
     this.occluders.push({ center: earth.position.clone(), radius: 1.02 });
     this.setPivot(earth.position, 1.25, 6);
     this.spinners.push({ obj: body, speed: 0.01 }, { obj: clouds, speed: 0.013 });
@@ -721,6 +722,7 @@ export class SkyEngine {
     const body = this.planetMesh(lm.planet!, 1);
     tilt.add(body);
     if (lm.planet === "saturn") tilt.add(this.makeRings(1));
+    this.addEquator(tilt, 1);
     this.fg.add(tilt);
     this.body = body;
     // Ring anchors sit on the side of the rings facing you (the tilt group's +z points at the camera).
@@ -793,6 +795,10 @@ export class SkyEngine {
     const star = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.ShaderMaterial({ uniforms, vertexShader: STAR_VERT, fragmentShader: STAR_FRAG }));
     star.position.copy(desired).multiplyScalar(dist);
     this.fg.add(star, this.glowSprite(lm.star!.color, 5.2, star.position, 0.85));
+    const axis = new THREE.Group();
+    axis.position.copy(star.position);
+    this.fg.add(axis);
+    this.addEquator(axis, 1);
     this.body = star;
     this.occluders.push({ center: star.position.clone(), radius: 1 });
     this.setPivot(star.position, 1.6, 25);
@@ -912,6 +918,27 @@ export class SkyEngine {
       ask.addEventListener("click", e => { e.stopPropagation(); this.events.onAsk?.(text); });
       l.el.appendChild(ask);
     }
+  }
+
+  /**
+   * A glowing equator around a body. `parent` sits at the body's centre with its local y axis along the
+   * body's spin axis (bodies spin about y), so the ring stays put while the surface turns beneath it.
+   */
+  private addEquator(parent: THREE.Object3D, r: number) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(r * 1.004, r * 0.0055, 6, 220),
+      new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.85 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    parent.add(ring);
+    const tmp = new THREE.Vector3();
+    // the label rides the ring, a little to the side of the point nearest you
+    this.addLabel("fg", "lbl lbl-fg lbl-eq", { en: "Equator", es: "Ecuador" }, () => {
+      parent.updateMatrixWorld();
+      parent.worldToLocal(tmp.copy(this.cam.position));
+      const a = Math.atan2(tmp.z, tmp.x) + 0.55;
+      return parent.localToWorld(new THREE.Vector3(Math.cos(a) * r * 1.06, 0, Math.sin(a) * r * 1.06));
+    });
   }
 
   private addFgLabel(text: string, pos: THREE.Vector3 | (() => THREE.Vector3), link?: string) {
