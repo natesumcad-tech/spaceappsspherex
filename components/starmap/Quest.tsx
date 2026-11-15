@@ -288,6 +288,14 @@ export default function Quest({
     if (seeking && check.kind === "band" && bandUm !== null) complete();
   }, [seeking, check, bandUm, complete]);
 
+  // Watching a real blink (the Blink viewer announces it)
+  useEffect(() => {
+    if (!seeking || check.kind !== "blink") return;
+    const on = (e: Event) => (e as CustomEvent<{ featured: boolean }>).detail?.featured && complete();
+    window.addEventListener("spherex-blink", on);
+    return () => window.removeEventListener("spherex-blink", on);
+  }, [seeking, check, complete]);
+
   // Stepping inside the 360° view
   useEffect(() => {
     if (seeking && check.kind === "sphere" && sphere === check.stop) complete();
@@ -372,7 +380,7 @@ export default function Quest({
           <ul className="q-stats">
             {mins && <li><b>{mins} min</b> mission time</li>}
             {saved.reading && <li><b>{saved.reading.offDeg.toFixed(1)}°</b> off on Betelgeuse</li>}
-            <li><b>6/6</b> objectives</li>
+            <li><b>{MISSION.length}/{MISSION.length}</b> objectives</li>
           </ul>
           <div className="q-actions">
             <button className="q-ghost" onClick={accept}>

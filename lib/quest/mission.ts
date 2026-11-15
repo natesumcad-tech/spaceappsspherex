@@ -36,6 +36,7 @@ export type Check =
   | { kind: "report"; star: string }
   | { kind: "goto"; ra: number; dec: number; radius: number }
   | { kind: "band" }
+  | { kind: "blink" }
   | { kind: "sphere"; stop: string };
 
 export type MissionStep = {
@@ -188,9 +189,33 @@ export const MISSION: MissionStep[] = [
               ]
             : undefined,
         },
-        { text: "Between SPHEREx's six-month passes, Neptune shifts against the stars. A hidden Planet X, much farther out, would shift too, just less. That's how you'd catch one." },
       ];
     },
+  },
+  {
+    id: "blink",
+    objective: "Blink SPHEREx's two passes and watch Neptune move",
+    hint: "In the glowing Blink panel at the top left, press ★ Planets moving. Watch the two dates flip, then close the viewer.",
+    check: { kind: "blink" },
+    glow: ".mv-blink-bar",
+    intro: () => [
+      { text: "Now let's find the Wren the way you'd hunt for Planet X: by catching something that moves." },
+      {
+        text: "SPHEREx photographed Neptune's patch of sky in June 2025 and came back in December. Blink the two real images: stars stay put, but planets jump. Press ★ Planets moving in the Blink panel.",
+      },
+    ],
+    success: () => [
+      {
+        text: "See it? In June, Neptune and Saturn sat right there. By December both were gone, because Earth had carried SPHEREx halfway around the Sun.",
+        facts: [
+          ["Real images", "SPHEREx, 16 Jun & 23 Dec 2025"],
+          ["Neptune moved", "≈ 2.7° (about 1,600 SPHEREx pixels)"],
+        ],
+      },
+      {
+        text: "A Planet X ten times farther out would shift about a tenth as much. That's still well over a hundred SPHEREx pixels, so its six-month passes could catch one, if it's bright enough.",
+      },
+    ],
   },
   {
     id: "rescue",

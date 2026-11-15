@@ -365,7 +365,7 @@ export const EXTRA_LANDMARKS: Landmark[] = [
     title: "Earth",
     subtitle: "Our home planet · third from the Sun",
     description:
-      "The only world known to have life: a rocky planet wrapped in a thin layer of air, with about 71% of its surface covered by water. Drag to circle it, scroll to move closer or farther, and find the Moon and SPHEREx nearby.",
+      "The only world known to have life: a rocky planet wrapped in a thin layer of air, with about 71% of its surface covered by water. Drag to circle it, scroll to move closer or farther, and find the Moon and SPHEREx nearby. (The globe is an illustration. On the sky map, Earth is drawn opposite the Sun, where you'd see it from the Sun.)",
     facts: [
       ["Diameter", "12,742 km"],
       ["Distance from the Sun", "≈ 150 million km"],

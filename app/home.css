@@ -508,3 +508,10 @@
 }
 .h-reset-tour:hover { border-style: solid; color: #171512; }
 .h-reset-tour:focus-visible { outline: 2px solid #171512; outline-offset: 2px; }
+
+/* Credits */
+.h-credits { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 12px; }
+.h-credits li { display: grid; gap: 2px; }
+.h-credits b { font-size: 0.9rem; }
+.h-credits b a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.h-credits span { font-size: 0.82rem; line-height: 1.5; opacity: 0.8; }

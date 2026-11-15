@@ -5,7 +5,7 @@ import SiteTabs from "@/components/SiteTabs";
 import ResetTutorialButton from "@/components/ResetTutorialButton";
 import ScrollReveal from "@/components/ScrollReveal";
 import SpectrumExplorer from "@/components/SpectrumExplorer";
-import { site, project, team, mission, resources } from "@/content/site";
+import { site, project, team, mission, resources, credits, aiUse } from "@/content/site";
 import "./home.css";
 
 // 102 bars: one for each SPHEREx band, shaped like a gentle spectrum
@@ -157,8 +157,8 @@ export default function Home() {
               <span>See the sky drift from 12,000 BCE to 14,000 CE</span>
             </li>
             <li>
-              <b>Your waypoints</b>
-              <span>Press Shift+G to drop your own, in pastel colors</span>
+              <b>Blink real passes</b>
+              <span>Flip between two SPHEREx images taken 6 months apart: stars stay put, planets jump</span>
             </li>
             <li>
               <b>Export & share</b>
@@ -289,6 +289,37 @@ export default function Home() {
           </ul>
         </section>
 
+        {/* ── Credits & AI use ── */}
+        <section id="credits" className="h-section">
+          <h2 className="h-split center">
+            Credits <span>08 · Data, code & AI</span>
+          </h2>
+          <div className="h-project">
+            <div className="h-box">
+              <h3>Data and acknowledgments</h3>
+              <ul className="h-credits">
+                {credits.map((c) => (
+                  <li key={c.title}>
+                    <b>{c.url ? <a href={c.url} target="_blank" rel="noreferrer">{c.title}</a> : c.title}</b>
+                    <span>{c.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="h-box">
+              <h3>How we used AI</h3>
+              <ul className="h-credits">
+                {aiUse.map((c) => (
+                  <li key={c.title}>
+                    <b>{c.title}</b>
+                    <span>{c.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <section className="h-final">
           <p className="h-final-label">Runs in your browser · no install · live data from IRSA</p>
           <h2>
@@ -311,7 +342,8 @@ export default function Home() {
           ·{" "}
           <a href={site.repoUrl} target="_blank" rel="noreferrer">
             Source code
-          </a>
+          </a>{" "}
+          · <a href="#credits">Credits</a>
         </span>
         <span className="h-fine">
           SPHEREx mission information courtesy of NASA/JPL-Caltech. A student hackathon project, not an official NASA website.

@@ -299,7 +299,11 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
               <p className="xp-spherex">
                 <b>SPHEREx link:</b> {current.spherex}
               </p>
-              {current.patch && <p className="xp-credit">Background imagery: SPHEREx DR1 (NASA/JPL-Caltech), streamed from IRSA.</p>}
+              {current.patch && <p className="xp-credit">Background imagery: real SPHEREx DR1 data (NASA/JPL-Caltech), streamed from IRSA and shown as a flat image.</p>}
+              {(current.kind === "planet" || current.kind === "orbit") && <p className="xp-credit">Illustration: planet surfaces in these views are artist&apos;s impressions, not photographs.</p>}
+              {current.kind === "star" && <p className="xp-credit">Illustration: the star&apos;s surface is an artist&apos;s impression.</p>}
+              {current.kind === "galaxy" && <p className="xp-credit">Illustration of the galaxy&apos;s shape, not a photograph.</p>}
+              {current.kind === "constellation" && <p className="xp-credit">Star positions and distances: HYG catalogue (real data).</p>}
               {prev && next && (
                 <div className="xp-nav">
                   <button onClick={() => onStop(prev.id)}>← {prev.title}</button>

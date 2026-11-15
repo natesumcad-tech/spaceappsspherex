@@ -18,7 +18,8 @@ import Assistant, { type AssistantAction } from "./Assistant";
 import Search, { type SearchItem } from "./Search";
 import type { CosmicView, Galaxy } from "@/lib/starmap/cosmic";
 import CoordSearchBar from "./CoordSearchBar";
-import BlinkPlayer, { type CompareMode } from "./BlinkPlayer";
+import BlinkPlayer from "./BlinkPlayer";
+import BlinkViewer, { type FeaturedBlink } from "./BlinkViewer";
 import Tutorial, { tourDone } from "./Tutorial";
 import Quest, { loadQuest } from "./Quest";
 
@@ -73,8 +74,13 @@ export default function StarMapApp() {
   const [hasMarker, setHasMarker] = useState(false);
   const [fovDeg, setFovDeg] = useState(10);
   const lastHudSync = useRef(0);
-  const [compareMode, setCompareMode] = useState<CompareMode>("normal");
-  const [passIndex, setPassIndex] = useState(0);
+  // Blink: two real SPHEREx passes of one spot
+  const [blinkOpen, setBlinkOpen] = useState(false);
+  const [blinkData, setBlinkData] = useState<FeaturedBlink | null>(null);
+  const [blinkLoading, setBlinkLoading] = useState<{ label: string; since: number } | null>(null);
+  const [blinkError, setBlinkError] = useState<string | null>(null);
+  const blinkReq = useRef<AbortController | null>(null);
+  const blinkLast = useRef<"here" | "featured">("here");
   const [help, setHelp] = useState(true);
   const [sphere, setSphere] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -239,6 +245,51 @@ export default function StarMapApp() {
     const cap = name[0].toUpperCase() + name.slice(1).toLowerCase();
     return { ra: p.ra, dec: p.dec, ...planetDistance(cap, year) };
   }, []);
+
+  /** Load a blink (live from IRSA through our server, or the featured example saved with the site). */
+  const runBlink = async (url: string, label: string) => {
+    blinkReq.current?.abort();
+    const ctl = new AbortController();
+    blinkReq.current = ctl;
+    setBlinkOpen(true);
+    setBlinkData(null);
+    setBlinkError(null);
+    setBlinkLoading({ label, since: performance.now() });
+    try {
+      const r = await fetch(url, { signal: ctl.signal });
+      const j = await r.json().catch(() => ({ error: "The blink service didn't answer properly." }));
+      if (ctl.signal.aborted) return;
+      if (!r.ok || j.error) setBlinkError(j.error ?? `Something went wrong (${r.status}).`);
+      else setBlinkData(j);
+    } catch {
+      if (!ctl.signal.aborted) setBlinkError("Couldn't reach the blink service. Check your connection and try again.");
+    } finally {
+      if (blinkReq.current === ctl) setBlinkLoading(null);
+    }
+  };
+  const blinkHere = () => {
+    blinkLast.current = "here";
+    const { ra, dec } = centerCoord;
+    const size = Math.min(1.2, Math.max(0.3, fovDeg * 0.8));
+    const fmt2 = (v: number) => v.toFixed(2);
+    runBlink(`/api/blink?ra=${ra.toFixed(3)}&dec=${dec.toFixed(3)}&size=${size.toFixed(2)}`, `Finding SPHEREx passes at RA ${fmt2(ra / 15)}h, Dec ${fmt2(dec)}°…`);
+  };
+  const blinkFeatured = () => {
+    blinkLast.current = "featured";
+    runBlink("/blink/neptune-saturn-2025.json", "Loading Neptune and Saturn, June vs December 2025…");
+    // take the map there too, so the blink matches what's on screen
+    const v = viewerRef.current;
+    if (v) {
+      if (cosmicOn.current) leaveCosmic(false);
+      const [x, y] = v.project(2.07, -1.03);
+      v.flyTo(x, y, Math.max(0.5, 0.8 / Math.tan(20 * (Math.PI / 180))), false);
+    }
+  };
+  const closeBlink = () => {
+    blinkReq.current?.abort();
+    setBlinkOpen(false);
+    setBlinkLoading(null);
+  };
 
   // Load settings & custom waypoints saved in this browser
   useEffect(() => {
@@ -605,6 +656,7 @@ export default function StarMapApp() {
           <div className={`mv-glass cv-hud ${intro ? "intro" : ""}`}>
             <div ref={cosmicHudRef} className="cv-scale" />
             <p>Drag to turn · scroll to zoom. Zoom into the Sun to see its constellations.</p>
+            <p className="cv-note">The Milky Way here is an illustration of its shape; the nearby stars are real (HYG catalogue).</p>
             <button className="mv-primary" onClick={() => cosmicRef.current?.dive()}>
               Zoom into the Sun ↓
             </button>
@@ -733,26 +785,8 @@ export default function StarMapApp() {
             const dEnd = Math.max(0.5, (nextFov / 2) / Math.tan((40 / 2) * (Math.PI / 180)));
             v.flyTo(x, y, dEnd, false);
           }}
-          compareMode={compareMode}
-          onCompareModeChange={(mode) => {
-            setCompareMode(mode);
-            if (stageRef.current) {
-              stageRef.current.style.filter =
-                mode === "subtract"
-                  ? "invert(1) contrast(1.45) hue-rotate(180deg)"
-                  : mode === "add"
-                  ? "brightness(1.28) contrast(1.18)"
-                  : "";
-            }
-          }}
-          passIndex={passIndex}
-          onPassChange={(idx) => {
-            setPassIndex(idx);
-            if (stageRef.current && compareMode === "normal") {
-              const b = [1, 1.08, 0.94, 1.12][idx] ?? 1;
-              stageRef.current.style.filter = `brightness(${b})`;
-            }
-          }}
+          onBlinkHere={() => blinkHere()}
+          onFeatured={() => blinkFeatured()}
         />
       </div>
 
@@ -821,9 +855,19 @@ export default function StarMapApp() {
           if (!loadQuest().offered) questTimer.current = setTimeout(() => setQuestOpen(true), QUEST_DELAY);
         }}
       />
+      {blinkOpen && (
+        <BlinkViewer
+          data={blinkData}
+          loading={blinkLoading}
+          error={blinkError}
+          onClose={closeBlink}
+          onRetry={() => (blinkLast.current === "featured" ? blinkFeatured() : blinkHere())}
+          onFeatured={blinkFeatured}
+        />
+      )}
       <Quest
         open={questOpen}
-        hidden={cosmic || tour}
+        hidden={cosmic || tour || blinkOpen}
         sphere={sphere}
         center={centerCoord}
         bandUm={settings.layer === "spherex" && settings.band >= 0 ? SPHEREX_WL[settings.band] : null}

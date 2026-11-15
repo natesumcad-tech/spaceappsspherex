@@ -45,7 +45,7 @@ export const STEPS: Step[] = [
   {
     target: ".mv-blink-bar",
     title: "Hunt for Planet X",
-    body: "Blink flips between SPHEREx's six-month passes. Stars stay put; anything nearer that moves will jump.",
+    body: "Blink flips between two real SPHEREx images of the same spot, taken six months apart. Stars stay put; anything in our solar system jumps. Try ★ Planets moving to watch Neptune and Saturn do it.",
   },
   {
     title: "You're all set",
