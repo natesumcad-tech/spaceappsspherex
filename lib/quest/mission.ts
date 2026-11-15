@@ -20,7 +20,16 @@ export type MissionCtx = {
 
 /** A real image to show with a line: a SPHEREx cutout centred on ra/dec, `fov` degrees across. */
 export type Cut = { ra: number; dec: number; fov: number; caption: string };
-export type Line = { text: string; image?: Cut; facts?: [string, string][] };
+/** "Type it like this" examples: what to enter, and what each part means. */
+export type Example = { value: string; note: string };
+export type Line = {
+  text: string;
+  image?: Cut;
+  facts?: [string, string][];
+  /** A small diagram of the sky's grid (RA around the equator, Dec north and south). */
+  diagram?: "radec";
+  examples?: Example[];
+};
 
 export type Check =
   | { kind: "click"; type: "star" | "planet"; name: string }
@@ -76,11 +85,26 @@ export const MISSION: MissionStep[] = [
   {
     id: "betelgeuse",
     objective: "Read me Betelgeuse's coordinates",
-    hint: "Search for Betelgeuse (or find Orion) and click it: that puts it in the middle of the map. The “Center J2000” line under the coordinate bar shows the RA and Dec of the middle. Type them in below.",
+    hint: "Search for Betelgeuse (or find Orion) and click it: that puts it in the middle of the map. The glowing “Center J2000” line under the coordinate bar shows the RA and Dec of the middle. RA is the first number (5h…), Dec the second (+7°…).",
     check: { kind: "report", star: "Betelgeuse" },
+    glow: ".mv-coord-center",
     intro: () => [
-      { text: "Next: my star tracker has locked onto a red giant, but its readout is fried. It must be Betelgeuse, Orion's shoulder." },
-      { text: "Find it, put it in the middle of your map, and read me its coordinates: right ascension (RA) and declination (Dec). They're the sky's longitude and latitude." },
+      { text: "Next: my star tracker has locked onto a red giant, but its readout is fried. It must be Betelgeuse, Orion's shoulder. I need its coordinates." },
+      {
+        text: "Quick lesson. Astronomers pin down any spot on the sky with two numbers, just like longitude and latitude on Earth: right ascension (RA) and declination (Dec).",
+        diagram: "radec",
+      },
+      {
+        text: "Dec is the sky's latitude: degrees north (+) or south (−) of the sky's equator, from +90° at the north pole to −90° at the south. RA is the sky's longitude, measured east around the equator in hours, 0h to 24h, because the sky turns once a day.",
+        diagram: "radec",
+      },
+      {
+        text: "On your map, the “Center J2000” line under the coordinate bar shows the RA and Dec of the exact middle of your view (J2000 just means everyone's charts agree, fixed to the year 2000). Put Betelgeuse in the middle, clicking its name does that, then read me both numbers like this:",
+        examples: [
+          { value: "5h 55m", note: "RA: hours and minutes" },
+          { value: "+7 24  or  +7.4", note: "Dec: degrees (and minutes); + is north" },
+        ],
+      },
     ],
     success: (c) => {
       const s = c.star("Betelgeuse");
@@ -106,7 +130,13 @@ export const MISSION: MissionStep[] = [
     intro: () => [
       { text: "Bad news: a micrometeorite cracked our water tanks, and water is our fuel." },
       { text: "Out here, water is frozen onto dust in cold clouds, and SPHEREx maps exactly where. My chart shows one at RA 4h 32m, Dec +26°." },
-      { text: "Type those coordinates into the coordinate bar at the top left and jump there." },
+      {
+        text: "Your turn to steer. Type my coordinates into the coordinate bar at the top left, RA first, then Dec, and press Go.",
+        examples: [
+          { value: "4h 32m +26", note: "RA 4 hours 32 minutes, Dec 26° north" },
+          { value: "68, 26", note: "the same spot in plain degrees (RA × 15)" },
+        ],
+      },
     ],
     success: () => [
       {

@@ -75,6 +75,45 @@ function Portrait() {
   );
 }
 
+/** The sky's grid: Dec runs north and south like latitude, RA runs east around the equator like longitude. */
+function RaDecDiagram() {
+  return (
+    <figure className="q-diagram" aria-label="Diagram: declination is measured north or south of the sky's equator; right ascension is measured east along it, in hours">
+      <svg viewBox="0 0 300 150">
+        <circle cx="78" cy="75" r="62" fill="#14120e" stroke="#bfae93" strokeWidth="1.2" />
+        <ellipse cx="78" cy="38" rx="45" ry="10" fill="none" stroke="#5c5446" strokeWidth="0.8" />
+        <ellipse cx="78" cy="112" rx="45" ry="10" fill="none" stroke="#5c5446" strokeWidth="0.8" />
+        <path d="M78 13 C 112 40 112 110 78 137" fill="none" stroke="#5c5446" strokeWidth="0.8" />
+        <path d="M78 13 C 44 40 44 110 78 137" fill="none" stroke="#5c5446" strokeWidth="0.8" />
+        <ellipse cx="78" cy="75" rx="62" ry="15" fill="none" stroke="#f0c674" strokeWidth="1.6" />
+        {/* RA: along the equator, from 0h towards the star's meridian */}
+        <path d="M30 84 Q 62 93 100 88" fill="none" stroke="#7fb3ff" strokeWidth="2.4" strokeLinecap="round" />
+        <path d="M95 84 L101 88 L95 92" fill="none" stroke="#7fb3ff" strokeWidth="2" strokeLinecap="round" />
+        {/* Dec: up from the equator to the star */}
+        <path d="M104 87 L104 40" stroke="#ff9d7a" strokeWidth="2.4" strokeLinecap="round" />
+        <path d="M100 45 L104 39 L108 45" fill="none" stroke="#ff9d7a" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="104" cy="34" r="4.5" fill="#fff6dc" />
+        <circle cx="104" cy="34" r="8" fill="#fff6dc" opacity="0.25" />
+        <circle cx="30" cy="84" r="2.6" fill="#7fb3ff" />
+        <text x="78" y="9" textAnchor="middle" className="q-dg-pole">+90° north pole</text>
+        <text x="78" y="148" textAnchor="middle" className="q-dg-pole">−90° south pole</text>
+        <text x="18" y="100" className="q-dg-ra">0h</text>
+        <g className="q-dg-key">
+          <rect x="160" y="22" width="10" height="10" rx="2" fill="#ff9d7a" />
+          <text x="176" y="31"><tspan className="b">Dec</tspan> = north / south</text>
+          <text x="176" y="45">in degrees, −90° to +90°</text>
+          <rect x="160" y="62" width="10" height="10" rx="2" fill="#7fb3ff" />
+          <text x="176" y="71"><tspan className="b">RA</tspan> = east around</text>
+          <text x="176" y="85">in hours, 0h to 24h</text>
+          <rect x="160" y="102" width="10" height="3" rx="1.5" fill="#f0c674" />
+          <text x="176" y="107">the sky&apos;s equator</text>
+          <text x="176" y="121">(Dec 0°)</text>
+        </g>
+      </svg>
+    </figure>
+  );
+}
+
 /** A real SPHEREx cutout, drawn in the background; shimmers while it loads. */
 function RealImage({ cut }: { cut: NonNullable<Line["image"]> }) {
   const [src, setSrc] = useState<string | null | undefined>(undefined);
@@ -367,6 +406,18 @@ export default function Quest({
         <p className="q-line" key={`${stepIdx}-${li}`}>
           {line.text}
         </p>
+        {line.diagram === "radec" && <RaDecDiagram />}
+        {line.examples && (
+          <div className="q-examples">
+            <span className="q-examples-k">Type it like this</span>
+            {line.examples.map((x) => (
+              <div key={x.value}>
+                <code>{x.value}</code>
+                <span>{x.note}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {line.image && <RealImage cut={line.image} />}
         {line.facts && line.facts.length > 0 && (
           <dl className="q-facts">
@@ -423,6 +474,16 @@ export default function Quest({
             Send
           </button>
         </form>
+      )}
+      {check.kind === "report" && (
+        <p className="q-format">
+          <b>RA</b> in hours &amp; minutes, e.g. <code>5h 55m</code> · <b>Dec</b> in degrees, + for north, e.g. <code>+7 24</code>. Both are on the glowing “Center J2000” line.
+        </p>
+      )}
+      {check.kind === "goto" && (
+        <p className="q-format">
+          Type <code>4h 32m +26</code> in the glowing coordinate bar (RA first, then Dec) and press <b>Go</b>.
+        </p>
       )}
       {nope && <p className="q-nope">{nope}</p>}
       <div className="q-seek-foot">

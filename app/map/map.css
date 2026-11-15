@@ -1023,6 +1023,11 @@ button.cv-label:hover { background: #fff; color: #171512; }
 }
 .tour-check { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #3d5a28; color: #fff; font-size: 0.7rem; flex: none; }
 .tour-check.muted { background: #8a7f6f; font-style: italic; font-family: Georgia, serif; }
+.tour-arrow { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; animation: tour-fade 0.35s ease 0.15s both; }
+.tour-arrow path { fill: none; stroke-linecap: round; }
+.tour-arrow-shadow { stroke: rgba(12, 10, 6, 0.55); stroke-width: 6; }
+.tour-arrow-line { stroke: #f7efdf; stroke-width: 2.5; stroke-dasharray: 7 7; animation: tour-arrow-flow 0.9s linear infinite; }
+@keyframes tour-arrow-flow { to { stroke-dashoffset: -14; } }
 .mv-tour-btn { font-weight: 700; }
 @keyframes tour-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tour-drop { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
@@ -1031,7 +1036,7 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .tour-banner { animation-name: tour-fade; }
 @media (prefers-reduced-motion: reduce) {
   .tour-spot, .tour-card, .tour-bar span { transition: none; }
-  .tour-card, .tour-inner, .tour-dim, .tour-spot, .tour-banner, .tour-chip.live::before { animation: none; }
+  .tour-card, .tour-inner, .tour-dim, .tour-spot, .tour-banner, .tour-chip.live::before, .tour-arrow, .tour-arrow-line { animation: none; }
 }
 
 /* The "View in 360°" pill under a label you've arrived at is a button too: it steps inside */
@@ -1145,3 +1150,18 @@ button.cv-label:hover { background: #fff; color: #171512; }
   .q-card, .q-line, .q-signal i, .q-img-wait, .q-badge svg, .mv-overlay .quest-target, .mv-overlay .quest-target > *, .mv-coord-form.quest-target, .mv-minicard.quest-target { animation: none !important; }
 }
 
+/* RA / Dec lesson in the mission */
+.q-diagram { margin: 12px 0 0; padding: 8px 6px 4px; background: #fffaf1; border: 1px solid #e6dac6; border-radius: 12px; }
+.q-diagram svg { display: block; width: 100%; height: auto; }
+.q-dg-pole { font-size: 8.5px; fill: #8a7f6f; font-family: var(--font-mono), ui-monospace, monospace; }
+.q-dg-ra { font-size: 9px; fill: #7fb3ff; font-family: var(--font-mono), ui-monospace, monospace; font-weight: 700; }
+.q-dg-key text { font-size: 10px; fill: #4a4338; }
+.q-dg-key .b { font-weight: 700; fill: #171512; }
+.q-examples { margin: 12px 0 0; display: grid; gap: 6px; }
+.q-examples-k { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.58rem; letter-spacing: 0.12em; text-transform: uppercase; color: #8a7f6f; }
+.q-examples div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #fffaf1; border: 1px solid #e6dac6; border-radius: 9px; padding: 7px 10px; }
+.q-examples code, .q-format code { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.86rem; font-weight: 700; color: #171512; background: #f1e8d8; border-radius: 6px; padding: 2px 7px; white-space: pre; }
+.q-format code { font-size: 0.76rem; padding: 1px 5px; }
+.q-examples span { font-size: 0.78rem; color: #625b50; }
+.q-format { margin-top: 8px !important; font-size: 0.76rem !important; color: #625b50 !important; line-height: 1.55 !important; }
+.mv-coord-center.quest-target { border-radius: 6px; box-shadow: 0 0 0 2px #f0c674, 0 0 16px 3px rgba(240, 198, 116, 0.45); animation: q-glow 1.6s ease-in-out infinite; }
