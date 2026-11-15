@@ -5,6 +5,7 @@ import { LANDMARKS, SECTIONS, byId } from "@/lib/explorer/landmarks";
 import type { NavMode, NavState, SkyEngine } from "@/lib/explorer/engine";
 import type { SkyData } from "@/lib/explorer/astro";
 import Collapsible from "@/components/ui/Collapsible";
+import { useLang, useT, useTV } from "@/lib/i18n";
 
 const LANGS = [
   ["en", "English"],
@@ -40,7 +41,10 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
   const [panelOpen, setPanelOpen] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
   const [showLines, setShowLines] = useState(true);
-  const [lang, setLang] = useState("en");
+  const t = useT();
+  const tv = useTV();
+  const ui = useLang().lang;
+  const [lang, setLang] = useState(ui === "es" ? "es" : "en");
   const [toast, setToast] = useState<string | null>(null);
   const [nav, setNav] = useState<NavState | null>(null);
   const [hintHidden, setHintHidden] = useState(false);
@@ -199,20 +203,20 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
         <canvas ref={canvasRef} className="xp-canvas" />
         <div ref={labelsRef} className="xp-labels" />
         <div ref={fadeRef} className="xp-fade" style={{ opacity: 1 }} />
-        {!ready && !error && <div className="xp-loading">Stepping inside…</div>}
+        {!ready && !error && <div className="xp-loading">{t("Stepping inside…")}</div>}
         {error && <div className="xp-loading">{error}</div>}
 
         <div className="xp-toolbar">
           <button className="xp-iconbtn" onClick={() => setPanelOpen((o) => !o)} aria-expanded={panelOpen} aria-controls="xp-panel">
-            ☰ <span className="xp-hide-sm">Stops</span>
+            ☰ <span className="xp-hide-sm">{t("Stops")}</span>
           </button>
           <label className="xp-check xp-hide-sm">
-            <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> Labels
+            <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> {t("Labels")}
           </label>
           <label className="xp-check xp-hide-sm">
-            <input type="checkbox" checked={showLines} onChange={(e) => setShowLines(e.target.checked)} /> Lines
+            <input type="checkbox" checked={showLines} onChange={(e) => setShowLines(e.target.checked)} /> {t("Lines")}
           </label>
-          <select className="xp-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label="Star name language">
+          <select className="xp-select" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t("Star name language")}>
             {LANGS.map(([code, name]) => (
               <option key={code} value={code}>
                 {name}
@@ -220,11 +224,11 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
             ))}
           </select>
           <button className="xp-iconbtn xp-hide-sm" onClick={share} disabled={!ready}>
-            Share
+            {t("Share")}
           </button>
           <select
             className="xp-iconbtn primary"
-            aria-label="Export view as image"
+            aria-label={t("Export view as image")}
             defaultValue=""
             disabled={!ready}
             onChange={(e) => {
@@ -236,18 +240,18 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
             }}
           >
             <option value="" disabled>
-              Export ▾
+              {t("Export ▾")}
             </option>
-            <option value="png">Export PNG</option>
-            <option value="jpg">Export JPG</option>
-            <option value="webp">Export WEBP</option>
+            <option value="png">{t("Export")} PNG</option>
+            <option value="jpg">{t("Export")} JPG</option>
+            <option value="webp">{t("Export")} WEBP</option>
           </select>
         </div>
 
         <aside id="xp-panel" className={`xp-panel ${panelOpen ? "open" : ""}`}>
           {SECTIONS.map((section) => (
             <div key={section} className="xp-section">
-              <h2>{section}</h2>
+              <h2>{t(section)}</h2>
               <ol>
                 {LANDMARKS.filter((l) => l.section === section).map((l) => (
                   <li key={l.id}>
@@ -263,8 +267,8 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
                     >
                       <span className="xp-num">{LANDMARKS.indexOf(l) + 1}</span>
                       <span>
-                        <span className="xp-stop-title">{l.title}</span>
-                        <span className="xp-stop-sub">{l.subtitle}</span>
+                        <span className="xp-stop-title">{t(l.title)}</span>
+                        <span className="xp-stop-sub">{t(l.subtitle)}</span>
                       </span>
                     </button>
                   </li>
@@ -281,67 +285,67 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
               className="xp-card"
               title={
                 <>
-                  <p className="xp-eyebrow">{idx >= 0 ? `Stop ${idx + 1} of ${LANDMARKS.length} · ${current.section}` : current.section}</p>
-                  <h1>{current.title}</h1>
+                  <p className="xp-eyebrow">{idx >= 0 ? `${t("Stop {n} of {count}", { n: idx + 1, count: LANDMARKS.length })} · ${t(current.section)}` : t(current.section)}</p>
+                  <h1>{t(current.title)}</h1>
                 </>
               }
             >
-              <p className="xp-sub">{current.subtitle}</p>
-              <p>{current.description}</p>
+              <p className="xp-sub">{t(current.subtitle)}</p>
+              <p>{t(current.description)}</p>
               <dl className="xp-facts">
                 {current.facts.map(([k, v]) => (
                   <div key={k}>
-                    <dt>{k}</dt>
-                    <dd>{v}</dd>
+                    <dt>{t(k)}</dt>
+                    <dd>{tv(v)}</dd>
                   </div>
                 ))}
               </dl>
               <p className="xp-spherex">
-                <b>SPHEREx link:</b> {current.spherex}
+                <b>{t("SPHEREx link:")}</b> {t(current.spherex)}
               </p>
-              {current.patch && <p className="xp-credit">Background imagery: real SPHEREx DR1 data (NASA/JPL-Caltech), streamed from IRSA and shown as a flat image.</p>}
-              {(current.kind === "planet" || current.kind === "orbit") && <p className="xp-credit">Illustration: planet surfaces in these views are artist&apos;s impressions, not photographs.</p>}
-              {current.kind === "star" && <p className="xp-credit">Illustration: the star&apos;s surface is an artist&apos;s impression.</p>}
-              {current.kind === "galaxy" && <p className="xp-credit">Illustration of the galaxy&apos;s shape, not a photograph.</p>}
-              {current.kind === "constellation" && <p className="xp-credit">Star positions and distances: HYG catalogue (real data).</p>}
+              {current.patch && <p className="xp-credit">{t("Background imagery: real SPHEREx DR1 data (NASA/JPL-Caltech), streamed from IRSA and shown as a flat image.")}</p>}
+              {(current.kind === "planet" || current.kind === "orbit") && <p className="xp-credit">{t("Illustration: planet surfaces in these views are artist's impressions, not photographs.")}</p>}
+              {current.kind === "star" && <p className="xp-credit">{t("Illustration: the star's surface is an artist's impression.")}</p>}
+              {current.kind === "galaxy" && <p className="xp-credit">{t("Illustration of the galaxy's shape, not a photograph.")}</p>}
+              {current.kind === "constellation" && <p className="xp-credit">{t("Star positions and distances: HYG catalogue (real data).")}</p>}
               {prev && next && (
                 <div className="xp-nav">
-                  <button onClick={() => onStop(prev.id)}>← {prev.title}</button>
-                  <button onClick={() => onStop(next.id)}>{next.title} →</button>
+                  <button onClick={() => onStop(prev.id)}>← {t(prev.title)}</button>
+                  <button onClick={() => onStop(next.id)}>{t(next.title)} →</button>
                 </div>
               )}
-              {onAsk && <button className="xp-back" onClick={() => onAsk(current.title)}>Ask about {current.title}</button>}
+              {onAsk && <button className="xp-back" onClick={() => onAsk(current.title)}>{t("Ask about {name}", { name: t(current.title) })}</button>}
               <button className="xp-back" onClick={onExit}>
-                Back to the map (Esc)
+                {t("Back to the map (Esc)")}
               </button>
             </Collapsible>
             {!hintHidden && (
             <div className="xp-hint top">
               {nav?.mode === "orbit" ? (
                 <>
-                  Drag or <kbd>A</kbd>
-                  <kbd>D</kbd> to go around · <kbd>W</kbd>
-                  <kbd>S</kbd> closer/farther · <kbd>Q</kbd>
-                  <kbd>E</kbd> lower/higher · scroll to zoom
+                  {t("Drag or")} <kbd>A</kbd>
+                  <kbd>D</kbd> {t("to go around ·")} <kbd>W</kbd>
+                  <kbd>S</kbd> {t("closer/farther ·")} <kbd>Q</kbd>
+                  <kbd>E</kbd> {t("lower/higher · scroll to zoom")}
                 </>
               ) : nav?.mode === "fly" ? (
                 <>
                   <kbd>W</kbd>
                   <kbd>A</kbd>
                   <kbd>S</kbd>
-                  <kbd>D</kbd> fly · <kbd>Q</kbd>
-                  <kbd>E</kbd> down/up · <kbd>Shift</kbd> faster · drag to look · <kbd>R</kbd> back to start
+                  <kbd>D</kbd> {t("fly ·")} <kbd>Q</kbd>
+                  <kbd>E</kbd> {t("down/up ·")} <kbd>{t("Shift")}</kbd> {t("faster · drag to look ·")} <kbd>R</kbd> {t("back to start")}
                 </>
               ) : (
                 <>
-                  Drag or <kbd>W</kbd>
+                  {t("Drag or")} <kbd>W</kbd>
                   <kbd>A</kbd>
                   <kbd>S</kbd>
-                  <kbd>D</kbd> to look around · click a name with ↗ to travel there
+                  <kbd>D</kbd> {t("to look around · click a name with ↗ to travel there")}
                 </>
               )}
-              <span> · Scroll out fully to return to the map</span>
-              <button className="xp-hint-x" onClick={hideHint} aria-label="Hide key hints">
+              <span> · {t("Scroll out fully to return to the map")}</span>
+              <button className="xp-hint-x" onClick={hideHint} aria-label={t("Hide key hints")}>
                 ×
               </button>
             </div>
@@ -350,10 +354,10 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
               <MoveControls nav={nav} engine={engineRef.current} constellation={current.kind === "constellation"} />
             )}
             <div className="xp-zoom">
-              <button onClick={() => engineRef.current?.zoom(0.8)} aria-label="Zoom in">
+              <button onClick={() => engineRef.current?.zoom(0.8)} aria-label={t("Zoom in")}>
                 +
               </button>
-              <button onClick={() => engineRef.current?.zoom(1.25)} aria-label="Zoom out">
+              <button onClick={() => engineRef.current?.zoom(1.25)} aria-label={t("Zoom out")}>
                 −
               </button>
             </div>
@@ -378,6 +382,7 @@ const MODES: [NavMode, string][] = [
  * height, distance); in Look and Free fly they turn you on the spot (ring = heading, height = tilt, zoom).
  */
 function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: SkyEngine | null; constellation: boolean }) {
+  const t = useT();
   const ring = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
   const R = 50;
@@ -396,11 +401,11 @@ function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: S
   const az = orbiting ? nav.az : -nav.yaw;
   const kx = 60 + Math.sin(az) * R, ky = 60 - Math.cos(az) * R;
   return (
-    <Collapsible id="sphere-move" className="xp-move" title={<span className="cl-label">Move</span>} summary={MODES.find(([m]) => m === nav.mode)?.[1]}>
-      <div className="xp-move-seg" role="radiogroup" aria-label="How to move">
+    <Collapsible id="sphere-move" className="xp-move" title={<span className="cl-label">{t("Move")}</span>} summary={t(MODES.find(([m]) => m === nav.mode)?.[1] ?? "")}>
+      <div className="xp-move-seg" role="radiogroup" aria-label={t("How to move")}>
         {MODES.filter(([m]) => m === "look" || (m === "orbit" ? nav.canOrbit : nav.canFly)).map(([m, label]) => (
           <button key={m} role="radio" aria-checked={nav.mode === m} onClick={() => engine?.setNavMode(m)}>
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -411,7 +416,7 @@ function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: S
             viewBox="0 0 120 120"
             className={`xp-ring ${nav.mode === "orbit" ? "on" : ""}`}
             role="slider"
-            aria-label={orbiting ? "Travel around" : "Turn around"}
+            aria-label={t(orbiting ? "Travel around" : "Turn around")}
             aria-valuemin={-180}
             aria-valuemax={180}
             aria-valuenow={Math.round((az * 180) / Math.PI)}
@@ -440,7 +445,7 @@ function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: S
           </svg>
           <div className="xp-sliders">
             <label>
-              <span>{orbiting ? "Height" : "Tilt"}</span>
+              <span>{t(orbiting ? "Height" : "Tilt")}</span>
               <input
                 type="range"
                 min={-85}
@@ -454,16 +459,16 @@ function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: S
               />
             </label>
             <label>
-              <span>{orbiting ? "Distance" : "Zoom"}</span>
+              <span>{t(orbiting ? "Distance" : "Zoom")}</span>
               <input
                 type="range"
                 min={0}
                 max={1000}
                 value={Math.round((orbiting ? logR(nav.r) : logF(nav.fov)) * 1000)}
                 onChange={(e) => {
-                  const t = +e.target.value / 1000;
-                  if (orbiting) engine?.setOrbit({ r: nav.rMin * Math.pow(nav.rMax / nav.rMin, t) });
-                  else engine?.setLook({ fov: nav.fovMin * Math.pow(100 / nav.fovMin, 1 - t) });
+                  const k = +e.target.value / 1000;
+                  if (orbiting) engine?.setOrbit({ r: nav.rMin * Math.pow(nav.rMax / nav.rMin, k) });
+                  else engine?.setLook({ fov: nav.fovMin * Math.pow(100 / nav.fovMin, 1 - k) });
                 }}
               />
             </label>
@@ -472,9 +477,9 @@ function MoveControls({ nav, engine, constellation }: { nav: NavState; engine: S
       )}
       {constellation && (
         <p className="xp-move-note">
-          {nav.away
+          {t(nav.away
             ? "You've left the Sun: these stars are at their real distances, so the familiar shape has come apart."
-            : "From Earth these stars look like a flat pattern. Orbit or fly away to see their real distances."}
+            : "From Earth these stars look like a flat pattern. Orbit or fly away to see their real distances.")}
         </p>
       )}
     </Collapsible>

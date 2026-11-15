@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 import {
   BENCHMARK_TARGETS,
   formatDecDMS,
@@ -26,6 +27,8 @@ export default function CoordSearchBar({
   onClearMarker,
   onShareLink,
 }: CoordSearchBarProps) {
+  const t = useT();
+  const tr = t;
   const [query, setQuery] = useState("");
   const [openPresets, setOpenPresets] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -55,24 +58,24 @@ export default function CoordSearchBar({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setOpenPresets(true)}
-          placeholder="RA / Dec (e.g. 17h 57m 48.5s +04° 41' 36&quot; or 269.452, +4.693)"
-          aria-label="Search J2000 RA and Dec coordinates"
+          placeholder={t("RA / Dec (e.g. 17h 57m 48.5s +04° 41' 36\" or 269.452, +4.693)")}
+          aria-label={t("Search J2000 RA and Dec coordinates")}
         />
         <button
           type="submit"
           className="mv-coord-btn"
           disabled={!parsed || !parsed.ok}
         >
-          Go
+          {t("Go")}
         </button>
         <button
           type="button"
           className="mv-coord-btn mv-coord-presets-btn"
           onClick={() => setOpenPresets((v) => !v)}
           aria-expanded={openPresets}
-          title="SPHEREx benchmark targets"
+          title={t("SPHEREx benchmark targets")}
         >
-          Targets ▾
+          {t("Targets ▾")}
         </button>
         <button
           type="button"
@@ -82,9 +85,9 @@ export default function CoordSearchBar({
             setCopied(true);
             setTimeout(() => setCopied(false), 1800);
           }}
-          title="Copy shareable URL with RA, Dec, band, and zoom"
+          title={t("Copy shareable URL with RA, Dec, band, and zoom")}
         >
-          {copied ? "Copied!" : "Share a link"}
+          {copied ? t("Copied!") : t("Share a link")}
         </button>
         {hasMarker && (
           <button
@@ -94,7 +97,7 @@ export default function CoordSearchBar({
               onClearMarker();
               setQuery("");
             }}
-            title="Clear target reticle"
+            title={t("Clear target reticle")}
           >
             ✕
           </button>
@@ -102,7 +105,7 @@ export default function CoordSearchBar({
       </form>
 
       {parsed && !parsed.ok && (
-        <div className="mv-coord-feedback error">{parsed.error}</div>
+        <div className="mv-coord-feedback error">{t(parsed.error)}</div>
       )}
       {parsed && parsed.ok && (
         <div className="mv-coord-feedback ok">
@@ -119,7 +122,7 @@ export default function CoordSearchBar({
 
       {openPresets && (
         <div className="mv-coord-presets">
-          <div className="mv-coord-presets-title">SPHEREx Benchmark Targets</div>
+          <div className="mv-coord-presets-title">{t("SPHEREx Benchmark Targets")}</div>
           <div className="mv-coord-pills">
             {BENCHMARK_TARGETS.map((t) => (
               <button
@@ -129,7 +132,7 @@ export default function CoordSearchBar({
                 onClick={() => selectPreset(t)}
               >
                 <span className="mv-coord-pill-name">
-                  {t.name} <small className="mv-coord-pill-note">· {t.note}</small>
+                  {t.name} <small className="mv-coord-pill-note">· {tr(t.note)}</small>
                 </span>
                 <span className="mv-coord-pill-pos">{t.coordText}</span>
               </button>

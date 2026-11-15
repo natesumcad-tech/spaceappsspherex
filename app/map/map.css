@@ -342,8 +342,11 @@
   .mv-readout { display: none; }
   .mv-help { display: none; }
   .mv-zoom { bottom: 196px; }
-  .mv-actions .mv-pill:first-child { display: none; }
+  .mv-actions .mv-pill { display: none; }
 }
+/* Phones: no room up top, so the language switch lives in Settings (and follows the browser's language) */
+@media (max-width: 600px) { .mv-actions .lang-switch { display: none; } }
+.mv-lang-sec .lang-switch { background: rgba(0,0,0,.06); }
 @media (max-width: 520px) {
   .mv-top-left { left: 8px; top: 8px; }
   .mv-top-right { right: 8px; top: 8px; }
@@ -1275,3 +1278,11 @@ button.cv-label:hover { background: #fff; color: #171512; }
 @media (max-width: 760px) {
   .mv-top-right .mv-minicard { margin-top: 50px; } /* below the second row of top buttons */
 }
+
+/* EN | ES */
+.lang-switch { display: inline-flex; padding: 3px; border-radius: 999px; gap: 2px; }
+.lang-switch button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: .04em; padding: 6px 9px; border-radius: 999px; cursor: pointer; opacity: .7; min-width: 32px; min-height: 28px; }
+.lang-switch button[aria-pressed="true"] { background: #f7efdf; color: #171512; opacity: 1; }
+.lang-switch button:hover { opacity: 1; }
+.lang-switch button:focus-visible { outline: 2px solid #c9a46a; outline-offset: 1px; }
+@media (pointer: coarse) { .lang-switch button { min-height: 36px; min-width: 40px; } }

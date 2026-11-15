@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Blink } from "@/lib/spherex/blink";
+import { useLang, useT } from "@/lib/i18n";
 
 export type FeaturedBlink = Blink & { title?: string; story?: string };
 type Mode = "blink" | "a" | "b" | "diff";
 
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const day = (iso: string, locale = "en-US") => new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const um = (a: number, b: number) => `${a.toFixed(2)}–${b.toFixed(2)} µm`;
 
 /** Paint 8-bit brightness (0 = not covered) as a warm infrared tint, or a difference as orange/cyan. */
@@ -50,6 +51,9 @@ export default function BlinkViewer({
   onFeatured: () => void;
   onData: (ra: number, dec: number) => void;
 }) {
+  const t = useT();
+  const { lang } = useLang();
+  const loc = lang === "es" ? "es-ES" : "en-US";
   const [mode, setMode] = useState<Mode>("blink");
   const [frame, setFrame] = useState(0);
   const [fast, setFast] = useState(false);
@@ -120,14 +124,14 @@ export default function BlinkViewer({
   const pass = data && shown !== "diff" ? data.passes[shown] : null;
 
   return (
-    <div className="bk-wrap" role="dialog" aria-label="SPHEREx blink viewer">
+    <div className="bk-wrap" role="dialog" aria-label={t("Blink · real SPHEREx passes")}>
       <div className="bk-card">
         <div className="bk-head">
           <div>
-            <span className="bk-kicker">Blink · real SPHEREx passes</span>
-            <h2>{data?.title ?? (data ? "This patch of sky, six months apart" : "Blink two SPHEREx passes")}</h2>
+            <span className="bk-kicker">{t("Blink · real SPHEREx passes")}</span>
+            <h2>{t(data?.title ?? (data ? "This patch of sky, six months apart" : "Blink two SPHEREx passes"))}</h2>
           </div>
-          <button className="bk-x" onClick={onClose} aria-label="Close the blink viewer">
+          <button className="bk-x" onClick={onClose} aria-label={t("Close the blink viewer")}>
             ×
           </button>
         </div>
@@ -138,20 +142,20 @@ export default function BlinkViewer({
             <p>
               {loading.label}
               <br />
-              <small>Asking NASA/IPAC IRSA for SPHEREx exposures of this spot · {elapsed}s (usually 20–40 s)</small>
+              <small>{t("Asking NASA/IPAC IRSA for SPHEREx exposures of this spot · {s}s (usually 20–40 s)", { s: elapsed })}</small>
             </p>
           </div>
         )}
 
         {error && !loading && (
           <div className="bk-state">
-            <p>{error}</p>
+            <p>{t(error)}</p>
             <div className="bk-row">
               <button className="bk-btn" onClick={onRetry}>
-                Try again
+                {t("Try again")}
               </button>
               <button className="bk-btn dark" onClick={onFeatured}>
-                Show the featured blink
+                {t("Show the featured blink")}
               </button>
             </div>
           </div>
@@ -159,7 +163,7 @@ export default function BlinkViewer({
 
         {data && !loading && (
           <>
-            {data.story && <p className="bk-story">{data.story}</p>}
+            {data.story && <p className="bk-story">{t(data.story)}</p>}
             <div className="bk-stage">
               <canvas ref={canvas} className="bk-canvas" />
               <svg className="bk-marks" viewBox={`0 0 ${data.n} ${data.n}`} aria-hidden="true">
@@ -182,56 +186,55 @@ export default function BlinkViewer({
                 .filter((m) => m.kind === "gone")
                 .map((m) => (
                   <span key={m.name} className={`bk-gone-label ${m.x > data.n / 2 ? "right" : ""}`} style={{ left: `${(m.x / data.n) * 100}%`, top: `${(m.y / data.n) * 100}%` }}>
-                    {m.name} has moved {m.moved!.toFixed(1)}° this way
+                    {t("{name} has moved {deg}° this way", { name: t(m.name), deg: lang === "es" ? m.moved!.toFixed(1).replace(".", ",") : m.moved!.toFixed(1) })}
                   </span>
                 ))}
-              <span className="bk-stamp">{shown === "diff" ? "Difference: later − earlier" : `${day(pass!.date)}`}</span>
+              <span className="bk-stamp">{shown === "diff" ? t("Difference: later − earlier") : day(pass!.date, loc)}</span>
             </div>
 
-            <div className="bk-controls" role="group" aria-label="What to show">
+            <div className="bk-controls" role="group" aria-label={t("What to show")}>
               {(
                 [
                   ["blink", mode === "blink" && frame === 0 ? "▶ Blinking" : "▶ Blink"],
-                  ["a", day(data.passes[0].date)],
-                  ["b", day(data.passes[1].date)],
-                  ["diff", "Difference"],
+                  ["a", day(data.passes[0].date, loc)],
+                  ["b", day(data.passes[1].date, loc)],
+                  ["diff", t("Difference")],
                 ] as [Mode, string][]
               ).map(([m, label]) => (
                 <button key={m} className={`bk-seg ${mode === m ? "on" : ""}`} onClick={() => setMode(m)} aria-pressed={mode === m}>
-                  {m === "blink" ? (mode === "blink" ? "⏸ Blinking" : "▶ Blink") : label}
+                  {m === "blink" ? (mode === "blink" ? t("⏸ Blinking") : t("▶ Blink")) : label}
                 </button>
               ))}
-              <button className="bk-seg" onClick={() => setFast((f) => !f)} title="Blink speed">
+              <button className="bk-seg" onClick={() => setFast((f) => !f)} title={t("Blink speed")}>
                 {fast ? "2×" : "1×"}
               </button>
             </div>
 
             <p className="bk-note">
               {shown === "diff"
-                ? "Orange: only in the earlier pass (something left). Cyan: only in the later one (something arrived). Most stars cancel out; leftover specks are faint stars and noise that differ between the two exposures."
-                : "Stars stay put between passes. Anything in our solar system shifts, because Earth has moved halfway around the Sun. A Planet X far beyond Neptune would shift too, just less."}
+                ? t("Orange: only in the earlier pass (something left). Cyan: only in the later one (something arrived). Most stars cancel out; leftover specks are faint stars and noise that differ between the two exposures.")
+                : t("Stars stay put between passes. Anything in our solar system shifts, because Earth has moved halfway around the Sun. A Planet X far beyond Neptune would shift too, just less.")}
             </p>
             <dl className="bk-meta">
               {data.passes.slice(0, 2).map((p, k) => (
                 <div key={k}>
-                  <dt>{k === 0 ? "Earlier pass" : "Later pass"}</dt>
+                  <dt>{k === 0 ? t("Earlier pass") : t("Later pass")}</dt>
                   <dd>
-                    {day(p.date)} · {um(p.umMin, p.umMax)}
+                    {day(p.date, loc)} · {um(p.umMin, p.umMax)}
                   </dd>
                 </div>
               ))}
               <div>
-                <dt>Field</dt>
+                <dt>{t("Field")}</dt>
                 <dd>
-                  {data.size.toFixed(1)}° wide at RA {(data.ra / 15).toFixed(2)}h, Dec {data.dec >= 0 ? "+" : "−"}
-                  {Math.abs(data.dec).toFixed(2)}°
+                  {t("{size}° wide at RA {ra}h, Dec {dec}°", { size: data.size.toFixed(1), ra: (data.ra / 15).toFixed(2), dec: `${data.dec >= 0 ? "+" : "−"}${Math.abs(data.dec).toFixed(2)}` })}
                 </dd>
               </div>
             </dl>
             <p className="bk-source">
-              <b>Real data</b> SPHEREx DR1 Level 2 images (NASA/JPL-Caltech) from NASA/IPAC IRSA · planet positions from their orbits (JPL elements) ·{" "}
+              <b>{t("Real data")}</b> {t("SPHEREx DR1 Level 2 images (NASA/JPL-Caltech) from NASA/IPAC IRSA · planet positions from their orbits (JPL elements) ·")}{" "}
               <button className="bk-link" onClick={() => onData(data.ra, data.dec)}>
-                download these images
+                {t("download these images")}
               </button>
             </p>
           </>

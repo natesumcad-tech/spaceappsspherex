@@ -4,6 +4,7 @@ import "./assistant.css";
 import { useEffect, useRef, useState } from "react";
 import { buildChatCacheKey, type ChatCachePayload } from "@/lib/assistant/cache";
 import { coordinateQuestion } from "@/lib/assistant/coordinates";
+import { useT } from "@/lib/i18n";
 
 export type AssistantAction = { name: string; args: Record<string, unknown> };
 type Source = { id: number; title: string; url: string };
@@ -69,6 +70,7 @@ export default function Assistant({
   getContext: () => unknown;
   runAction: (a: AssistantAction) => string | null;
 }) {
+  const t = useT();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>(STARTERS);
   const [input, setInput] = useState("");
@@ -104,7 +106,7 @@ export default function Assistant({
       ...m,
       {
         role: "model",
-        text: data.reply || (notes.length ? "Here you go." : "Sorry, I don't have an answer for that."),
+        text: data.reply || t(notes.length ? "Here you go." : "Sorry, I don't have an answer for that."),
         notes,
         sources: data.sources,
         sourceUnavailable: data.sourceStatus === "unavailable",
@@ -142,11 +144,11 @@ export default function Assistant({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const msg =
-          data.error === "not_configured"
+          t(data.error === "not_configured"
             ? "I'm not switched on yet: this site needs a Gemini API key. Add GEMINI_API_KEY in Vercel (Settings → Environment Variables) and redeploy."
             : data.error === "timeout"
               ? "The AI service is taking too long to respond. Please try again."
-              : "I couldn't reach the AI service just now. Please try again in a moment.";
+              : "I couldn't reach the AI service just now. Please try again in a moment.");
         setMessages((m) => [...m, { role: "model", text: msg }]);
         return;
       }
@@ -161,7 +163,7 @@ export default function Assistant({
       }
       applyReply(data, Boolean(data.cached));
     } catch {
-      setMessages((m) => [...m, { role: "model", text: "I couldn't reach the AI service just now. Please try again in a moment." }]);
+      setMessages((m) => [...m, { role: "model", text: t("I couldn't reach the AI service just now. Please try again in a moment.") }]);
     } finally {
       setLoading(false);
     }
@@ -170,9 +172,9 @@ export default function Assistant({
 
 
   return (
-    <aside className={`mv-glass mv-ai ${open ? "open" : ""}`} aria-hidden={!open} aria-label="Sky guide">
+    <aside className={`mv-glass mv-ai ${open ? "open" : ""}`} aria-hidden={!open} aria-label={t("Sky guide")}>
       <div className="mv-ai-head">
-        <span className="cl-label">✦ Sky guide</span>
+        <span className="cl-label">{t("✦ Sky guide")}</span>
         <span className="mv-ai-model">Gemini</span>
         {messages.length > 0 && (
           <button
@@ -183,10 +185,10 @@ export default function Assistant({
               setSuggestions(STARTERS);
             }}
           >
-            New chat
+            {t("New chat")}
           </button>
         )}
-        <button className="cl-toggle" onClick={onClose} aria-label="Close the guide">
+        <button className="cl-toggle" onClick={onClose} aria-label={t("Close the guide")}>
           ×
         </button>
       </div>
@@ -194,23 +196,22 @@ export default function Assistant({
       <div ref={list} className="mv-ai-list" aria-live="polite">
         {messages.length === 0 && (
           <p className="mv-ai-intro">
-            Ask me to find anything in the sky, explain what you&apos;re looking at, or take you somewhere. I can fly the map, change the date
-            and open 360° views. Ask follow-up questions here; mission answers can cite NASA, JPL and the SPHEREx archive.
+            {t("Ask me to find anything in the sky, explain what you're looking at, or take you somewhere. I can fly the map, change the date and open 360° views. Ask follow-up questions here; mission answers can cite NASA, JPL and the SPHEREx archive.")}
           </p>
         )}
         {messages.map((m, i) => (
           <div key={i} className={`mv-ai-msg ${m.role}`}>
             <p>{m.text}</p>
-            {m.sources && m.sources.length > 0 && <div className="mv-ai-sources" aria-label="NASA sources">{m.sources.map(source => <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer">[{source.id}] {source.title} ↗</a>)}</div>}
-            {m.sourceUnavailable && <p className="mv-ai-fine">Live NASA resources are temporarily unavailable. This answer has not been checked against them.</p>}
+            {m.sources && m.sources.length > 0 && <div className="mv-ai-sources" aria-label={t("NASA sources")}>{m.sources.map(source => <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer">[{source.id}] {source.title} ↗</a>)}</div>}
+            {m.sourceUnavailable && <p className="mv-ai-fine">{t("Live NASA resources are temporarily unavailable. This answer has not been checked against them.")}</p>}
             {m.notes?.map((n) => (
               <span key={n} className="mv-ai-note">
                 {n}
               </span>
             ))}
             {m.cached && (
-              <span className="mv-ai-cached" title="Instant cached generative AI response">
-                ⚡ Cached
+              <span className="mv-ai-cached" title={t("Instant cached generative AI response")}>
+                {t("⚡ Cached")}
               </span>
             )}
           </div>
@@ -229,8 +230,8 @@ export default function Assistant({
       {suggestions.length > 0 && !loading && (
         <div className="mv-ai-chips">
           {suggestions.map((s) => (
-            <button key={s} onClick={() => send(s)}>
-              {s}
+            <button key={s} onClick={() => send(t(s))}>
+              {t(s)}
             </button>
           ))}
         </div>
@@ -259,14 +260,14 @@ export default function Assistant({
           }}
           rows={1}
           maxLength={600}
-          placeholder={messages.length ? "Ask a follow-up question…" : "Ask about anything in the sky…"}
-          aria-label="Ask the sky guide"
+          placeholder={t(messages.length ? "Ask a follow-up question…" : "Ask about anything in the sky…")}
+          aria-label={t("Ask the sky guide")}
         />
         <button type="submit" className="mv-primary" disabled={!input.trim() || loading}>
-          Ask
+          {t("Ask")}
         </button>
       </form>
-      <p className="mv-ai-fine">AI answers can be wrong. Check important facts with NASA sources.</p>
+      <p className="mv-ai-fine">{t("AI answers can be wrong. Check important facts with NASA sources.")}</p>
     </aside>
   );
 }

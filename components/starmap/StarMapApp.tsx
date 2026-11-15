@@ -23,6 +23,7 @@ import BlinkViewer, { type FeaturedBlink } from "./BlinkViewer";
 import DataPanel from "./DataPanel";
 import Tutorial, { tourDone } from "./Tutorial";
 import Quest, { loadQuest } from "./Quest";
+import { LangSwitch, translate, useLang, useT, useTV } from "@/lib/i18n";
 
 const STORE_WP = "starmap.waypoints.v1";
 /** How long after the tutorial (or landing, for returning visitors) the optional mission is offered. */
@@ -52,6 +53,11 @@ const raHMS = (ra: number) => {
 };
 
 export default function StarMapApp() {
+  const t = useT();
+  const tv = useTV();
+  const { lang } = useLang();
+  const langRef = useRef(lang);
+  langRef.current = lang;
   const stageRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<StarMapViewer | null>(null);
@@ -279,7 +285,7 @@ export default function StarMapApp() {
       const r = await fetch(url, { signal: ctl.signal });
       const j = await r.json().catch(() => ({ error: "The blink service didn't answer properly." }));
       if (ctl.signal.aborted) return;
-      if (!r.ok || j.error) setBlinkError(j.error ?? `Something went wrong (${r.status}).`);
+      if (!r.ok || j.error) setBlinkError(j.error ?? translate(langRef.current, "Something went wrong ({status}).", { status: r.status }));
       else setBlinkData(j);
     } catch {
       if (!ctl.signal.aborted) setBlinkError("Couldn't reach the blink service. Check your connection and try again.");
@@ -292,11 +298,11 @@ export default function StarMapApp() {
     const { ra, dec } = centerCoord;
     const size = Math.min(1.2, Math.max(0.3, fovDeg * 0.8));
     const fmt2 = (v: number) => v.toFixed(2);
-    runBlink(`/api/blink?ra=${ra.toFixed(3)}&dec=${dec.toFixed(3)}&size=${size.toFixed(2)}`, `Finding SPHEREx passes at RA ${fmt2(ra / 15)}h, Dec ${fmt2(dec)}°…`);
+    runBlink(`/api/blink?ra=${ra.toFixed(3)}&dec=${dec.toFixed(3)}&size=${size.toFixed(2)}`, t("Finding SPHEREx passes at RA {ra}h, Dec {dec}°…", { ra: fmt2(ra / 15), dec: fmt2(dec) }));
   };
   const blinkFeatured = () => {
     blinkLast.current = "featured";
-    runBlink("/blink/neptune-saturn-2025.json", "Loading Neptune and Saturn, June vs December 2025…");
+    runBlink("/blink/neptune-saturn-2025.json", t("Loading Neptune and Saturn, June vs December 2025…"));
     // take the map there too, so the blink matches what's on screen
     const v = viewerRef.current;
     if (v) {
@@ -355,10 +361,11 @@ export default function StarMapApp() {
             throttle("readout", 100, () => {
               const cur = viewRef.current!;
               const [ra, dec] = viewerRef.current?.toRadec(cur.x, cur.y) ?? [0, 0];
+              const L = (k: string) => translate(langRef.current, k);
               const html =
-                `<span><b>Center x</b> ${fmt(cur.x)}°</span><span><b>Center y</b> ${fmt(cur.y)}°</span>` +
+                `<span><b>${L("Center x")}</b> ${fmt(cur.x)}°</span><span><b>${L("Center y")}</b> ${fmt(cur.y)}°</span>` +
                 `<span><b>J2000 RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(dec)}°</span>` +
-                `<span><b>View</b> ${cur.radius * 2 < 2 ? `${fmt(cur.radius * 120, 0)}′` : `${fmt(cur.radius * 2, 0)}°`}</span><span><b>Tilt</b> ${fmt((cur.phi * 180) / Math.PI, 0)}°</span>`;
+                `<span><b>${L("View")}</b> ${cur.radius * 2 < 2 ? `${fmt(cur.radius * 120, 0)}′` : `${fmt(cur.radius * 2, 0)}°`}</span><span><b>${L("Tilt")}</b> ${fmt((cur.phi * 180) / Math.PI, 0)}°</span>`;
               if (readoutRef.current && readoutRef.current.innerHTML !== html) readoutRef.current.innerHTML = html;
             });
             // React state (re-renders the page): a few times a second, and once more when the view settles
@@ -370,7 +377,7 @@ export default function StarMapApp() {
               setFovDeg((p) => (Math.abs(p - f) < 1e-4 ? p : f));
             });
             if (loadingRef.current) {
-              const text = `Loading IRSA tiles · ${v.loading}`, op = v.loading ? "1" : "0";
+              const text = `${translate(langRef.current, "Loading IRSA tiles")} · ${v.loading}`, op = v.loading ? "1" : "0";
               if (loadingRef.current.style.opacity !== op) loadingRef.current.style.opacity = op;
               if (v.loading && loadingRef.current.textContent !== text) loadingRef.current.textContent = text;
             }
@@ -390,6 +397,7 @@ export default function StarMapApp() {
           onZoomOutLimit: () => goCosmic(),
         });
         viewerRef.current = viewer;
+        viewer.setLanguage(langRef.current);
         viewer.invalidate();
 
         const { CosmicView } = await import("@/lib/starmap/cosmic");
@@ -435,7 +443,7 @@ export default function StarMapApp() {
         }
       } catch (e) {
         console.error(e);
-        setError("Your browser couldn't start the 3D map. Try a recent version of Chrome, Edge, Firefox or Safari.");
+        setError(translate(langRef.current, "Your browser couldn't start the 3D map. Try a recent version of Chrome, Edge, Firefox or Safari."));
       }
     })();
     return () => {
@@ -510,6 +518,7 @@ export default function StarMapApp() {
       imagery: st.layer === "2mass" ? "2MASS" : st.band >= 0 ? `SPHEREx ${SPHEREX_WL[st.band].toFixed(2)} µm` : "SPHEREx color",
       hovering: hv?.wp?.title ?? hv?.object ?? hv?.planet ?? null,
       places_in_view: inView,
+      ...(langRef.current === "es" ? { reply_language: "Spanish (es)" } : {}),
     };
   };
 
@@ -529,14 +538,14 @@ export default function StarMapApp() {
       setHasMarker(true);
       if (open && stop) {
         enterSphere(stop);
-        return `◎ Opened ${label} in 360°`;
+        return translate(langRef.current, "◎ Opened {name} in 360°", { name: translate(langRef.current, label) });
       }
       const fly = () => viewer.flyTo(x, y, d, false);
       if (sphereRef.current) {
         exitSphere();
         navigationTimer.current = setTimeout(fly, 1700);
       } else fly();
-      return `✈ Flew to ${label}`;
+      return translate(langRef.current, "✈ Flew to {name}", { name: translate(langRef.current, label) });
     };
     switch (a.name) {
       case "show_place": {
@@ -552,14 +561,14 @@ export default function StarMapApp() {
       case "show_constellation": {
         const n = norm(a.args.name);
         const c = sky.constellations.find((k) => norm(k.id) === n || Object.values(k.names).some((nm) => norm(nm) === n));
-        if (!c) return `Couldn't find a constellation called “${a.args.name}”`;
+        if (!c) return translate(langRef.current, "Couldn't find a constellation called “{name}”", { name: String(a.args.name) });
         const [x, y] = viewer.project(c.center[0], c.center[1]);
         return go(constellationStop(sky, c), x, y, 20, c.names.en);
       }
       case "show_star": {
         const n = norm(a.args.name);
         const s = sky.named.find((k) => Object.values(k.names).some((nm) => norm(nm) === n));
-        if (!s) return `Couldn't find a star called “${a.args.name}” on the map`;
+        if (!s) return translate(langRef.current, "Couldn't find a star called “{name}” on the map", { name: String(a.args.name) });
         const [ra, dec] = sky.stars[s.i];
         const [x, y] = viewer.project(ra, dec);
         return go(starStop(sky, s), x, y, 10, s.names.en);
@@ -584,7 +593,7 @@ export default function StarMapApp() {
         const i = EPOCHS.findIndex((e) => e.label === a.args.epoch);
         if (i < 0) return null;
         setEpoch(i);
-        return `⧗ Timeline set to ${EPOCHS[i].label}`;
+        return translate(langRef.current, "⧗ Timeline set to {when}", { when: translate(langRef.current, EPOCHS[i].label) });
       }
       case "set_imagery": {
         if (a.args.layer === "2mass") {
@@ -602,7 +611,7 @@ export default function StarMapApp() {
           return `Imagery: SPHEREx ${SPHEREX_WL[best].toFixed(2)} µm`;
         }
         set("band", -1);
-        return "Imagery: SPHEREx color";
+        return translate(langRef.current, "Imagery: SPHEREx color");
       }
       case "set_view": {
         if (sphereRef.current) exitSphere();
@@ -618,25 +627,26 @@ export default function StarMapApp() {
   const searchItems = useMemo<SearchItem[]>(() => {
     const sky = skyRef.current;
     if (!sky) return [];
-    const conName = (id: string) => sky.constellations.find((c) => c.id === id)?.names.en ?? id;
+    const nm = (names: Record<string, string>) => names[lang] ?? names.en;
+    const conName = (id: string) => { const c = sky.constellations.find((c) => c.id === id); return c ? nm(c.names) : id; };
     const out: SearchItem[] = [];
     const wpTitles = new Set([...PRESET_WAYPOINTS, ...custom].map((w) => w.title.toLowerCase()));
     for (const n of sky.named) {
       if (wpTitles.has(n.names.en.toLowerCase())) continue; // listed once, as its waypoint
       const mag = sky.stars[n.i][2];
-      out.push({ id: n.names.en, name: n.names.en, kind: "Star", sub: `${conName(n.con)} · mag ${mag.toFixed(1)}`, alt: Object.values(n.names) });
+      out.push({ id: n.names.en, name: nm(n.names), kind: "Star", sub: `${conName(n.con)} · mag ${mag.toFixed(1)}`, alt: Object.values(n.names) });
     }
     for (const c of sky.constellations)
-      out.push({ id: c.id, name: c.names.en, kind: "Constellation", sub: c.id, alt: [c.id, ...Object.values(c.names)] });
+      out.push({ id: c.id, name: nm(c.names), kind: "Constellation", sub: c.id, alt: [c.id, ...Object.values(c.names)] });
     for (const id of ["sun", "mercury", "venus", "earth", "moon", "mars", "jupiter", "saturn", "uranus", "neptune"]) {
       const lm = byId(id);
-      if (lm) out.push({ id, name: lm.title, kind: "Planet", sub: lm.subtitle, alt: [] });
+      if (lm) out.push({ id, name: lm.title, kind: "Planet", sub: lm.subtitle, alt: [t(lm.title)] });
     }
     for (const w of [...PRESET_WAYPOINTS, ...custom])
       out.push({ id: w.id, name: w.title, kind: w.custom ? "Your waypoint" : "Place", sub: w.kind, alt: [w.id] });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, custom]);
+  }, [ready, custom, lang]);
 
   const pickSearch = (it: SearchItem) => {
     if (it.id === "moon") {
@@ -654,6 +664,11 @@ export default function StarMapApp() {
     runAction(action);
   };
 
+  // Map labels follow the language too
+  useEffect(() => {
+    viewerRef.current?.setLanguage(lang);
+  }, [lang, ready]);
+
   // "/" opens the guide
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -668,7 +683,7 @@ export default function StarMapApp() {
   const ep = EPOCHS[epoch];
 
   return (
-    <div ref={rootRef} role="main" aria-label="Sky Explorer: an interactive map of the infrared sky" className={`mv ${toolsOpen ? "tools-open" : ""} ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
+    <div ref={rootRef} role="main" aria-label={t("Sky Explorer: an interactive map of the infrared sky")} className={`mv ${toolsOpen ? "tools-open" : ""} ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
       <div ref={stageRef} className="mv-stage">
         <div ref={overlayRef} className="mv-overlay" />
       </div>
@@ -681,15 +696,15 @@ export default function StarMapApp() {
         <>
           {intro && (
             <button className="mv-glass cv-skip" onClick={() => cosmicRef.current?.skipIntro()}>
-              Skip intro →
+              {t("Skip intro →")}
             </button>
           )}
           <div className={`mv-glass cv-hud ${intro ? "intro" : ""}`}>
             <div ref={cosmicHudRef} className="cv-scale" />
-            <p>Drag to turn · scroll to zoom. Zoom into the Sun to see its constellations.</p>
-            <p className="cv-note">The Milky Way here is an illustration of its shape; the nearby stars are real (HYG catalogue).</p>
+            <p>{t("Drag to turn · scroll to zoom. Zoom into the Sun to see its constellations.")}</p>
+            <p className="cv-note">{t("The Milky Way here is an illustration of its shape; the nearby stars are real (HYG catalogue).")}</p>
             <button className="mv-primary" onClick={() => cosmicRef.current?.dive()}>
-              Zoom into the Sun ↓
+              {t("Zoom into the Sun ↓")}
             </button>
           </div>
           {galaxy && (
@@ -699,12 +714,12 @@ export default function StarMapApp() {
               <p>{galaxy.description}</p>
               <dl>
                 <div>
-                  <dt>Distance</dt>
-                  <dd>{galaxy.dist ? (galaxy.dist >= 1e6 ? `${(galaxy.dist / 1e6).toFixed(1)} million ly` : `${(galaxy.dist / 1000).toFixed(0)},000 ly`) : "We're inside it"}</dd>
+                  <dt>{t("Distance")}</dt>
+                  <dd>{galaxy.dist ? (galaxy.dist >= 1e6 ? `${lang === "es" ? `${(galaxy.dist / 1e6).toFixed(1).replace(".", ",")} millones de años luz` : `${(galaxy.dist / 1e6).toFixed(1)} million ly`}` : `${(galaxy.dist / 1000).toFixed(0)},000 ly`) : t("We're inside it")}</dd>
                 </div>
                 <div>
-                  <dt>Size</dt>
-                  <dd>≈ {galaxy.size.toLocaleString()} ly</dd>
+                  <dt>{t("Size")}</dt>
+                  <dd>≈ {galaxy.size.toLocaleString(lang === "es" ? "es-ES" : "en-US")} {lang === "es" ? "años luz" : "ly"}</dd>
                 </div>
               </dl>
               <div className="mv-wp-actions">
@@ -717,11 +732,11 @@ export default function StarMapApp() {
                       if (wp) enterSphere(waypointStop(wp));
                     }}
                   >
-                    View in 360° ↗
+                    {t("View in 360° ↗")}
                   </button>
                 )}
                 <button className="mv-secondary" onClick={() => cosmicRef.current?.flyHome()}>
-                  Back to the Milky Way
+                  {t("Back to the Milky Way")}
                 </button>
               </div>
             </aside>
@@ -729,14 +744,14 @@ export default function StarMapApp() {
         </>
       )}
 
-      {!ready && !error && <div className="mv-loading">Laying out the sky…</div>}
+      {!ready && !error && <div className="mv-loading">{t("Laying out the sky…")}</div>}
       {error && <div className="mv-loading">{error}</div>}
 
       {/* Top-left: title & 2D/3D */}
       <div className="mv-top-left">
         <div className="mv-top-row">
           <SiteTabs active="explorer" />
-        <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
+        <div className="mv-glass mv-seg" role="tablist" aria-label={t("View mode")}>
           <button
             role="tab"
             aria-selected={!sphere && !cosmic && mode === "2d"}
@@ -760,12 +775,12 @@ export default function StarMapApp() {
             3D
           </button>
         </div>
-        <button className={`mv-glass mv-ask ${askOpen ? "on" : ""}`} onClick={() => setAskOpen((o) => !o)} aria-expanded={askOpen} title="Ask the sky guide (/)">
-          ✦ Ask
+        <button className={`mv-glass mv-ask ${askOpen ? "on" : ""}`} onClick={() => setAskOpen((o) => !o)} aria-expanded={askOpen} title={t("Ask the sky guide (/)")}>
+          {t("✦ Ask")}
         </button>
         <Search items={searchItems} onPick={pickSearch} />
-        <button className={`mv-glass mv-tools-btn ${toolsOpen ? "on" : ""}`} onClick={() => setToolsOpen((o) => !o)} aria-expanded={toolsOpen} aria-label="Coordinates and Blink tools">
-          Tools
+        <button className={`mv-glass mv-tools-btn ${toolsOpen ? "on" : ""}`} onClick={() => setToolsOpen((o) => !o)} aria-expanded={toolsOpen} aria-label={t("Coordinates and Blink tools")}>
+          {t("Tools")}
         </button>
         </div>
         <CoordSearchBar
@@ -827,17 +842,18 @@ export default function StarMapApp() {
       {/* Top-right: actions, minimap, readout */}
       <div className="mv-top-right">
         <div className="mv-actions">
+          <LangSwitch className="mv-glass" />
           <button
             className="mv-glass mv-pill"
             onClick={() => {
               const p = viewerRef.current?.pointOfInterest();
               if (p) setAdding({ x: p.x, y: p.y });
             }}
-            title="Add a waypoint (Shift+G)"
+            title={t("Add a waypoint (Shift+G)")}
           >
-            + Waypoint <kbd>⇧G</kbd>
+            {t("+ Waypoint")} <kbd>⇧G</kbd>
           </button>
-          <button className="mv-wrench" onClick={() => setShowSettings(true)} aria-label="Settings" title="Settings">
+          <button className="mv-wrench" onClick={() => setShowSettings(true)} aria-label={t("Settings")} title={t("Settings")}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path
                 d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.6 17.2a1.6 1.6 0 0 0 2.3 2.3l5.7-5.7a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.2-.4-.4-2.2 2.5-2.5z"
@@ -849,12 +865,12 @@ export default function StarMapApp() {
             </svg>
           </button>
         </div>
-        <Collapsible id="map-overview" closedOnSmall className="mv-glass mv-minicard" title={<span className="cl-label">Overview</span>} summary={layerById(settings.layer).name}>
+        <Collapsible id="map-overview" closedOnSmall className="mv-glass mv-minicard" title={<span className="cl-label">{t("Overview")}</span>} summary={t(layerById(settings.layer).name)}>
           <Minimap ref={minimapRef} onMove={(x, y) => viewerRef.current?.setTarget(x, y)} />
-          <button className="mv-data-btn" onClick={() => setDataAt({ ...centerCoord })} title="The real SPHEREx images of the middle of your view, ready to download">
-            ⇩ Get the real data here
+          <button className="mv-data-btn" onClick={() => setDataAt({ ...centerCoord })} title={t("The real SPHEREx images of the middle of your view, ready to download")}>
+            {t("⇩ Get the real data here")}
           </button>
-          <div ref={readoutRef} className="mv-readout" title="These are view-center coordinates. Scrolling zooms toward your cursor, which can shift the center. Share J2000 RA/Dec for a fixed sky position." />
+          <div ref={readoutRef} className="mv-readout" title={t("These are view-center coordinates. Scrolling zooms toward your cursor, which can shift the center. Share J2000 RA/Dec for a fixed sky position.")} />
           <ImageryControl settings={settings} set={set} />
         </Collapsible>
         <div ref={loadingRef} className="mv-glass mv-loadpill" aria-live="polite" />
@@ -862,22 +878,22 @@ export default function StarMapApp() {
 
       {/* Zoom & home */}
       <div className="mv-zoom">
-        <button className="mv-glass" onClick={goCosmic} aria-label="Zoom out to the galaxies" title="Zoom out to the galaxies">
+        <button className="mv-glass" onClick={goCosmic} aria-label={t("Zoom out to the galaxies")} title={t("Zoom out to the galaxies")}>
           ⊙
         </button>
-        <button className="mv-glass" onClick={() => viewerRef.current?.zoomBy(0.7)} aria-label="Zoom in">
+        <button className="mv-glass" onClick={() => viewerRef.current?.zoomBy(0.7)} aria-label={t("Zoom in")}>
           +
         </button>
-        <button className="mv-glass" onClick={() => viewerRef.current?.zoomBy(1.4)} aria-label="Zoom out">
+        <button className="mv-glass" onClick={() => viewerRef.current?.zoomBy(1.4)} aria-label={t("Zoom out")}>
           −
         </button>
-        <button className="mv-glass" onClick={() => viewerRef.current?.home()} aria-label="Back to the origin" title="Back to the origin (H)">
+        <button className="mv-glass" onClick={() => viewerRef.current?.home()} aria-label={t("Back to the origin")} title={t("Back to the origin (H)")}>
           ⌂
         </button>
-        <button className="mv-glass mv-tour-btn" onClick={() => setTour(true)} aria-label="Show the tour again" title="Show the tour again">
+        <button className="mv-glass mv-tour-btn" onClick={() => setTour(true)} aria-label={t("Show the tour again")} title={t("Show the tour again")}>
           ?
         </button>
-        <button className="mv-glass mv-quest-btn" onClick={() => setQuestOpen(true)} aria-label="Rescue mission" title="Rescue mission (optional)">
+        <button className="mv-glass mv-quest-btn" onClick={() => setQuestOpen(true)} aria-label={t("Rescue mission")} title={t("Rescue mission (optional)")}>
           <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
             <circle cx="12" cy="13" r="2" fill="currentColor" />
             <path d="M8.5 9.5a5 5 0 0 0 0 7M15.5 9.5a5 5 0 0 1 0 7M5.6 6.6a9 9 0 0 0 0 12.8M18.4 6.6a9 9 0 0 1 0 12.8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -916,23 +932,23 @@ export default function StarMapApp() {
       />
 
       {/* Controls help */}
-      <Collapsible id="map-controls" closedOnSmall className="mv-glass mv-help" title={<span className="cl-label">Controls</span>} defaultOpen={help}>
+      <Collapsible id="map-controls" closedOnSmall className="mv-glass mv-help" title={<span className="cl-label">{t("Controls")}</span>} defaultOpen={help}>
         {(
           <>
           <ul className="mv-touch-help">
-            <li><b>Move</b> drag with one finger</li>
-            <li><b>Zoom</b> pinch · double-tap to zoom in</li>
-            <li><b>Rotate</b> twist two fingers</li>
-            <li><b>Tilt into 3D</b> slide two fingers up or down</li>
-            <li><b>360° view</b> tap any planet, star or constellation name to fly there, then tap it again</li>
+            <li><b>{t("Move")}</b> {t("drag with one finger")}</li>
+            <li><b>{t("Zoom")}</b> {t("pinch · double-tap to zoom in")}</li>
+            <li><b>{t("Rotate")}</b> {t("twist two fingers")}</li>
+            <li><b>{t("Tilt into 3D")}</b> {t("slide two fingers up or down")}</li>
+            <li><b>{t("360° view")}</b> {t("tap any planet, star or constellation name to fly there, then tap it again")}</li>
           </ul>
           <ul className="mv-key-help">
-            <li><b>Pan</b> middle-drag · left-drag · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></li>
-            <li><b>Orbit</b> <kbd>Shift</kbd> + middle-drag · right-drag · <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
-            <li><b>Zoom</b> scroll · <kbd>Z</kbd><kbd>X</kbd></li>
-            <li><b>2D / 3D</b> <kbd>T</kbd> · tilt near flat to snap to 2D</li>
-            <li><b>360° view</b> click any diamond, planet, star or constellation name to fly there, then click it again (or keep zooming in)</li>
-            <li><b>Waypoint</b> <kbd>Shift</kbd>+<kbd>G</kbd> · <b>Home</b> <kbd>H</kbd></li>
+            <li><b>{t("Pan")}</b> {t("middle-drag · left-drag ·")} <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></li>
+            <li><b>{t("Orbit")}</b> <kbd>{t("Shift")}</kbd> {t("+ middle-drag · right-drag ·")} <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
+            <li><b>{t("Zoom")}</b> {t("scroll ·")} <kbd>Z</kbd><kbd>X</kbd></li>
+            <li><b>2D / 3D</b> <kbd>T</kbd> {t("· tilt near flat to snap to 2D")}</li>
+            <li><b>{t("360° view")}</b> {t("click any diamond, planet, star or constellation name to fly there, then click it again (or keep zooming in)")}</li>
+            <li><b>{t("Waypoint")}</b> <kbd>{t("Shift")}</kbd>+<kbd>G</kbd> · <b>{t("Home")}</b> <kbd>H</kbd></li>
           </ul>
           </>
         )}
@@ -973,7 +989,7 @@ export default function StarMapApp() {
                 onTravel={() => viewerRef.current?.flyTo(hover.x, hover.y, 10, false)}
               />
             )}
-            <button className="mv-primary" onClick={() => askAbout(hover.wp?.title ?? hover.object ?? hover.planet ?? "this object")}>Ask about {hover.wp?.title ?? hover.object ?? hover.planet ?? "this object"}</button>
+            <button className="mv-primary" onClick={() => askAbout(hover.wp?.title ?? hover.object ?? hover.planet ?? "this object")}>{t("Ask about {name}", { name: t(hover.wp?.title ?? hover.object ?? hover.planet ?? "this object") })}</button>
           </div>,
           viewerRef.current.cardHost,
         )}
@@ -1000,19 +1016,19 @@ export default function StarMapApp() {
         className="mv-glass mv-timeline"
         title={
           <div className="mv-tl-head">
-            <span className="cl-label">Timeline</span>
-            <strong>{ep.label}</strong>
+            <span className="cl-label">{t("Timeline")}</span>
+            <strong>{t(ep.label)}</strong>
           </div>
         }
       >
         <p className="mv-tl-note">
-          {ep.note}
-          {!planetsValid(epochYear(ep)) && settings.planets && <em> Planets hidden: too far from today to calculate reliably.</em>}
+          {t(ep.note)}
+          {!planetsValid(epochYear(ep)) && settings.planets && <em> {t("Planets hidden: too far from today to calculate reliably.")}</em>}
         </p>
         <Timeline value={epoch} onChange={setEpoch} />
       </Collapsible>
 
-      {travel && !sphere && <div className="mv-travel">Traveling to {travel}…</div>}
+      {travel && !sphere && <div className="mv-travel">{t("Traveling to {name}…", { name: t(travel) })}</div>}
 
       <Assistant draft={assistantDraft} open={askOpen} onClose={() => setAskOpen(false)} getContext={assistantContext} runAction={runAction} />
 
@@ -1058,29 +1074,30 @@ function WaypointDetails({
   onDelete: (id: string) => void;
   onData: (ra: number, dec: number) => void;
 }) {
+  const t = useT();
   return (
     <>
       <span className="mv-kind" style={wp.color ? { background: wp.color } : undefined}>
-        {wp.kind}
+        {t(wp.kind)}
       </span>
-      <h2>{wp.title}</h2>
-      <p>{wp.description}</p>
+      <h2>{t(wp.title)}</h2>
+      <p>{t(wp.description)}</p>
       {wp.significance && (
         <p className="mv-sig">
-          <b>Why it matters:</b> {wp.significance}
+          <b>{t("Why it matters:")}</b> {t(wp.significance)}
         </p>
       )}
       <dl>
         <div className="wide">
-          <dt>Image taken</dt>
+          <dt>{t("Image taken")}</dt>
           <dd>{imaged}</dd>
         </div>
         <div className="wide">
-          <dt>{wp.custom ? "Added" : "Recorded"}</dt>
+          <dt>{t(wp.custom ? "Added" : "Recorded")}</dt>
           <dd>{wp.date || "—"}</dd>
         </div>
         <div>
-          <dt>Map x, y</dt>
+          <dt>{t("Map x, y")}</dt>
           <dd>
             {fmt(raToX(wp.ra))}°, {fmt(wp.dec)}°
           </dd>
@@ -1094,19 +1111,19 @@ function WaypointDetails({
       </dl>
       <div className="mv-wp-actions">
         <button className="mv-primary" onClick={() => onStep(waypointStop(wp))}>
-          View in 360° ↗
+          {t("View in 360° ↗")}
         </button>
         {!near && (
           <button className="mv-secondary" onClick={() => viewer?.travelTo(wp)}>
-            Travel here
+            {t("Travel here")}
           </button>
         )}
-        <button className="mv-secondary" onClick={() => onData(wp.ra, wp.dec)} title="Download the real SPHEREx images of this spot">
-          Real data
+        <button className="mv-secondary" onClick={() => onData(wp.ra, wp.dec)} title={t("Download the real SPHEREx images of this spot")}>
+          {t("Real data")}
         </button>
         {wp.custom && (
           <button className="mv-secondary" onClick={() => onDelete(wp.id)}>
-            Delete
+            {t("Delete")}
           </button>
         )}
       </div>
@@ -1116,34 +1133,36 @@ function WaypointDetails({
 
 /** The hover card for a planet or the Sun: its 360° stop's summary. */
 function PlanetDetails({ hover, near, onStep, onTravel }: { hover: MapHover; near: boolean; onStep: (stop: string) => void; onTravel: () => void }) {
+  const t = useT();
+  const tv = useTV();
   const lm = hover.stop ? byId(hover.stop) : null;
   if (!lm) return null;
   return (
     <>
-      <span className="mv-kind">{lm.subtitle}</span>
-      <h2>{lm.title}</h2>
-      <p>{lm.description}</p>
+      <span className="mv-kind">{t(lm.subtitle)}</span>
+      <h2>{t(lm.title)}</h2>
+      <p>{t(lm.description)}</p>
       <dl>
         {lm.facts.slice(0, 2).map(([k, v]) => (
           <div key={k}>
-            <dt>{k}</dt>
-            <dd>{v}</dd>
+            <dt>{t(k)}</dt>
+            <dd>{tv(v)}</dd>
           </div>
         ))}
         <div className="wide">
-          <dt>Position today</dt>
+          <dt>{t("Position today")}</dt>
           <dd>
-            Map {fmt(hover.x)}°, {fmt(hover.y)}°
+            {t("Map")} {fmt(hover.x)}°, {fmt(hover.y)}°
           </dd>
         </div>
       </dl>
       <div className="mv-wp-actions">
         <button className="mv-primary" onClick={() => onStep(lm.id)}>
-          View in 360° ↗
+          {t("View in 360° ↗")}
         </button>
         {!near && (
           <button className="mv-secondary" onClick={onTravel}>
-            Travel here
+            {t("Travel here")}
           </button>
         )}
       </div>
@@ -1152,8 +1171,9 @@ function PlanetDetails({ hover, near, onStep, onTravel }: { hover: MapHover; nea
 }
 
 function AddWaypoint({ at, toRadec, onCancel, onSave }: { at: { x: number; y: number }; toRadec: (x: number, y: number) => [number, number]; onCancel: () => void; onSave: (wp: Waypoint) => void }) {
+  const t = useT();
   const [title, setTitle] = useState("");
-  const [kind, setKind] = useState("My waypoint");
+  const [kind, setKind] = useState(() => t("My waypoint"));
   const [description, setDescription] = useState("");
   const [significance, setSignificance] = useState("");
   const [date, setDate] = useState(() => new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }));
@@ -1171,36 +1191,36 @@ function AddWaypoint({ at, toRadec, onCancel, onSave }: { at: { x: number; y: nu
       }}
     >
       <div className="mv-add-head">
-        <h2>New waypoint</h2>
-        <button type="button" className="mv-close" onClick={onCancel} aria-label="Close">
+        <h2>{t("New waypoint")}</h2>
+        <button type="button" className="mv-close" onClick={onCancel} aria-label={t("Close")}>
           ×
         </button>
       </div>
       <p className="mv-add-pos">
-        At x {fmt(at.x)}°, y {fmt(at.y)}° · RA {raHMS(ra)}, Dec {fmt(dec)}°
+        {t("At")} x {fmt(at.x)}°, y {fmt(at.y)}° · RA {raHMS(ra)}, Dec {fmt(dec)}°
       </p>
       <label>
-        Name
-        <input ref={first} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. My favorite star" required maxLength={60} />
+        {t("Name")}
+        <input ref={first} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("e.g. My favorite star")} required maxLength={60} />
       </label>
       <label>
-        Type
+        {t("Object type")}
         <input value={kind} onChange={(e) => setKind(e.target.value)} maxLength={40} />
       </label>
       <label>
-        Description
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={280} placeholder="What's here?" />
+        {t("Description")}
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={280} placeholder={t("What's here?")} />
       </label>
       <label>
-        Why it matters
+        {t("Why it matters")}
         <textarea value={significance} onChange={(e) => setSignificance(e.target.value)} rows={2} maxLength={200} />
       </label>
       <label>
-        Date
+        {t("Date")}
         <input value={date} onChange={(e) => setDate(e.target.value)} maxLength={40} />
       </label>
       <fieldset>
-        <legend>Color</legend>
+        <legend>{t("Color")}</legend>
         <div className="mv-swatches">
           {PASTELS.map((c) => (
             <button type="button" key={c} className={c === color ? "on" : ""} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} aria-pressed={c === color} />
@@ -1209,10 +1229,10 @@ function AddWaypoint({ at, toRadec, onCancel, onSave }: { at: { x: number; y: nu
       </fieldset>
       <div className="mv-wp-actions">
         <button type="submit" className="mv-primary" disabled={!title.trim()}>
-          Add waypoint
+          {t("Add waypoint")}
         </button>
         <button type="button" className="mv-secondary" onClick={onCancel}>
-          Cancel
+          {t("Cancel")}
         </button>
       </div>
     </form>
@@ -1222,6 +1242,7 @@ function AddWaypoint({ at, toRadec, onCancel, onSave }: { at: { x: number; y: nu
 // ───────────────────────── Imagery (which IRSA data you're looking at) ─────────────────────────
 
 function ImageryControl({ settings, set }: { settings: Settings; set: (k: keyof Settings, v: Settings[keyof Settings]) => void }) {
+  const t = useT();
   const mode = settings.layer === "2mass" ? "2mass" : settings.band >= 0 ? "band" : "color";
   const [band, setBand] = useState(settings.band >= 0 ? settings.band : 46);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1260,12 +1281,12 @@ function ImageryControl({ settings, set }: { settings: Settings; set: (k: keyof 
 
   return (
     <div className="mv-imagery">
-      <div className="mv-imagery-seg" role="radiogroup" aria-label="Map imagery">
-        <button role="radio" aria-checked={mode === "color"} onClick={() => switchMode("spherex", -1)}>SPHEREx color</button>
-        <button role="radio" aria-checked={mode === "band"} onClick={() => isolate(band)}>Isolate infrared</button>
+      <div className="mv-imagery-seg" role="radiogroup" aria-label={t("Map imagery")}>
+        <button role="radio" aria-checked={mode === "color"} onClick={() => switchMode("spherex", -1)}>{t("SPHEREx color")}</button>
+        <button role="radio" aria-checked={mode === "band"} onClick={() => isolate(band)}>{t("Isolate infrared")}</button>
         <button role="radio" aria-checked={mode === "2mass"} onClick={() => switchMode("2mass", -1)}>2MASS</button>
       </div>
-      <div className="mv-ir-presets" role="group" aria-label="Isolate an infrared layer">
+      <div className="mv-ir-presets" role="group" aria-label={t("Isolate an infrared layer")}>
         {[12, 46, 62].map((frame) => (
           <button key={frame} type="button" aria-pressed={mode === "band" && settings.band === frame && settings.overlays.length === 0}
             onClick={() => isolate(frame)} title={`Isolate ${SPHEREX_WL[frame].toFixed(3)} micrometers`}>
@@ -1276,30 +1297,30 @@ function ImageryControl({ settings, set }: { settings: Settings; set: (k: keyof 
       {mode === "band" && (
         <div className="mv-ir-isolation">
           <p className="mv-ir-status" aria-live="polite">
-            {settings.overlays.length ? "Overlay blend active" : "Infrared layer isolated"} · {SPHEREX_WL[settings.band].toFixed(3)} µm
+            {t(settings.overlays.length ? "Overlay blend active" : "Infrared layer isolated")} · {SPHEREX_WL[settings.band].toFixed(3)} µm
           </p>
           <label className="mv-band">
-            <span><b>{SPHEREX_WL[band].toFixed(3)} µm</b> · channel {band + 1} of 102</span>
+            <span><b>{SPHEREX_WL[band].toFixed(3)} µm</b> · {t("channel {n} of 102", { n: band + 1 })}</span>
             <input type="range" min={0} max={available.length - 1} value={Math.max(0, available.indexOf(band))}
-              onChange={(e) => isolate(available[Number(e.target.value)], true)} aria-label="SPHEREx wavelength"
+              onChange={(e) => isolate(available[Number(e.target.value)], true)} aria-label={t("SPHEREx wavelength")}
               aria-valuetext={`${SPHEREX_WL[band].toFixed(3)} micrometers, channel ${band + 1}`} />
           </label>
-          <label className="mv-ir-select">Choose a wavelength
+          <label className="mv-ir-select">{t("Choose a wavelength")}
             <select value={band} onChange={(e) => isolate(Number(e.target.value))}>
               {SPHEREX_WL.map((w, i) => <option key={i} value={i} disabled={BLANK_FRAMES.has(i)}>
-                {w.toFixed(3)} µm · channel {i + 1}{BLANK_FRAMES.has(i) ? " — no DR1 data" : ""}
+                {w.toFixed(3)} µm · {t("channel {n}", { n: i + 1 })}{BLANK_FRAMES.has(i) ? ` — ${t("no DR1 data")}` : ""}
               </option>)}
             </select>
           </label>
           <div className="mv-ir-steps">
-            <button type="button" disabled={band === available[0]} onClick={() => stepBand(-1)}>← Previous</button>
-            <button type="button" disabled={band === available[available.length - 1]} onClick={() => stepBand(1)}>Next →</button>
+            <button type="button" disabled={band === available[0]} onClick={() => stepBand(-1)}>{t("← Previous")}</button>
+            <button type="button" disabled={band === available[available.length - 1]} onClick={() => stepBand(1)}>{t("Next →")}</button>
           </div>
-          {settings.overlays.length > 0 && <button type="button" className="mv-ir-clear" onClick={() => isolate(band)}>Remove overlays and isolate</button>}
-          <p className="mv-imagery-note">One wavelength only; survey overlays are removed. Display colors are artificial. Channels 51–52 have no DR1 data.</p>
+          {settings.overlays.length > 0 && <button type="button" className="mv-ir-clear" onClick={() => isolate(band)}>{t("Remove overlays and isolate")}</button>}
+          <p className="mv-imagery-note">{t("One wavelength only; survey overlays are removed. Display colors are artificial. Channels 51–52 have no DR1 data.")}</p>
         </div>
       )}
-      {mode === "color" && <p className="mv-imagery-note">Blue 1.0 µm · green 2.2 µm · red 3.3 µm. Use the presets above to isolate one layer.</p>}
+      {mode === "color" && <p className="mv-imagery-note">{t("Blue 1.0 µm · green 2.2 µm · red 3.3 µm. Use the presets above to isolate one layer.")}</p>}
     </div>
   );
 }
@@ -1387,7 +1408,7 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
     <canvas
       ref={canvas}
       className="mv-minimap"
-      aria-label="Overview map: drag the circle to move"
+      aria-label={useT()("Overview map: drag the circle to move")}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
         const [x, y] = toMap(e);
@@ -1410,6 +1431,7 @@ const Minimap = forwardRef<MinimapHandle, { onMove: (x: number, y: number) => vo
 // ───────────────────────── Timeline ─────────────────────────
 
 function Timeline({ value, onChange }: { value: number; onChange: (i: number) => void }) {
+  const t = useT();
   const track = useRef<HTMLDivElement>(null);
   const [dragPos, setDragPos] = useState<number | null>(null);
   const n = EPOCHS.length;
@@ -1446,7 +1468,7 @@ function Timeline({ value, onChange }: { value: number; onChange: (i: number) =>
             onClick={() => onChange(i)}
             tabIndex={-1}
           >
-            <span>{ep.label}</span>
+            <span>{t(ep.label)}</span>
           </button>
         ))}
         <div
@@ -1454,11 +1476,11 @@ function Timeline({ value, onChange }: { value: number; onChange: (i: number) =>
           style={{ left: `${pos * 100}%` }}
           role="slider"
           tabIndex={0}
-          aria-label="Date"
+          aria-label={t("Date")}
           aria-valuemin={0}
           aria-valuemax={n - 1}
           aria-valuenow={value}
-          aria-valuetext={EPOCHS[value].label}
+          aria-valuetext={t(EPOCHS[value].label)}
           onKeyDown={(e) => {
             if (e.key === "ArrowLeft") onChange(Math.max(0, value - 1));
             if (e.key === "ArrowRight") onChange(Math.min(n - 1, value + 1));
@@ -1498,39 +1520,45 @@ function SettingsWindow({
   onClose: () => void;
   count: number;
 }) {
+  const t = useT();
   const file = useRef<HTMLInputElement>(null);
   return (
     <div className={`mv-settings ${open ? "open" : ""}`} aria-hidden={!open} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="mv-settings-panel" role="dialog" aria-modal="true" aria-label="Settings">
+      <div className="mv-settings-panel" role="dialog" aria-modal="true" aria-label={t("Settings")}>
         <div className="mv-settings-head">
-          <h2>Settings</h2>
+          <h2>{t("Settings")}</h2>
           <button className="mv-primary" onClick={onClose}>
-            Done
+            {t("Done")}
           </button>
         </div>
 
+        <section className="mv-lang-sec">
+          <h3>{t("Language / Idioma")}</h3>
+          <LangSwitch />
+        </section>
+
         <section>
-          <h3>Map imagery from IRSA</h3>
-          <p className="mv-note">Live tiles from NASA/IPAC&apos;s Infrared Science Archive, its most recent releases first.</p>
+          <h3>{t("Map imagery from IRSA")}</h3>
+          <p className="mv-note">{t("Live tiles from NASA/IPAC's Infrared Science Archive, its most recent releases first.")}</p>
           {BASE_LAYERS.map((l) => (
             <label key={l.id} className="mv-toggle">
               <span>
                 <b>{l.name}</b>
                 <small>
-                  Released {l.released} · observed {l.observed}
+                  {t("Released {r} · observed {o}", { r: l.released, o: l.observed })}
                 </small>
               </span>
               <input type="radio" name="mv-base" checked={settings.layer === l.id} onChange={() => set("layer", l.id as Settings["layer"])} />
               <i aria-hidden="true" />
             </label>
           ))}
-          <h3 className="mv-subhead">Extra layers (where they have data)</h3>
+          <h3 className="mv-subhead">{t("Extra layers (where they have data)")}</h3>
           {OVERLAYS.map((l) => (
             <label key={l.id} className="mv-toggle">
               <span>
                 <b>{l.name}</b>
                 <small>
-                  Released {l.released} · observed {l.observed}
+                  {t("Released {r} · observed {o}", { r: l.released, o: l.observed })}
                 </small>
               </span>
               <input
@@ -1544,12 +1572,12 @@ function SettingsWindow({
         </section>
 
         <section>
-          <h3>Display</h3>
+          <h3>{t("Display")}</h3>
           {TOGGLES.map(([k, label, hint]) => (
             <label key={k} className="mv-toggle">
               <span>
-                <b>{label}</b>
-                <small>{hint}</small>
+                <b>{t(label)}</b>
+                <small>{t(hint)}</small>
               </span>
               <input type="checkbox" checked={settings[k] as boolean} onChange={(e) => set(k, e.target.checked)} />
               <i aria-hidden="true" />
@@ -1558,33 +1586,33 @@ function SettingsWindow({
         </section>
 
         <section>
-          <h3>Performance</h3>
-          <p className="mv-note">The map only draws tiles near what you can see, and uses less detail as you zoom out.</p>
+          <h3>{t("Performance")}</h3>
+          <p className="mv-note">{t("The map only draws tiles near what you can see, and uses less detail as you zoom out.")}</p>
           <div className="mv-seg-row">
             {(["low", "auto", "high"] as const).map((q) => (
               <button key={q} className={settings.quality === q ? "on" : ""} onClick={() => set("quality", q)}>
-                {q === "auto" ? "Auto" : q === "low" ? "Battery saver" : "High detail"}
+                {t(q === "auto" ? "Auto" : q === "low" ? "Battery saver" : "High detail")}
               </button>
             ))}
           </div>
         </section>
 
         <section>
-          <h3>Controls</h3>
+          <h3>{t("Controls")}</h3>
           <ul className="mv-keys">
-            <li><span>Pan</span><span>Middle-drag, left-drag, or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</span></li>
-            <li><span>Orbit</span><span><kbd>Shift</kbd> + middle-drag, right-drag, or <kbd>Q</kbd><kbd>E</kbd> (turn) <kbd>R</kbd><kbd>F</kbd> (tilt)</span></li>
-            <li><span>Zoom</span><span>Scroll wheel, pinch, or <kbd>Z</kbd><kbd>X</kbd></span></li>
-            <li><span>2D / 3D</span><span><kbd>T</kbd>, or tilt to nearly flat and let go to snap</span></li>
-            <li><span>New waypoint</span><span><kbd>Shift</kbd> + <kbd>G</kbd></span></li>
-            <li><span>Back to origin</span><span><kbd>H</kbd></span></li>
+            <li><span>{t("Pan")}</span><span>{t("Middle-drag, left-drag, or")} <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> {t("/ arrows")}</span></li>
+            <li><span>{t("Orbit")}</span><span><kbd>{t("Shift")}</kbd> {t("+ middle-drag, right-drag, or")} <kbd>Q</kbd><kbd>E</kbd> {t("(turn)")} <kbd>R</kbd><kbd>F</kbd> {t("(tilt)")}</span></li>
+            <li><span>{t("Zoom")}</span><span>{t("Scroll wheel, pinch, or")} <kbd>Z</kbd><kbd>X</kbd></span></li>
+            <li><span>2D / 3D</span><span><kbd>T</kbd>{t(", or tilt to nearly flat and let go to snap")}</span></li>
+            <li><span>{t("New waypoint")}</span><span><kbd>{t("Shift")}</kbd> + <kbd>G</kbd></span></li>
+            <li><span>{t("Back to origin")}</span><span><kbd>H</kbd></span></li>
           </ul>
         </section>
 
         <section>
-          <h3>Your waypoints</h3>
+          <h3>{t("Your waypoints")}</h3>
           <p className="mv-note">
-            {custom.length} of {count} waypoints are yours. They&apos;re saved in this browser; export them to share or add to the team database.
+            {t("{mine} of {count} waypoints are yours. They're saved in this browser; export them to share or add to the team database.", { mine: custom.length, count })}
           </p>
           <div className="mv-seg-row">
             <button
@@ -1596,11 +1624,11 @@ function SettingsWindow({
               }}
               disabled={!custom.length}
             >
-              Export
+              {t("Export")}
             </button>
-            <button onClick={() => file.current?.click()}>Import</button>
-            <button onClick={() => custom.length && confirm("Delete all your waypoints?") && setCustom([])} disabled={!custom.length}>
-              Clear mine
+            <button onClick={() => file.current?.click()}>{t("Import")}</button>
+            <button onClick={() => custom.length && confirm(t("Delete all your waypoints?")) && setCustom([])} disabled={!custom.length}>
+              {t("Clear mine")}
             </button>
           </div>
           <input
@@ -1616,7 +1644,7 @@ function SettingsWindow({
                 const ok = list.filter((w) => typeof w.ra === "number" && typeof w.dec === "number" && w.title);
                 setCustom([...custom, ...ok.map((w, i) => ({ ...w, id: `u-${Date.now()}-${i}`, custom: true }))]);
               } catch {
-                alert("That file isn't a waypoint list.");
+                alert(t("That file isn't a waypoint list."));
               }
               e.target.value = "";
             }}
@@ -1624,7 +1652,7 @@ function SettingsWindow({
         </section>
 
         <section>
-          <h3>About the data</h3>
+          <h3>{t("About the data")}</h3>
           <p className="mv-note">
             The map is SPHEREx Data Release 1 (NASA/JPL-Caltech, served by IRSA), streamed as HiPS tiles and laid onto a grid by RA/Dec starting from the
             origin (RA 0h, Dec 0°). Very bright cores that DR1 leaves blank (saturated pixels) are shown as white. Constellation lines and names come from the Hipparcos-based d3-celestial catalogue; star distances for the 3D constellations come from the HYG database v4.1 (CC BY-SA 4.0). The timeline shifts the sky by

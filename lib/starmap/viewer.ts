@@ -55,6 +55,22 @@ type Events = {
   onNear: (stop: string | null) => void;
 };
 
+/** The few words the map itself writes, per language. */
+const UI = {
+  en: {
+    labelSuffix: ": travel, explore or ask a question",
+    view360: "View in 360°",
+    destination: "Destination",
+    planets: {} as Record<string, string>,
+  },
+  es: {
+    labelSuffix: ": viajar, explorar o preguntar",
+    view360: "Ver en 360°",
+    destination: "Destino",
+    planets: { Sun: "Sol", Mercury: "Mercurio", Venus: "Venus", Mars: "Marte", Jupiter: "Júpiter", Saturn: "Saturno", Uranus: "Urano", Neptune: "Neptuno", Earth: "Tierra" } as Record<string, string>,
+  },
+};
+
 /** How close (camera distance, and offset from the center of the view) counts as "arrived". */
 const NEAR_D = 22;
 
@@ -540,20 +556,20 @@ export class StarMapViewer {
     this.overlays = this.overlays.filter((o) => o.kind === "wp");
     for (const c of this.sky.constellations) {
       const [x, y] = proj(c.center[0], c.center[1]);
-      const el = this.addOverlay("con", c.names.en, x, y, { maxD: c.rank <= 2 ? D_MAX : 160 });
+      const el = this.addOverlay("con", c.names.en, x, y, { maxD: c.rank <= 2 ? D_MAX : 160 }, (c.names as Record<string, string>)[this.lang] ?? c.names.en);
       this.makeEnterable(el, constellationStop(this.sky, c), x, y, 20);
     }
     for (const s of this.sky.named) {
       const [ra, dec, mag] = this.sky.stars[s.i];
 
       const [x, y] = proj(ra, dec);
-      const el = this.addOverlay("star", s.names.en, x, y, { maxD: mag > 1.6 ? 22 : 70 });
+      const el = this.addOverlay("star", s.names.en, x, y, { maxD: mag > 1.6 ? 22 : 70 }, (s.names as Record<string, string>)[this.lang] ?? s.names.en);
       this.makeEnterable(el, starStop(this.sky, s), x, y, 10);
     }
     if (this.planetsOn)
       for (const p of withEarth(planetPositions(this.years + 2000))) {
         const [x, y] = proj(p.ra, p.dec);
-        const el = this.addOverlay("planet", p.name, x, y, {});
+        const el = this.addOverlay("planet", p.name, x, y, {}, UI[this.lang].planets[p.name] ?? p.name);
         el.style.setProperty("--pc", p.color);
         const stop = PLANET_STOPS[p.name];
         if (stop) {
@@ -593,15 +609,18 @@ export class StarMapViewer {
     el.addEventListener("pointerleave", () => this.events.onHover(null));
     el.addEventListener("blur", () => this.events.onHover(null));
     el.addEventListener("pointerdown", e => e.stopPropagation());
-    el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
+    el.insertAdjacentHTML("beforeend", `<em class="mv-360">${UI[this.lang].view360}</em>`);
     el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.flyTo(x, y, flyD, false)));
   }
 
-  private addOverlay(kind: Overlay["kind"], text: string, x: number, y: number, o: { maxD?: number; minD?: number }) {
+  /** `name` is the English name (kept on the element for matching); the label shows it in the chosen language. */
+  private addOverlay(kind: Overlay["kind"], name: string, x: number, y: number, o: { maxD?: number; minD?: number }, shown = name) {
+    const text = shown;
     const el = document.createElement("button");
     el.type = "button";
     el.className = `mv-ov mv-${kind} mv-object`;
-    el.setAttribute("aria-label", `${text}: travel, explore or ask a question`);
+    el.dataset.name = name;
+    el.setAttribute("aria-label", `${text}${UI[this.lang].labelSuffix}`);
     el.appendChild(document.createElement("i"));
     const caption = document.createElement("span");
     caption.textContent = text;
@@ -627,7 +646,7 @@ export class StarMapViewer {
       el.className = `mv-ov mv-wp${wp.custom ? " custom" : ""}`;
       el.appendChild(document.createElement("i")); // the diamond itself (the button carries the screen position)
       const stop = waypointStop(wp); // every waypoint has a 360° view
-      el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
+      el.insertAdjacentHTML("beforeend", `<em class="mv-360">${UI[this.lang].view360}</em>`);
       el.setAttribute("aria-label", `Waypoint: ${wp.title}`);
       if (wp.color) el.style.setProperty("--wc", wp.color);
       el.style.display = "none";
@@ -669,6 +688,16 @@ export class StarMapViewer {
   }
 
   // ───────────────────────── Public controls ─────────────────────────
+
+  /** Label language for star, constellation and planet names ("en", "es", …). */
+  private lang: keyof typeof UI = "en";
+  setLanguage(lang: string) {
+    const l = (lang in UI ? lang : "en") as keyof typeof UI;
+    if (l === this.lang) return;
+    this.lang = l;
+    this.rebuildEpochLayers();
+    this.invalidate();
+  }
 
   setSettings(s: Partial<Settings>) {
     const prev = this.settings;
@@ -770,9 +799,9 @@ export class StarMapViewer {
     diamond.className = "mv-reticle-ring";
     const caption = document.createElement("span");
     caption.className = "mv-reticle-label";
-    caption.textContent = "Destination";
+    caption.textContent = UI[this.lang].destination;
     this.reticle.append(diamond, caption);
-    this.reticle.title = `${label ?? "Destination"} · J2000 RA ${ra.toFixed(8)}°, Dec ${dec.toFixed(8)}°`;
+    this.reticle.title = `${label ?? UI[this.lang].destination} · J2000 RA ${ra.toFixed(8)}°, Dec ${dec.toFixed(8)}°`;
     this.reticle.setAttribute("role", "img");
     this.reticle.setAttribute("aria-label", this.reticle.title);
     if (!this.reticle.parentElement) this.pivot.parentElement?.appendChild(this.reticle);

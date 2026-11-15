@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STEPS, type Step } from "@/lib/ui/tourSteps";
+import { useT } from "@/lib/i18n";
 import { topSlot } from "@/lib/ui/placement";
 
 /** Remembered in a cookie (and browser storage as a backup) so the tour only plays once. */
@@ -124,6 +125,7 @@ export default function Tutorial({
   const lastMode = useRef(mode);
   const card = useRef<HTMLDivElement>(null);
 
+  const t = useT();
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
   const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
@@ -247,12 +249,12 @@ export default function Tutorial({
       in3D || did ? (
         <div className="tour-banner" role="status">
           <span className="tour-check" aria-hidden="true">✓</span>
-          You&apos;re inside in 3D! Fly with W A S D, then scroll out or press Esc to finish the tour.
+          {t("You're inside in 3D! Fly with W A S D, then scroll out or press Esc to finish the tour.")}
         </div>
       ) : (
         <div className="tour-banner" role="status">
           <span className="tour-check muted" aria-hidden="true">i</span>
-          This one&apos;s a flat SPHEREx image. Press Esc and try a planet or constellation to fly around in 3D.
+          {t("This one's a flat SPHEREx image. Press Esc and try a planet or constellation to fly around in 3D.")}
         </div>
       )
     ) : null;
@@ -303,43 +305,43 @@ export default function Tutorial({
         </div>
         <div className="tour-inner" key={i}>
           <div className="tour-meta">
-            <span>{i === 0 ? "Quick tour" : last ? "Done" : `Step ${i} of ${count}`}</span>
+            <span>{i === 0 ? t("Quick tour") : last ? t("Done") : t("Step {n} of {count}", { n: i, count })}</span>
             {i === 0 && (
               <button className="tour-link" onClick={finish}>
-                Skip tutorial
+                {t("Skip tutorial")}
               </button>
             )}
           </div>
-          <h2 id="tour-title">{step.title}</h2>
-          <p id="tour-body">{touch && step.touch ? step.touch.body : step.body}</p>
+          <h2 id="tour-title">{t(step.title)}</h2>
+          <p id="tour-body">{t(touch && step.touch ? step.touch.body : step.body)}</p>
 
           <div className="tour-foot">
             {step.wait?.kind === "modes" ? (
               <div className="tour-task">
-                <span className={`tour-chip ${modeChanges >= 1 ? "ok" : ""}`}>{modeChanges >= 1 ? "✓" : "1"} Switch to {other}</span>
-                <span className={`tour-chip ${modeChanges >= 2 ? "ok" : ""}`}>{modeChanges >= 2 ? "✓" : "2"} Back to {back}</span>
+                <span className={`tour-chip ${modeChanges >= 1 ? "ok" : ""}`}>{modeChanges >= 1 ? "✓" : "1"} {t("Switch to {mode}", { mode: other })}</span>
+                <span className={`tour-chip ${modeChanges >= 2 ? "ok" : ""}`}>{modeChanges >= 2 ? "✓" : "2"} {t("Back to {mode}", { mode: back })}</span>
               </div>
             ) : step.wait ? (
               <div className="tour-task">
-                <span className={`tour-chip ${did ? "ok" : "live"}`}>{did ? "✓ Nice!" : (touch && step.touch?.prompt) || step.wait.prompt}</span>
+                <span className={`tour-chip ${did ? "ok" : "live"}`}>{did ? t("✓ Nice!") : t((touch && step.touch?.prompt) || step.wait.prompt)}</span>
               </div>
             ) : (
               <span />
             )}
             <div className="tour-actions">
               {i > 1 && (
-                <button className="tour-ghost" onClick={() => go(i - 1)} aria-label="Previous step">
-                  Back
+                <button className="tour-ghost" onClick={() => go(i - 1)} aria-label={t("Previous step")}>
+                  {t("Back")}
                 </button>
               )}
               {last ? (
                 <button className="tour-go" onClick={finish} ref={focusQuietly}>
-                  Start exploring
+                  {t("Start exploring")}
                 </button>
               ) : (
                 !step.wait && (
                   <button className="tour-go" onClick={() => go(i + 1)} ref={focusQuietly}>
-                    {i === 0 ? "Start tour" : "Next"}
+                    {i === 0 ? t("Start tour") : t("Next")}
                   </button>
                 )
               )}

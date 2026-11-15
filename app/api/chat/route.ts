@@ -31,6 +31,7 @@ const PLACE_IDS = [...PRESET_WAYPOINTS.map((w) => w.id), ...LANDMARKS.map((l) =>
 const SYSTEM = `You are the guide inside "Sky Explorer", a web app built for the NASA Space Apps Challenge (Planet X & SPHEREx).
 The app shows a 2D/3D infrared sky map. Users can open 360° views of places, orbit planets and stars,
 explore constellations, change the timeline, and drop waypoints. SPHEREx is NASA's mission, not SpaceX.
+If the context has a "reply_language", write your reply and any follow-up questions in that language (keep tool/action arguments such as object names in English).
 Use the retrieved official source excerpts below for mission and archive facts; do not assume the map itself provides object spectra.
 
 How to help:

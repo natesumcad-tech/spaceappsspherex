@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MISSION, type Line, type MissionCtx, type PlanetInfo, type StarInfo } from "@/lib/quest/mission";
 import { spherexCutout } from "@/lib/starmap/cutout";
 import { topSlot } from "@/lib/ui/placement";
+import { useT, useTV } from "@/lib/i18n";
 
 /** Mission progress lives in this browser, so it survives a reload. */
 const STORE = "starmap.quest.v1";
@@ -48,6 +49,7 @@ const sep = (ra1: number, d1: number, ra2: number, d2: number) => {
 
 /** The name a map label shows (stars and constellations: their text; planets: their name; diamonds: their title). */
 function labelName(el: HTMLElement) {
+  if (el.dataset.name) return el.dataset.name; // the English name, whatever language the label shows
   if (el.classList.contains("mv-wp")) return (el.getAttribute("aria-label") ?? "").replace(/^Waypoint:\s*/, "");
   if (el.classList.contains("mv-planet")) return el.querySelector("span")?.textContent ?? "";
   const aria = el.getAttribute("aria-label"); // e.g. "Polaris: travel, explore or ask a question"
@@ -77,8 +79,9 @@ function Portrait() {
 
 /** The sky's grid: Dec runs north and south like latitude, RA runs east around the equator like longitude. */
 function RaDecDiagram() {
+  const t = useT();
   return (
-    <figure className="q-diagram" aria-label="Diagram: declination is measured north or south of the sky's equator; right ascension is measured east along it, in hours">
+    <figure className="q-diagram" aria-label={t("Diagram: declination is measured north or south of the sky's equator; right ascension is measured east along it, in hours")}>
       <svg viewBox="0 0 300 150">
         <circle cx="78" cy="75" r="62" fill="#14120e" stroke="#bfae93" strokeWidth="1.2" />
         <ellipse cx="78" cy="38" rx="45" ry="10" fill="none" stroke="#5c5446" strokeWidth="0.8" />
@@ -95,18 +98,18 @@ function RaDecDiagram() {
         <circle cx="104" cy="34" r="4.5" fill="#fff6dc" />
         <circle cx="104" cy="34" r="8" fill="#fff6dc" opacity="0.25" />
         <circle cx="30" cy="84" r="2.6" fill="#7fb3ff" />
-        <text x="78" y="9" textAnchor="middle" className="q-dg-pole">+90° north pole</text>
-        <text x="78" y="148" textAnchor="middle" className="q-dg-pole">−90° south pole</text>
+        <text x="78" y="9" textAnchor="middle" className="q-dg-pole">{t("+90° north pole")}</text>
+        <text x="78" y="148" textAnchor="middle" className="q-dg-pole">{t("−90° south pole")}</text>
         <text x="18" y="100" className="q-dg-ra">0h</text>
         <g className="q-dg-key">
           <rect x="160" y="22" width="10" height="10" rx="2" fill="#ff9d7a" />
-          <text x="176" y="31"><tspan className="b">Dec</tspan> = north / south</text>
-          <text x="176" y="45">in degrees, −90° to +90°</text>
+          <text x="176" y="31"><tspan className="b">Dec</tspan> {t("= north / south")}</text>
+          <text x="176" y="45">{t("in degrees, −90° to +90°")}</text>
           <rect x="160" y="62" width="10" height="10" rx="2" fill="#7fb3ff" />
-          <text x="176" y="71"><tspan className="b">RA</tspan> = east around</text>
-          <text x="176" y="85">in hours, 0h to 24h</text>
+          <text x="176" y="71"><tspan className="b">RA</tspan> {t("= east around")}</text>
+          <text x="176" y="85">{t("in hours, 0h to 24h")}</text>
           <rect x="160" y="102" width="10" height="3" rx="1.5" fill="#f0c674" />
-          <text x="176" y="107">the sky&apos;s equator</text>
+          <text x="176" y="107">{t("the sky's equator")}</text>
           <text x="176" y="121">(Dec 0°)</text>
         </g>
       </svg>
@@ -116,6 +119,7 @@ function RaDecDiagram() {
 
 /** A real SPHEREx cutout, drawn in the background; shimmers while it loads. */
 function RealImage({ cut }: { cut: NonNullable<Line["image"]> }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let live = true;
@@ -128,10 +132,10 @@ function RealImage({ cut }: { cut: NonNullable<Line["image"]> }) {
   const ra = cut.ra / 15, h = Math.floor(ra), m = Math.round((ra - h) * 60);
   return (
     <figure className="q-img">
-      {src ? <img src={src} alt={`${cut.caption}: real SPHEREx infrared image`} /> : <div className={`q-img-wait ${src === null ? "failed" : ""}`}>{src === null ? "Image unavailable right now" : "Receiving image…"}</div>}
+      {src ? <img src={src} alt={`${t(cut.caption)}: ${t("real SPHEREx infrared image")}`} /> : <div className={`q-img-wait ${src === null ? "failed" : ""}`}>{src === null ? t("Image unavailable right now") : t("Receiving image…")}</div>}
       <figcaption>
-        <b>Real data</b> {cut.caption} · RA {h}h {String(m).padStart(2, "0")}m, Dec {cut.dec >= 0 ? "+" : "−"}
-        {Math.abs(cut.dec).toFixed(1)}° · {cut.fov}° wide · SPHEREx DR1 via IRSA
+        <b>{t("Real data")}</b> {t(cut.caption)} · RA {h}h {String(m).padStart(2, "0")}m, Dec {cut.dec >= 0 ? "+" : "−"}
+        {Math.abs(cut.dec).toFixed(1)}° · {t("{fov}° wide", { fov: cut.fov })} · {t("SPHEREx DR1 via IRSA")}
       </figcaption>
     </figure>
   );
@@ -165,6 +169,8 @@ export default function Quest({
   planet: (name: string) => PlanetInfo | null;
   onClose: () => void;
 }) {
+  const t = useT();
+  const tv = useTV();
   const [saved, setSaved] = useState<Saved>({});
   const [phase, setPhase] = useState<Phase>("offer");
   const [queue, setQueue] = useState<Line[]>([]);
@@ -326,10 +332,10 @@ export default function Quest({
     const truth = star(check.star);
     const ra = parseRA(raIn), dec = parseDec(decIn);
     if (!truth) return complete();
-    if (ra === null || dec === null) return setNope("I need both numbers: RA like 5h 55m, and Dec like +7.4.");
+    if (ra === null || dec === null) return setNope(t("I need both numbers: RA like 5h 55m, and Dec like +7.4."));
     const dRA = Math.abs(((ra - truth.ra + 540) % 360) - 180), dDec = Math.abs(dec - truth.dec);
-    if (dDec > 1.5) return setNope(`That Dec doesn't match my backup chart. Is ${check.star} right in the middle of your map? Read the second number on the “Center J2000” line.`);
-    if (dRA > 4) return setNope(`Close, but the RA is off. RA is in hours and minutes: read the first number on the “Center J2000” line.`);
+    if (dDec > 1.5) return setNope(t("That Dec doesn't match my backup chart. Is {star} right in the middle of your map? Read the second number on the “Center J2000” line.", { star: check.star }));
+    if (dRA > 4) return setNope(t("Close, but the RA is off. RA is in hours and minutes: read the first number on the “Center J2000” line."));
     complete({ reading: { ra, dec, offDeg: sep(ra, dec, truth.ra, truth.dec) } });
   };
 
@@ -340,22 +346,22 @@ export default function Quest({
 
   if (phase === "offer")
     return (
-      <div style={pos} className={`q-card q-offer${where}`} role="dialog" aria-label="Incoming transmission">
+      <div style={pos} className={`q-card q-offer${where}`} role="dialog" aria-label={t("Incoming transmission")}>
         <div className="q-signal" aria-hidden="true">
           <i />
           <i />
           <i />
         </div>
         <div className="q-body">
-          <span className="q-kicker">Incoming transmission · optional mission</span>
-          <h2>Signal from the Dark</h2>
-          <p>A survey ship has lost power past Neptune. Use the real SPHEREx sky to guide its crew home. About 5 minutes.</p>
+          <span className="q-kicker">{t("Incoming transmission · optional mission")}</span>
+          <h2>{t("Signal from the Dark")}</h2>
+          <p>{t("A survey ship has lost power past Neptune. Use the real SPHEREx sky to guide its crew home. About 5 minutes.")}</p>
           <div className="q-actions">
             <button className="q-ghost" onClick={decline}>
-              Not now
+              {t("Not now")}
             </button>
             <button className="q-go" onClick={accept}>
-              Answer the call
+              {t("Answer the call")}
             </button>
           </div>
         </div>
@@ -365,7 +371,7 @@ export default function Quest({
   if (phase === "done") {
     const mins = saved.finishedIn ? Math.max(1, Math.round(saved.finishedIn / 60000)) : null;
     return (
-      <div style={pos} className={`q-card q-done${where}`} role="dialog" aria-label="Mission complete">
+      <div style={pos} className={`q-card q-done${where}`} role="dialog" aria-label={t("Mission complete")}>
         <div className="q-badge" aria-hidden="true">
           <svg viewBox="0 0 64 64">
             <circle cx="32" cy="32" r="30" fill="#171512" />
@@ -374,20 +380,20 @@ export default function Quest({
           </svg>
         </div>
         <div className="q-body">
-          <span className="q-kicker">Mission complete</span>
-          <h2>The Wren is coming home</h2>
-          <p>You navigated by the stars, read real coordinates, found fuel with SPHEREx data and tracked a ship past Neptune.</p>
+          <span className="q-kicker">{t("Mission complete")}</span>
+          <h2>{t("The Wren is coming home")}</h2>
+          <p>{t("You navigated by the stars, read real coordinates, found fuel with SPHEREx data and tracked a ship past Neptune.")}</p>
           <ul className="q-stats">
-            {mins && <li><b>{mins} min</b> mission time</li>}
-            {saved.reading && <li><b>{saved.reading.offDeg.toFixed(1)}°</b> off on Betelgeuse</li>}
-            <li><b>{MISSION.length}/{MISSION.length}</b> objectives</li>
+            {mins && <li><b>{mins} min</b> {t("mission time")}</li>}
+            {saved.reading && <li><b>{tv(`${saved.reading.offDeg.toFixed(1)}°`)}</b> {t("off on Betelgeuse")}</li>}
+            <li><b>{MISSION.length}/{MISSION.length}</b> {t("objectives")}</li>
           </ul>
           <div className="q-actions">
             <button className="q-ghost" onClick={accept}>
-              Play again
+              {t("Play again")}
             </button>
             <button className="q-go" onClick={onClose}>
-              Close
+              {t("Close")}
             </button>
           </div>
         </div>
@@ -399,29 +405,29 @@ export default function Quest({
     const line = queue[li];
     if (!line) return null;
     return (
-      <div style={pos} className={`q-card q-talk${where} ${flash ? "flash" : ""}`} role="dialog" aria-label="Commander Ada Reyes">
-        {flash && <span className="q-done-tick">✓ Objective complete</span>}
+      <div style={pos} className={`q-card q-talk${where} ${flash ? "flash" : ""}`} role="dialog" aria-label={t("Commander Ada Reyes")}>
+        {flash && <span className="q-done-tick">{t("✓ Objective complete")}</span>}
         <div className="q-who">
           <Portrait />
           <div>
-            <b>Cmdr. Ada Reyes</b>
-            <span>Survey ship Wren · fictional</span>
+            <b>{t("Cmdr. Ada Reyes")}</b>
+            <span>{t("Survey ship Wren · fictional")}</span>
           </div>
           <span className="q-count">
             {li + 1}/{queue.length}
           </span>
         </div>
         <p className="q-line" key={`${stepIdx}-${li}`}>
-          {line.text}
+          {t(line.text)}
         </p>
         {line.diagram === "radec" && <RaDecDiagram />}
         {line.examples && (
           <div className="q-examples">
-            <span className="q-examples-k">Type it like this</span>
+            <span className="q-examples-k">{t("Type it like this")}</span>
             {line.examples.map((x) => (
               <div key={x.value}>
                 <code>{x.value}</code>
-                <span>{x.note}</span>
+                <span>{t(x.note)}</span>
               </div>
             ))}
           </div>
@@ -431,15 +437,15 @@ export default function Quest({
           <dl className="q-facts">
             {line.facts.map(([k, v]) => (
               <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
+                <dt>{t(k)}</dt>
+                <dd>{tv(v)}</dd>
               </div>
             ))}
           </dl>
         )}
         <div className="q-actions">
           <button className="q-go" onClick={nextLine} ref={(el) => el?.focus({ preventScroll: true })}>
-            {li < queue.length - 1 ? "Continue" : saved.done ? "Finish" : "On it"}
+            {t(li < queue.length - 1 ? "Continue" : saved.done ? "Finish" : "On it")}
           </button>
         </div>
       </div>
@@ -449,22 +455,22 @@ export default function Quest({
   // Seeking: the objective bar
   if (mini || sphere)
     return (
-      <button style={slot ? { left: slot.left + slot.width / 2, top: slot.top } : undefined} className={`q-mini${where}`} onClick={() => setMini(false)} aria-label="Show mission objective">
+      <button style={slot ? { left: slot.left + slot.width / 2, top: slot.top } : undefined} className={`q-mini${where}`} onClick={() => setMini(false)} aria-label={t("Show mission objective")}>
         <Portrait />
-        <span>{step.objective}</span>
+        <span>{t(step.objective)}</span>
       </button>
     );
   return (
-    <div style={pos} className="q-card q-seek" role="region" aria-label="Mission objective">
+    <div style={pos} className="q-card q-seek" role="region" aria-label={t("Mission objective")}>
       <div className="q-who">
         <Portrait />
         <div>
           <span className="q-kicker">
-            Objective {stepIdx + 1} of {MISSION.length}
+            {t("Objective {n} of {count}", { n: stepIdx + 1, count: MISSION.length })}
           </span>
-          <b className="q-obj">{step.objective}</b>
+          <b className="q-obj">{t(step.objective)}</b>
         </div>
-        <button className="q-x" onClick={() => setMini(true)} aria-label="Minimize">
+        <button className="q-x" onClick={() => setMini(true)} aria-label={t("Minimize")}>
           –
         </button>
       </div>
@@ -479,18 +485,18 @@ export default function Quest({
             <input value={decIn} onChange={(e) => setDecIn(e.target.value)} placeholder="+7.4°" inputMode="text" />
           </label>
           <button className="q-go" type="submit">
-            Send
+            {t("Send")}
           </button>
         </form>
       )}
       {check.kind === "report" && (
         <p className="q-format">
-          <b>RA</b> in hours &amp; minutes, e.g. <code>5h 55m</code> · <b>Dec</b> in degrees, + for north, e.g. <code>+7 24</code>. Both are on the glowing “Center J2000” line.
+          <b>RA</b> {t("in hours & minutes, e.g.")} <code>5h 55m</code> · <b>Dec</b> {t("in degrees, + for north, e.g.")} <code>+7 24</code>. {t("Both are on the glowing “Center J2000” line.")}
         </p>
       )}
       {check.kind === "goto" && (
         <p className="q-format">
-          Type <code>4h 32m +26</code> in the glowing coordinate bar (RA first, then Dec) and press <b>Go</b>.
+          {t("Type")} <code>4h 32m +26</code> {t("in the glowing coordinate bar (RA first, then Dec) and press")} <b>{t("Go")}</b>.
         </p>
       )}
       {nope && <p className="q-nope">{nope}</p>}
@@ -501,10 +507,10 @@ export default function Quest({
           ))}
         </div>
         <button className="q-link" onClick={() => setHint((h) => !h)} aria-expanded={hint}>
-          {hint ? "Hide hint" : "Need a hint?"}
+          {hint ? t("Hide hint") : t("Need a hint?")}
         </button>
       </div>
-      {hint && <p className="q-hint">{step.hint}</p>}
+      {hint && <p className="q-hint">{t(step.hint)}</p>}
     </div>
   );
 }

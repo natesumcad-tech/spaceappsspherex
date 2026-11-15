@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useT, useTV } from "@/lib/i18n";
 
 export type SearchItem = { id: string; name: string; kind: "Star" | "Constellation" | "Planet" | "Place" | "Your waypoint"; sub: string; alt: string[] };
 
@@ -8,6 +9,8 @@ const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,
 
 /** Magnifying-glass search: find stars, constellations, planets and places, then fly there. */
 export default function Search({ items, onPick }: { items: SearchItem[]; onPick: (it: SearchItem) => void }) {
+  const t = useT();
+  const tv = useTV();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -61,14 +64,14 @@ export default function Search({ items, onPick }: { items: SearchItem[]; onPick:
 
   return (
     <div ref={wrap} className={`mv-search ${open ? "open" : ""}`}>
-      <button className="mv-glass mv-search-btn" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Search stars, constellations and planets" title="Search (Ctrl+K)">
+      <button className="mv-glass mv-search-btn" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={t("Search stars, constellations and planets")} title={t("Search (Ctrl+K)")}>
         <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
           <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
           <path d="M15.5 15.5L21 21" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
       </button>
       {open && (
-        <div className="mv-glass mv-search-panel" role="dialog" aria-label="Search">
+        <div className="mv-glass mv-search-panel" role="dialog" aria-label={t("Search")}>
           <input
             ref={field}
             value={q}
@@ -86,8 +89,8 @@ export default function Search({ items, onPick }: { items: SearchItem[]; onPick:
                 setOpen(false);
               }
             }}
-            placeholder="Find a star, constellation or planet…"
-            aria-label="Search the sky"
+            placeholder={t("Find a star, constellation or planet…")}
+            aria-label={t("Search the sky")}
             role="combobox"
             aria-expanded={results.length > 0}
             aria-controls="mv-search-results"
@@ -98,18 +101,18 @@ export default function Search({ items, onPick }: { items: SearchItem[]; onPick:
                 results.map((it, i) => (
                   <li key={`${it.kind}-${it.id}`} role="option" aria-selected={i === sel}>
                     <button onMouseEnter={() => setSel(i)} onClick={() => pick(it)}>
-                      <span className={`mv-search-kind k-${it.kind === "Your waypoint" ? "mine" : it.kind.toLowerCase()}`}>{it.kind}</span>
-                      <span className="mv-search-name">{it.name}</span>
-                      <span className="mv-search-sub">{it.sub}</span>
+                      <span className={`mv-search-kind k-${it.kind === "Your waypoint" ? "mine" : it.kind.toLowerCase()}`}>{t(it.kind)}</span>
+                      <span className="mv-search-name">{t(it.name)}</span>
+                      <span className="mv-search-sub">{tv(it.sub ?? "")}</span>
                     </button>
                   </li>
                 ))
               ) : (
-                <li className="mv-search-empty">Nothing called “{q}” on the map. Try the ✦ Ask guide.</li>
+                <li className="mv-search-empty">{t("Nothing called “{q}” on the map. Try the ✦ Ask guide.", { q })}</li>
               )}
             </ul>
           )}
-          {!q && <p className="mv-search-hint">Try “Sirius”, “Orion”, “Saturn” or “Andromeda”. ↑↓ to choose, Enter to fly there.</p>}
+          {!q && <p className="mv-search-hint">{t("Try “Sirius”, “Orion”, “Saturn” or “Andromeda”. ↑↓ to choose, Enter to fly there.")}</p>}
         </div>
       )}
     </div>
