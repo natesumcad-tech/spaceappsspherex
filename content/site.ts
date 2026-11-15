@@ -31,10 +31,10 @@ export const project = {
 
 export const team: { name: string; role: string }[] = [
   // TODO: replace with your teammates
-  { name: "Nate", role: "Team lead · Web" },
-  { name: "Curtis", role: "Full Stack" },
-  { name: "Devansh", role: "Data & Sciences" },
-  { name: "David", role: "Style & Presentation" },
+  { name: "A", role: "Web" },
+  { name: "B", role: "Full Stack" },
+  { name: "C", role: "Data & Sciences" },
+  { name: "D", role: "Style & Presentation" },
 ];
 
 export const mission = {
