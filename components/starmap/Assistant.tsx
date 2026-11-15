@@ -20,7 +20,8 @@ export default function Assistant({
   runAction,
   draft,
 }: {
-  draft?: { id: number; text: string } | null;
+  /** Prefill the question box; `send` asks it straight away (the campaign's question chips). */
+  draft?: { id: number; text: string; send?: boolean } | null;
   open: boolean;
   onClose: () => void;
   getContext: () => unknown;
@@ -40,8 +41,11 @@ export default function Assistant({
     list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
+  const sendRef = useRef<(text: string) => void>(() => {});
   useEffect(() => {
-    if (draft) { setInput(draft.text); field.current?.focus(); }
+    if (!draft) return;
+    if (draft.send) sendRef.current(draft.text);
+    else { setInput(draft.text); field.current?.focus(); }
   }, [draft]);
 
   const send = async (text: string) => {
@@ -86,6 +90,8 @@ export default function Assistant({
       setLoading(false);
     }
   };
+  sendRef.current = send;
+
 
   return (
     <aside className={`mv-glass mv-ai ${open ? "open" : ""}`} aria-hidden={!open} aria-label="Sky guide">

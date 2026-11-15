@@ -970,3 +970,8 @@ button.cv-label:hover { background: #fff; color: #171512; }
 /* One precise destination point, reused whenever navigation changes. */
 .mv-reticle-ring { width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 1px; transform: rotate(45deg); background: #ac8d55; border: 2px solid #f4e2bf; }
 .mv-reticle-label { color: #f4e2bf; border-color: #b79b68; font-weight: 700; }
+
+/* Three site tabs: on phones the top row wraps instead of pushing Ask and Search off screen */
+@media (max-width: 760px) {
+  .mv-top-row { flex-wrap: wrap; max-width: calc(100vw - 28px); }
+}
