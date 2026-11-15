@@ -38,6 +38,11 @@ export const STEPS: Step[] = [
     body: "Search for a star, planet or constellation, or ask the sky guide a question.",
   },
   {
+    target: ".mv-minicard",
+    title: "Your overview",
+    body: "This minimap shows where you are in the whole sky; click it to jump anywhere. Below it you can switch SPHEREx colors, and zooming all the way out (or ⊙) shows the entire Milky Way.",
+  },
+  {
     target: ".mv-blink-bar",
     title: "Hunt for Planet X",
     body: "Blink flips between SPHEREx's six-month passes. Stars stay put; anything nearer that moves will jump.",
