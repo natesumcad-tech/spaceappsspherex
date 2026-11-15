@@ -492,7 +492,7 @@ export default function StarMapApp() {
                   </button>
                 )}
                 <button className="mv-secondary" onClick={() => cosmicRef.current?.flyHome()}>
-                  Back to the Milky Way
+                  Back to the Sun
                 </button>
               </div>
             </aside>

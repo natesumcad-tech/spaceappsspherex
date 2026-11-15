@@ -39,15 +39,6 @@ export const GALAXIES: Galaxy[] = [
 const MW = { id: "milky-way", name: "Milky Way", kind: "Our galaxy", size: 100_000, dist: 0, description: "Our home galaxy: a barred spiral of 100–400 billion stars. The Sun is about 26,000 light-years from its center." };
 
 const SUN_TO_CENTER = 26_000;
-const HOME_DIST = 125_000;
-/**
- * "Home" framing: at the Milky Way's scale the camera looks at the galaxy's centre; as you zoom
- * in toward the Sun the view slides over to it, so diving in always lands on the Sun.
- */
-const homeTarget = (d: number, out = new THREE.Vector3()) => {
-  const t = THREE.MathUtils.clamp((d - 20_000) / (HOME_DIST - 20_000), 0, 1);
-  return out.set(SUN_TO_CENTER * t * t * (3 - 2 * t), 0, 0);
-};
 const ENTER_SKY = 1_200; // zoom closer than this to the Sun and the sky map takes over
 const D_MIN = 400;
 const D_MAX = 90_000_000;
@@ -158,12 +149,9 @@ export class CosmicView {
   private cam = new THREE.PerspectiveCamera(50, 1, 1, 3e8);
   private target = new THREE.Vector3();
   private targetName = "Sun";
-  /** Following the home framing (galaxy centre far out, the Sun up close). */
-  private home = true;
   private az = 2.4;
   private el = 0.7;
-  /** Opening view: the whole Milky Way fills the screen. */
-  dist = HOME_DIST;
+  dist = 420_000;
   private active = false;
   private raf = 0;
   private tween: { from: { t: THREE.Vector3; d: number }; to: { t: THREE.Vector3; d: number }; start: number; ms: number } | null = null;
@@ -228,7 +216,7 @@ export class CosmicView {
       sp.scale.setScalar(g.size * 1.4);
       sp.position.copy(p);
       this.scene.add(sp);
-      this.addLabel(g.name, p, () => this.select(g), "cv-gal", { min: HOME_DIST * 1.4, max: g.dist * 40, prio: 10 + Math.log10(g.dist) - g.size / 1e6 }); // only once you zoom out past the Milky Way
+      this.addLabel(g.name, p, () => this.select(g), "cv-gal", { max: g.dist * 40, prio: 10 + Math.log10(g.dist) - g.size / 1e6 });
     }
     this.addLabel("Milky Way", new THREE.Vector3(SUN_TO_CENTER, 0, 0), () => this.select(MW), "cv-gal cv-mw", { min: 20_000, max: 6_000_000, prio: 1 });
 
@@ -292,7 +280,7 @@ export class CosmicView {
     const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: galaxyTexture(), color: 0xffe28a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false }));
     sun.scale.setScalar(0.035);
     this.scene.add(sun);
-    this.addLabel("Sun · you are here", new THREE.Vector3(), () => this.dive(), "cv-sun", { prio: 0, max: 300_000 });
+    this.addLabel("Sun · you are here", new THREE.Vector3(), () => this.flyHome(), "cv-sun", { prio: 0, max: 300_000 });
     this.labels.sort((a, b) => a.prio - b.prio);
   }
 
@@ -323,30 +311,25 @@ export class CosmicView {
   pullBack() {
     this.target.set(0, 0, 0);
     this.targetName = "Sun";
-    this.home = true;
     this.dist = ENTER_SKY * 1.6;
-    this.animateTo(homeTarget(HOME_DIST), HOME_DIST, 2200);
+    this.animateTo(new THREE.Vector3(), 160_000, 2200);
   }
 
-  /** Back to the opening view: the whole Milky Way. */
   flyHome() {
     this.events.onSelect(null);
     this.targetName = "Sun";
-    this.home = true;
-    this.animateTo(homeTarget(HOME_DIST), HOME_DIST, 1400);
+    this.animateTo(new THREE.Vector3(), Math.min(this.dist, 60_000), 1400);
   }
 
   /** Zoom smoothly into the Sun until the sky map takes over. */
   dive() {
     this.events.onSelect(null);
     this.targetName = "Sun";
-    this.home = true;
     this.animateTo(new THREE.Vector3(), ENTER_SKY * 0.8, 2200);
   }
 
   select(g: Galaxy | typeof MW) {
     this.events.onSelect(g);
-    this.home = false;
     const p = g.dist ? radecDist((g as Galaxy).ra, (g as Galaxy).dec, g.dist) : new THREE.Vector3(SUN_TO_CENTER, 0, 0);
     this.targetName = g.name;
     this.animateTo(p, g.size * 3.2, 1600);
@@ -426,7 +409,7 @@ export class CosmicView {
       // move through distance logarithmically, so zooms across millions of light-years feel even
       this.dist = Math.exp(Math.log(this.tween.from.d) + (Math.log(this.tween.to.d) - Math.log(this.tween.from.d)) * e);
       if (k >= 1) this.tween = null;
-    } else if (this.home) homeTarget(this.dist, this.target);
+    }
     const ce = Math.cos(this.el);
     this.cam.position.set(Math.sin(this.az) * ce, Math.sin(this.el), Math.cos(this.az) * ce).multiplyScalar(this.dist).add(this.target);
     this.cam.lookAt(this.target);
