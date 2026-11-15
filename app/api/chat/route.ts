@@ -1,3 +1,4 @@
+import { coordinateDestination } from "@/lib/assistant/coordinates";
 import { retrieveNasa, followups } from "@/lib/assistant/nasa";
 import { NextResponse } from "next/server";
 import { PRESET_WAYPOINTS, EPOCHS } from "@/lib/starmap/data";
@@ -32,6 +33,8 @@ How to help:
 - When someone wants to see or go somewhere, call the matching function AND reply with a short sentence about it.
   Use show_place for anything in the place list, show_constellation / show_star for those, and show_sky_position
   with J2000 RA/Dec in degrees for any other object you are confident about. Set open_360 true only if they ask to step inside / see it in 360°.
+- Map x/y are NOT RA/Dec: map x runs -180 to 180 with east to the left, map y runs -90 to 90. For explicit x/y use show_map_position, preserving the numbers. For RA/Dec use show_sky_position. An unlabeled sky position does not need a star name. Never guess a star identity from coordinates.
+- If coordinates have no labels and could refer to either system, ask whether they are map x/y or J2000 RA/Dec. Bare nonnegative decimal pairs use RA/Dec, matching the coordinate search field.
 - If a request is ambiguous, ask one short clarifying question instead of guessing.
 - ALWAYS call suggest_followups with your complete answer in its answer field and 2–3 relevant follow-up questions. This is required even when also calling a navigation function.
 - Answer science questions without changing the view. Only navigate when the user requests navigation. Explain the destination when navigating.
@@ -67,6 +70,11 @@ const TOOLS = [
         name: "show_star",
         description: "Fly to a bright named star (e.g. Vega, Arcturus, Antares); optionally open its 360° view.",
         parameters: { type: "OBJECT", properties: { name: { type: "STRING" }, open_360: { type: "BOOLEAN" } }, required: ["name"] },
+      },
+      {
+        name: "show_map_position",
+        description: "Fly to displayed map x/y coordinates at the current timeline epoch, without converting them to RA/Dec.",
+        parameters: { type: "OBJECT", properties: { x: { type: "NUMBER" }, y: { type: "NUMBER" }, label: { type: "STRING" } }, required: ["x", "y"] },
       },
       {
         name: "show_sky_position",
@@ -123,6 +131,17 @@ export async function POST(req: Request) {
     .slice(-MAX_TURNS)
     .map((m) => ({ role: m.role, text: m.text.slice(0, MAX_CHARS) }));
   if (!messages.length || messages[messages.length - 1].role !== "user") return NextResponse.json({ error: "bad_request" }, { status: 400 });
+
+  const destination = coordinateDestination(messages[messages.length - 1].text);
+  if (destination) {
+    const map = destination.system === "map";
+    const label = map ? `map x ${destination.x}°, y ${destination.y}°` : `RA ${destination.ra}°, Dec ${destination.dec}° (J2000)`;
+    return NextResponse.json({
+      reply: `I'll center the map on ${label} and mark the position. Coordinates can locate an unlabeled object, but do not identify it.`,
+      actions: [{ name: map ? "show_map_position" : "show_sky_position", args: map ? { x: destination.x, y: destination.y, label } : { ra_deg: destination.ra, dec_deg: destination.dec, label } }],
+      followups: ["What can SPHEREx tell us about this region?", "How do map x/y relate to RA/Dec?"], sources: [],
+    });
+  }
 
   const context = JSON.stringify(body.context ?? body.selectedObject ?? {}).slice(0, 3000);
 
