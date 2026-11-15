@@ -28,6 +28,8 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
   const shown = useRef<string | null>(null);
   const onStopRef = useRef(onStop);
   onStopRef.current = onStop;
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
           fetch("/data/sky.json").then((r) => r.json() as Promise<SkyData>),
         ]);
         if (cancelled) return;
-        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onNavigate: (id) => onStopRef.current(id), onNav: setNav });
+        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onNavigate: (id) => onStopRef.current(id), onNav: setNav, onExit: () => onExitRef.current() });
         engineRef.current = engine;
         engine.init(data);
         setReady(true);
@@ -331,6 +333,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
                   <kbd>D</kbd> to look around · click a name with ↗ to travel there
                 </>
               )}
+              <span> · Scroll out fully to return to the map</span>
               <button className="xp-hint-x" onClick={hideHint} aria-label="Hide key hints">
                 ×
               </button>

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { discardDetailedTile } from "../explorer/zoom-policy";
 import type { SkyData } from "@/lib/explorer/astro";
 import { DEG, MAP_H, MAP_W, planetPositions, projector, unprojector } from "./coords";
 import { SPHEREX_RGB, layerById, makeLoader, renderTile, type TileRequest } from "./hips";
@@ -136,6 +137,7 @@ export class StarMapViewer {
   private reticlePos: { x: number; y: number } | null = null;
   private reticle = document.createElement("div");
   private visibleTiles = 0;
+  private wantedTileKeys = new Set<string>();
 
   constructor(
     private container: HTMLElement,
@@ -240,7 +242,7 @@ export class StarMapViewer {
       return;
     }
     if (this.inflight.get(job.key) === job.version) this.inflight.delete(job.key);
-    if (!px || job.version !== this.version) {
+    if (!px || job.version !== this.version || !this.wantedTileKeys.has(job.key)) {
       this.invalidate();
       return;
     }
@@ -680,6 +682,10 @@ export class StarMapViewer {
       threshold *= 1.5; // too many tiles: drop detail rather than frame rate
     }
 
+    this.wantedTileKeys = new Set(wanted.flatMap((t) => [
+      `${t.L}/${t.i}/${t.j}`, `0/${t.i >> t.L}/${t.j >> t.L}`,
+    ]));
+    const maxWantedLevel = Math.max(0, ...wanted.map((t) => t.L));
     const now = performance.now();
     const show = new Set<string>();
     this.queue.clear();
@@ -734,6 +740,14 @@ export class StarMapViewer {
       if (vis) e.used = now;
     }
     this.visibleTiles = show.size;
+    // The quadtree has already returned to the distance-appropriate normal detail.
+    // Release unused close-up textures now, even when the cache is below its cap.
+    for (const [key, entry] of this.tiles) {
+      if (discardDetailedTile(entry.L, maxWantedLevel, show.has(key))) {
+        this.disposeTile(entry);
+        this.tiles.delete(key);
+      }
+    }
     this.evict(show);
     return false; // tiles arrive asynchronously and request their own frame
   }

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { wheelPixels, ZoomExitGesture } from "./zoom-policy";
 import { LANDMARKS, byId, type Hotspot, type Landmark } from "./landmarks";
 import { DEG, bvToKelvin, dirToYawPitch, galacticToRaDec, kelvinToRGB, radecToVec, type SkyData } from "./astro";
 import { cloudTexture, glowTexture, planetTexture, ringTexture } from "./textures";
@@ -33,6 +34,8 @@ export type NavState = {
 };
 
 export type EngineEvents = {
+  /** Continued zoom-out past the close-up boundary returns to the sky map. */
+  onExit?: () => void;
   /** Movement mode or orbit position changed. */
   onNav?: (s: NavState) => void;
   /** A portal (clickable constellation, star, galaxy…) inside a sphere was clicked. */
@@ -188,6 +191,7 @@ export class SkyEngine {
   private yaw = 0;
   private pitch = 0;
   private fov = 70;
+  private zoomExit = new ZoomExitGesture();
   private vel = { yaw: 0, pitch: 0 };
   private keys = new Set<string>();
   private flyRadius = 0;
@@ -230,6 +234,25 @@ export class SkyEngine {
   }
 
   dispose() {
+    this.active = false;
+    ++this.patchGen; // reject any pending cutout result after leaving
+    this.patchLoad = null;
+    const geometries = new Set<THREE.BufferGeometry>();
+    const materials = new Set<THREE.Material>();
+    this.scene.traverse((object) => {
+      const drawable = object as THREE.Mesh;
+      if (drawable.geometry) geometries.add(drawable.geometry);
+      if (drawable.material) {
+        const list = Array.isArray(drawable.material) ? drawable.material : [drawable.material];
+        list.forEach((material) => materials.add(material));
+      }
+    });
+    // Cutout textures belong to this engine; procedural planet textures are shared caches.
+    this.patchGroup.children.forEach((object) => {
+      ((object as THREE.Mesh).material as THREE.MeshBasicMaterial).map?.dispose();
+    });
+    geometries.forEach((geometry) => geometry.dispose());
+    materials.forEach((material) => material.dispose());
     cancelAnimationFrame(this.raf);
     this.worker?.terminate();
     this.ro.disconnect();
@@ -323,6 +346,7 @@ export class SkyEngine {
   // ───────────────────────────── Building each sphere ─────────────────────────────
 
   private buildPanorama(lm: Landmark) {
+    this.zoomExit.reset();
     this.fg.clear();
     this.spinners = [];
     this.starUniforms = [];
@@ -586,6 +610,7 @@ export class SkyEngine {
   }
 
   setNavMode(mode: NavMode) {
+    this.zoomExit.reset();
     if (mode === "orbit") {
       if (!this.pivot) return;
       const rel = this.cam.position.clone().sub(this.pivot);
@@ -983,6 +1008,20 @@ export class SkyEngine {
     return this.enter(LANDMARKS[(i + delta + LANDMARKS.length) % LANDMARKS.length].id);
   }
 
+  private scrollZoom(delta: number, sensitivity = 0.0012) {
+    const orbiting = this.navMode === "orbit" && !!this.pivot;
+    const value = orbiting ? this.orbit.r : this.fov;
+    const max = orbiting ? this.rRange.max : 100;
+    const atBoundary = value >= max * 0.999;
+    if (this.zoomExit.update(delta, atBoundary, performance.now())) {
+      this.events.onExit?.();
+      return;
+    }
+    const next = THREE.MathUtils.clamp(value * Math.exp(delta * sensitivity), orbiting ? this.rRange.min : FOV_MIN, max);
+    if (orbiting) this.orbit.r = next;
+    else this.fov = next;
+  }
+
   zoom(factor: number) {
     this.fov = THREE.MathUtils.clamp(this.fov * factor, FOV_MIN, 100);
   }
@@ -1058,7 +1097,10 @@ export class SkyEngine {
         p.y = e.clientY;
         const [a, b] = [...this.pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (this.pinchDist) this.fov = THREE.MathUtils.clamp(this.fov * (this.pinchDist / d), FOV_MIN, 100);
+        if (this.pinchDist && d > 0) {
+          const delta = Math.log(this.pinchDist / d) / 0.0012;
+          this.scrollZoom(Math.max(-160, Math.min(160, delta)));
+        }
         this.pinchDist = d;
         return;
       }
@@ -1084,10 +1126,10 @@ export class SkyEngine {
       if (this.pointers.size < 2) this.pinchDist = 0;
     };
     const wheel = (e: WheelEvent) => {
-      if (!this.active) return;
+      if (!this.active || this.busy) return;
       e.preventDefault();
-      if (this.navMode === "orbit") this.orbit.r = THREE.MathUtils.clamp(this.orbit.r * Math.exp(e.deltaY * 0.0012), this.rRange.min, this.rRange.max);
-      else this.fov = THREE.MathUtils.clamp(this.fov * (1 + e.deltaY * 0.0012), FOV_MIN, 100);
+      const delta = wheelPixels(e.deltaY, e.deltaMode, c.clientHeight);
+      this.scrollZoom(delta, e.ctrlKey ? 0.006 : 0.0012);
     };
     const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
     const keydown = (e: KeyboardEvent) => {
