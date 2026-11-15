@@ -5,6 +5,7 @@ import { MISSION, type Line, type MissionCtx, type PlanetInfo, type StarInfo } f
 import { spherexCutout } from "@/lib/starmap/cutout";
 import { topSlot } from "@/lib/ui/placement";
 import { formatDecDMS, formatRaHMS } from "@/lib/starmap/coordSearch";
+import QuestArrow, { type ArrowSpot } from "@/components/ui/QuestArrow";
 import { useT, useTV } from "@/lib/i18n";
 
 /** Mission progress lives in this browser, so it survives a reload. */
@@ -228,6 +229,7 @@ export default function Quest({
   star,
   planet,
   onCenter,
+  toScreen,
   onClose,
 }: {
   open: boolean;
@@ -242,6 +244,8 @@ export default function Quest({
   planet: (name: string) => PlanetInfo | null;
   /** Fly the map so this star sits in the middle. */
   onCenter: (name: string) => void;
+  /** Screen position of an RA/Dec on the map. */
+  toScreen: (ra: number, dec: number) => { x: number; y: number; behind: boolean } | null;
   onClose: () => void;
 }) {
   const t = useT();
@@ -414,6 +418,37 @@ export default function Quest({
     complete({ reading: { ra, dec, offDeg: sep(ra, dec, truth.ra, truth.dec) } });
   };
 
+  /** The quest arrow: where this objective sends you (a place on the map, or the control to use). */
+  const locate = (): ArrowSpot | null => {
+    if (!seeking || sphere) return null;
+    const ui = (...sels: string[]): ArrowSpot | null => {
+      for (const sel of sels) {
+        const el = document.querySelector<HTMLElement>(sel);
+        const r = el?.getBoundingClientRect();
+        if (r && r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight) return { x: r.left + r.width / 2, top: r.top, bottom: r.bottom };
+      }
+      return null;
+    };
+    const place = (name: string, at: { ra: number; dec: number } | null): ArrowSpot | null => {
+      if (!at) return null;
+      const s = toScreen(at.ra, at.dec);
+      if (!s) return null;
+      const far = sep(center.ra, center.dec, at.ra, at.dec);
+      return { x: s.x, top: s.y - 12, bottom: s.y + 12, behind: s.behind, label: `${t(name)} · ${far < 10 ? far.toFixed(1) : far.toFixed(0)}°` };
+    };
+    if (check.kind === "click") return place(check.name, check.type === "planet" ? planet(check.name) : star(check.name));
+    if (check.kind === "sphere") return place("Neptune", planet("Neptune"));
+    if (check.kind === "report") {
+      const s = star(check.star);
+      if (s && sep(center.ra, center.dec, s.ra, s.dec) > 1) return place(check.star, s);
+      return ui(".mv-coord-center");
+    }
+    if (check.kind === "goto") return ui(".mv-coord-go", ".mv-coord-form", ".mv-tools-btn");
+    if (check.kind === "band") return ui(".mv-ir-presets", ".mv-minicard");
+    if (check.kind === "blink") return ui(".mv-blink-featured", ".mv-tools-btn");
+    return null;
+  };
+
   if (!open || hidden) return null;
 
   const where = sphere ? " in-sphere" : "";
@@ -530,12 +565,17 @@ export default function Quest({
   // Seeking: the objective bar
   if (mini || sphere)
     return (
+      <>
+      <QuestArrow locate={locate} />
       <button style={slot ? { left: slot.left + slot.width / 2, top: slot.top } : undefined} className={`q-mini${where}`} onClick={() => setMini(false)} aria-label={t("Show mission objective")}>
         <Portrait />
         <span>{t(step.objective)}</span>
       </button>
+      </>
     );
   return (
+    <>
+    <QuestArrow locate={locate} />
     <div style={pos} className="q-card q-seek" role="region" aria-label={t("Mission objective")}>
       <div className="q-who">
         <Portrait />
@@ -613,5 +653,6 @@ export default function Quest({
       </div>
       {hint && <p className="q-hint">{t(step.hint)}</p>}
     </div>
+    </>
   );
 }

@@ -25,7 +25,7 @@ export default function BlinkPlayer({
         <button type="button" className="mv-coord-btn" onClick={onBlinkHere} title={t("Compare two real SPHEREx images of the middle of your view, ~6 months apart")}>
           {t("▶ Blink here")}
         </button>
-        <button type="button" className="mv-coord-btn" onClick={onFeatured} title={t("Neptune and Saturn caught moving, June vs December 2025")}>
+        <button type="button" className="mv-coord-btn mv-blink-featured" onClick={onFeatured} title={t("Neptune and Saturn caught moving, June vs December 2025")}>
           {t("★ Planets moving")}
         </button>
       </div>

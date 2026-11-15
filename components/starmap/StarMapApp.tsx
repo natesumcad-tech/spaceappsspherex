@@ -963,6 +963,7 @@ export default function StarMapApp() {
         star={questStar}
         planet={questPlanet}
         onCenter={(name) => runAction({ name: "show_star", args: { name } })}
+        toScreen={(ra, dec) => viewerRef.current?.screenOf(ra, dec) ?? null}
         onClose={() => setQuestOpen(false)}
       />
 

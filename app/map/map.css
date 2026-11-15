@@ -1328,3 +1328,15 @@ button.q-chip:hover { filter: brightness(1.08); }
 .q-explain p { margin: 6px 0; }
 .mv-live { margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--muted, #645b4f); white-space: normal; overflow-wrap: anywhere; }
 .mv-live i { display: inline-block; vertical-align: middle; margin: 0 4px 2px 2px; width: 7px; height: 7px; border-radius: 50%; background: #3f8f5f; box-shadow: 0 0 0 3px rgba(63, 143, 95, .2); }
+
+/* ── Quest arrow (game-style): bobs over the destination, or points the way from the screen edge ── */
+.qa { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; width: 0; height: 0; }
+.qa-turn { position: absolute; left: -24px; top: -60px; width: 48px; height: 60px; transform-origin: 24px 60px; }
+.qa.edge .qa-turn { top: -30px; transform-origin: 24px 30px; }
+.qa-bob { width: 48px; height: 60px; filter: drop-shadow(0 0 10px rgba(255, 200, 60, .75)) drop-shadow(0 3px 2px rgba(0, 0, 0, .55)); animation: qa-bob .75s ease-in-out infinite alternate; }
+.qa.edge .qa-bob { animation-name: qa-nudge; }
+@keyframes qa-bob { from { transform: translateY(-14px); } to { transform: translateY(0); } }
+@keyframes qa-nudge { from { transform: translateY(-6px); } to { transform: translateY(4px); } }
+.qa-tag { position: absolute; left: 0; top: 0; white-space: nowrap; font: 700 12px/1 var(--font-sans, system-ui, sans-serif); color: #fff6d6; background: rgba(28, 18, 4, .82); border: 1px solid #ffd23f; border-radius: 999px; padding: 4px 9px; }
+.qa-tag:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .qa-bob { animation: none; } }

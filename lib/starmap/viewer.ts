@@ -879,6 +879,14 @@ export class StarMapViewer {
     return projector(this.years)(ra, dec);
   }
 
+  private scratch = new THREE.Vector3();
+  /** Where an RA/Dec lands on screen, in pixels from the map's top-left (may be off screen). */
+  screenOf(ra: number, dec: number) {
+    const [x, y] = this.project(ra, dec);
+    const v = this.scratch.set(x, 0, -y).project(this.camera);
+    return { x: (v.x * 0.5 + 0.5) * this.vw, y: (-v.y * 0.5 + 0.5) * this.vh, behind: v.z > 1 };
+  }
+
   /** Map position of a planet right now (for flying to it before stepping inside). */
   planetXY(name: string) {
     const p = withEarth(planetPositions(this.years + 2000)).find((q) => q.name.toLowerCase() === name);

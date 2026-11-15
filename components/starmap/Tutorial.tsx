@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { STEPS, type Step } from "@/lib/ui/tourSteps";
 import { useT } from "@/lib/i18n";
 import { topSlot } from "@/lib/ui/placement";
+import QuestArrow from "@/components/ui/QuestArrow";
 
 /** Remembered in a cookie (and browser storage as a backup) so the tour only plays once. */
 const COOKIE = "sx_tour_done_v2"; // bump the version to show the tour to everyone again
@@ -73,27 +74,6 @@ function targetRect(els: HTMLElement[]) {
   return { left: l, top: t, width: Math.max(...rs.map((r) => r.right)) - l, height: Math.max(...rs.map((r) => r.bottom)) - t };
 }
 type Box = NonNullable<ReturnType<typeof targetRect>>;
-
-/** A gently curved arrow from the edge of the card to the edge of the highlighted control (null if they touch). */
-function arrowPath(card: { l: number; t: number; r: number; b: number }, target: Box, gap: number) {
-  const T = { l: target.left - gap, t: target.top - gap, r: target.left + target.width + gap, b: target.top + target.height + gap };
-  const tx = (T.l + T.r) / 2, ty = (T.t + T.b) / 2;
-  const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-  let x1: number, y1: number, x2: number, y2: number;
-  if (T.t >= card.b + 8) [x1, y1, x2, y2] = [clamp(tx, card.l + 28, card.r - 28), card.b, clamp(tx, T.l + 6, T.r - 6), T.t];
-  else if (T.b <= card.t - 8) [x1, y1, x2, y2] = [clamp(tx, card.l + 28, card.r - 28), card.t, clamp(tx, T.l + 6, T.r - 6), T.b];
-  else if (T.l >= card.r + 8) [x1, y1, x2, y2] = [card.r, clamp(ty, card.t + 24, card.b - 24), T.l, clamp(ty, T.t + 4, T.b - 4)];
-  else if (T.r <= card.l - 8) [x1, y1, x2, y2] = [card.l, clamp(ty, card.t + 24, card.b - 24), T.r, clamp(ty, T.t + 4, T.b - 4)];
-  else return null;
-  const len = Math.hypot(x2 - x1, y2 - y1);
-  if (len < 28) return null;
-  // bow the line a little, towards the middle of the screen (never off its edge), like a hand-drawn pointer
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, bow = Math.min(60, len * 0.18);
-  let nx = -(y2 - y1) / len, ny = (x2 - x1) / len;
-  const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
-  if (Math.hypot(mx - nx * bow - cx, my - ny * bow - cy) < Math.hypot(mx + nx * bow - cx, my + ny * bow - cy)) [nx, ny] = [-nx, -ny];
-  return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${(mx + nx * bow).toFixed(1)},${(my + ny * bow).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
-}
 
 /**
  * First-visit walkthrough of the Sky Explorer: a small card at the top of the screen while a soft
@@ -276,7 +256,6 @@ export default function Tutorial({
     else top = rect.top + rect.height + pad + 52;
   }
   const progress = i === 0 ? 0 : last ? 1 : (i - (did ? 0 : 1)) / count;
-  const arrow = rect && cardH ? arrowPath({ l: left, t: top, r: left + cw, b: top + cardH }, rect, pad + 5) : null;
   const other = modeFrom === "2d" ? "3D" : "2D", back = modeFrom === "2d" ? "2D" : "3D";
 
   return (
@@ -287,17 +266,7 @@ export default function Tutorial({
         !step.wait && <div className="tour-dim" aria-hidden="true" />
       )}
 
-      {arrow && (
-        <svg className="tour-arrow" aria-hidden="true">
-          <defs>
-            <marker id="tour-head" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#f7efdf" />
-            </marker>
-          </defs>
-          <path className="tour-arrow-shadow" d={arrow} />
-          <path className="tour-arrow-line" d={arrow} markerEnd="url(#tour-head)" />
-        </svg>
-      )}
+      {rect && <QuestArrow locate={() => ({ x: rect.left + rect.width / 2, top: rect.top - pad, bottom: rect.top + rect.height + pad })} />}
 
       <div ref={card} className="tour-card" style={{ top, left, width: cw }} role="dialog" aria-labelledby="tour-title" aria-describedby="tour-body">
         <div className="tour-bar" aria-hidden="true">
