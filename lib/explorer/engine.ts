@@ -34,6 +34,7 @@ export type NavState = {
 };
 
 export type EngineEvents = {
+  onAsk?: (name: string) => void;
   /** Continued zoom-out past the close-up boundary returns to the sky map. */
   onExit?: () => void;
   /** Movement mode or orbit position changed. */
@@ -297,8 +298,8 @@ export class SkyEngine {
     const skyPos = (local: THREE.Vector3) => () => local.clone().applyQuaternion(this.skyGroup.quaternion).add(this.skyGroup.position);
     for (const s of this.sky.named) {
       const [ra, dec, mag] = this.sky.stars[s.i];
-      if (mag > 1.65) continue;
-      this.addLabel("sky", "lbl lbl-star", s.names, skyPos(radecToVec(ra, dec, 860)), { link: starStop(this.sky, s) });
+
+      this.addLabel("sky", "lbl lbl-star", s.names, skyPos(radecToVec(ra, dec, 860)), { link: starStop(this.sky, s), when: () => mag <= 1.65 || this.fov <= 35 });
     }
     for (const c of this.sky.constellations) {
       // All 88 constellations, each a portal to its own 360° view
@@ -813,8 +814,15 @@ export class SkyEngine {
     if (opts.link) {
       el.classList.add("lbl-link");
       el.title = `Go to ${byId(opts.link)?.title}`;
-      el.addEventListener("click", () => {
-        if (this.current?.id !== opts.link) this.events.onNavigate(opts.link!);
+      el.tabIndex = 0;
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", `Explore ${names.en}`);
+      const navigate = () => { if (this.current?.id !== opts.link) this.events.onNavigate(opts.link!); };
+      el.addEventListener("pointerdown", e => e.stopPropagation());
+      el.addEventListener("click", navigate);
+      el.addEventListener("keydown", e => {
+        if (e.target !== el) return;
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(); }
       });
     }
     this.labelLayer.appendChild(el);
@@ -825,7 +833,20 @@ export class SkyEngine {
 
   private setLabelText(l: Label) {
     const text = l.names?.[this.lang] ?? l.names?.en ?? "";
-    l.el.textContent = l.link && l.link !== this.current?.id ? `${text} ↗` : text;
+    l.el.replaceChildren();
+    if (l.link) {
+      const diamond = document.createElement("i");
+      diamond.className = "lbl-diamond";
+      l.el.appendChild(diamond);
+    }
+    l.el.appendChild(document.createTextNode(text));
+    if (l.link && this.events.onAsk) {
+      const ask = document.createElement("button");
+      ask.className = "lbl-ask";
+      ask.textContent = `Ask about ${text}`;
+      ask.addEventListener("click", e => { e.stopPropagation(); this.events.onAsk?.(text); });
+      l.el.appendChild(ask);
+    }
   }
 
   private addFgLabel(text: string, pos: THREE.Vector3 | (() => THREE.Vector3), link?: string) {

@@ -26,6 +26,8 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
   const fadeRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<SkyEngine | null>(null);
   const shown = useRef<string | null>(null);
+  const onAskRef = useRef(onAsk);
+  onAskRef.current = onAsk;
   const onStopRef = useRef(onStop);
   onStopRef.current = onStop;
   const onExitRef = useRef(onExit);
@@ -69,7 +71,7 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
           fetch("/data/sky.json").then((r) => r.json() as Promise<SkyData>),
         ]);
         if (cancelled) return;
-        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onNavigate: (id) => onStopRef.current(id), onNav: setNav, onExit: () => onExitRef.current() });
+        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onAsk: (name) => onAskRef.current?.(name), onNavigate: (id) => onStopRef.current(id), onNav: setNav, onExit: () => onExitRef.current() });
         engineRef.current = engine;
         engine.init(data);
         setReady(true);

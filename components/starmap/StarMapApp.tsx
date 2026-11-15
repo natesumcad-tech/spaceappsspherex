@@ -374,7 +374,7 @@ export default function StarMapApp() {
       in_360_view_of: sphereRef.current ? byId(sphereRef.current)?.title : null,
       timeline: EPOCHS[e].label,
       imagery: st.layer === "2mass" ? "2MASS" : st.band >= 0 ? `SPHEREx ${SPHEREX_WL[st.band].toFixed(2)} µm` : "SPHEREx color",
-      hovering: hv?.wp?.title ?? hv?.planet ?? null,
+      hovering: hv?.wp?.title ?? hv?.object ?? hv?.planet ?? null,
       places_in_view: inView,
     };
   };
@@ -757,7 +757,7 @@ export default function StarMapApp() {
         createPortal(
           <div
             className="mv-pop"
-            key={hover.wp?.id ?? hover.planet}
+            key={hover.wp?.id ?? hover.stop ?? hover.planet}
             onPointerEnter={() => {
               overCard.current = true;
               if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -784,7 +784,7 @@ export default function StarMapApp() {
                 onTravel={() => viewerRef.current?.flyTo(hover.x, hover.y, 10, false)}
               />
             )}
-            <button className="mv-primary" onClick={() => askAbout(hover.wp?.title ?? hover.planet ?? "this object")}>Ask about this</button>
+            <button className="mv-primary" onClick={() => askAbout(hover.wp?.title ?? hover.object ?? hover.planet ?? "this object")}>Ask about {hover.wp?.title ?? hover.object ?? hover.planet ?? "this object"}</button>
           </div>,
           viewerRef.current.cardHost,
         )}
