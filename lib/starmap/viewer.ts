@@ -261,13 +261,27 @@ export class StarMapViewer {
       this.invalidate();
       return;
     }
-    this.uploadTile(job.key, job.L, job.i, job.j, px, partial ? `${job.version}|partial` : job.version);
-    if (partial) {
-      // Some downloads failed: keep what arrived, and try this tile again shortly.
-      this.tiles.get(job.key)!.retryAt = performance.now() + 2500;
-      setTimeout(() => this.invalidate(), 2600);
-    }
+    // Uploading a tile to the graphics card is the expensive part: queue it, and the frame loop
+    // uploads a couple per frame, so a burst of arrivals never freezes a frame.
+    this.uploads.push({ key: job.key, L: job.L, i: job.i, j: job.j, px, version: partial ? `${job.version}|partial` : job.version, partial });
     this.invalidate();
+  }
+
+  private uploads: { key: string; L: number; i: number; j: number; px: Uint8ClampedArray; version: string; partial: boolean }[] = [];
+  private drainUploads(max: number) {
+    let n = 0;
+    while (this.uploads.length && n < max) {
+      const u = this.uploads.shift()!;
+      if (!u.version.startsWith(this.version) || !this.wantedTileKeys.has(u.key)) continue; // scrolled away meanwhile
+      this.uploadTile(u.key, u.L, u.i, u.j, u.px, u.version);
+      n++;
+      if (u.partial) {
+        // Some downloads failed: keep what arrived, and try this tile again shortly.
+        this.tiles.get(u.key)!.retryAt = performance.now() + 2500;
+        setTimeout(() => this.invalidate(), 2600);
+      }
+    }
+    return this.uploads.length > 0;
   }
 
   dispose() {
@@ -423,6 +437,7 @@ export class StarMapViewer {
 
   /** Numbers on the major lines: along the axes when they're in view, else pinned to the screen edges. */
   private obstacles: { l: number; r: number; t: number; b: number }[] = [];
+  private gridLabelState: { cls: string; text: string; tf: string; on: boolean }[] = [];
   private obstaclesAt = 0;
   private updateGridLabels() {
     const layer = this.gridLabelLayer;
@@ -432,7 +447,7 @@ export class StarMapViewer {
     }
     layer.style.display = "";
     const { major, bounds: b } = this.gridInfo;
-    const w = this.container.clientWidth, h = this.container.clientHeight;
+    const w = this.vw, h = this.vh;
     const v = new THREE.Vector3();
     const pad = (b[1] - b[0]) * 0.04, padY = (b[3] - b[2]) * 0.06;
     // Anchor rows/columns: the axis if visible, otherwise just inside the bottom / left of the view
@@ -481,14 +496,18 @@ export class StarMapViewer {
     }
     this.gridLabels.forEach((el, k) => {
       const it = items[k];
+      const last = this.gridLabelState[k] ?? (this.gridLabelState[k] = { cls: "", text: "", tf: "", on: true });
       if (!it) {
-        el.style.display = "none";
+        if (last.on) el.style.display = "none";
+        last.on = false;
         return;
       }
-      el.style.display = "";
-      el.className = `mv-gl ${it.cls}`;
-      el.textContent = it.text;
-      el.style.transform = `translate(${it.x.toFixed(1)}px, ${it.y.toFixed(1)}px)`;
+      if (!last.on) el.style.display = "";
+      last.on = true;
+      const cls = `mv-gl ${it.cls}`, tf = `translate(${it.x.toFixed(1)}px, ${it.y.toFixed(1)}px)`;
+      if (cls !== last.cls) el.className = last.cls = cls;
+      if (it.text !== last.text) el.textContent = last.text = it.text;
+      if (tf !== last.tf) el.style.transform = last.tf = tf;
     });
   }
 
@@ -888,9 +907,10 @@ export class StarMapViewer {
     // Quadtree: split a tile while it would cover more than one tile's worth of screen pixels.
     const cam = this.camera.position;
     const camX = cam.x, camY = -cam.z, camH = cam.y;
-    const H = this.container.clientHeight || 1;
+    const H = this.vh;
     const q = this.settings.quality === "high" ? 1.6 : this.settings.quality === "low" ? 0.6 : Math.min(window.devicePixelRatio || 1, 1.5);
     let threshold = ((this.tilePx / H) * FOV * DEG) / q;
+    if (this.fast) threshold *= 2; // moving quickly: one level less detail (it sharpens when you slow down)
     let wanted: { L: number; i: number; j: number; dist: number }[] = [];
     for (let attempt = 0; attempt < 5; attempt++) {
       wanted = [];
@@ -1012,7 +1032,7 @@ export class StarMapViewer {
     tex.magFilter = THREE.LinearFilter;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.generateMipmaps = true;
-    tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    tex.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy()); // 4× keeps tilted tiles crisp; 16× costs up to 16 lookups per pixel
     tex.needsUpdate = true;
     e.tex?.dispose();
     e.tex = tex;
@@ -1059,7 +1079,7 @@ export class StarMapViewer {
   private nearStop: string | null = null;
 
   private updateOverlays() {
-    const w = this.container.clientWidth, h = this.container.clientHeight;
+    const w = this.vw, h = this.vh;
     const R = this.renderRadius;
     const v = new THREE.Vector3();
     const s = this.settings;
@@ -1352,11 +1372,48 @@ export class StarMapViewer {
 
   // ───────────────────────── Frame loop (on demand) ─────────────────────────
 
+  /** The map's size, measured on resize (reading it every frame forces the page to re-lay itself out). */
+  private vw = 1;
+  private vh = 1;
   private resize() {
     const w = this.container.clientWidth, h = this.container.clientHeight;
+    this.vw = w || 1;
+    this.vh = h || 1;
     this.renderer.setSize(w, h);
     this.camera.aspect = w / Math.max(1, h);
     this.invalidate();
+  }
+
+  private tilesAt = 0;
+
+  /** Moving fast (more than about half a screen per second)? Then go lighter until it calms down. */
+  private fast = false;
+  private calmSince = 0;
+  private lastPos = { x: 0, y: 0, d: 1 };
+  private fullDpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2);
+  private trackMotion(now: number, dt: number) {
+    const radius = this.d * Math.tan((FOV / 2) * DEG);
+    const moved = Math.hypot(this.target.x - this.lastPos.x, this.target.y - this.lastPos.y) + Math.abs(Math.log(this.d / this.lastPos.d)) * radius;
+    this.lastPos = { x: this.target.x, y: this.target.y, d: this.d };
+    const speed = dt > 0 ? moved / dt / Math.max(1e-6, radius) : 0;
+    if (speed > 0.5) {
+      this.calmSince = 0;
+      if (!this.fast) {
+        this.fast = true;
+        if (this.fullDpr > 1.2) this.setDpr(1); // fewer pixels while the view is a blur anyway
+      }
+    } else if (this.fast) {
+      this.calmSince ||= now;
+      if (now - this.calmSince > 180) {
+        this.fast = false;
+        if (this.fullDpr > 1.2) this.setDpr(this.fullDpr);
+        this.tilesAt = 0; // re-plan at full detail right away
+      }
+    }
+  }
+  private setDpr(r: number) {
+    this.renderer.setPixelRatio(r);
+    this.renderer.setSize(this.vw, this.vh);
   }
 
   private frame = () => {
@@ -1377,6 +1434,9 @@ export class StarMapViewer {
     }
     if (!this.tweens.length) this.warpT = 0; // an interrupted fly-to never leaves the streaks behind
     if (this.applyKeys(dt)) busy = true;
+    this.trackMotion(now, dt);
+    if (this.fast) busy = true; // keep drawing until we've switched back to full detail
+    if (this.drainUploads(this.fast ? 1 : 3)) busy = true;
 
     this.updateCamera();
     const R = this.renderRadius;
@@ -1386,7 +1446,12 @@ export class StarMapViewer {
     fog.near = camDist + R * 0.15;
     fog.far = camDist + R * 0.8;
 
-    if (this.updateTiles()) busy = true;
+    // Re-planning which tiles to show is the heaviest per-frame job: while the camera is moving it's
+    // plenty to do it ~14 times a second (the last plan stays on screen in between)
+    if (!(busy || this.drag) || now - this.tilesAt > 70) {
+      this.tilesAt = now;
+      if (this.updateTiles()) busy = true;
+    }
     this.updateImages();
     if (this.settings.grid) this.updateGrid();
     this.renderer.render(this.scene, this.camera);

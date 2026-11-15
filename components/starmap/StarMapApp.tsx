@@ -73,7 +73,24 @@ export default function StarMapApp() {
   const [centerCoord, setCenterCoord] = useState({ ra: 0, dec: 0 });
   const [hasMarker, setHasMarker] = useState(false);
   const [fovDeg, setFovDeg] = useState(10);
-  const lastHudSync = useRef(0);
+  /** Run `fn` at most every `ms` per key, always finishing with a last call once things settle. */
+  const throttles = useRef(new Map<string, { at: number; timer: ReturnType<typeof setTimeout> | null }>());
+  const throttle = (key: string, ms: number, fn: () => void) => {
+    const t = throttles.current.get(key) ?? { at: 0, timer: null };
+    throttles.current.set(key, t);
+    const now = performance.now();
+    if (now - t.at >= ms) {
+      t.at = now;
+      if (t.timer) clearTimeout(t.timer);
+      t.timer = null;
+      fn();
+    } else if (!t.timer)
+      t.timer = setTimeout(() => {
+        t.timer = null;
+        t.at = performance.now();
+        fn();
+      }, ms - (now - t.at));
+  };
   // Blink: two real SPHEREx passes of one spot
   const [blinkOpen, setBlinkOpen] = useState(false);
   const [blinkData, setBlinkData] = useState<FeaturedBlink | null>(null);
@@ -325,23 +342,29 @@ export default function StarMapApp() {
         viewer = new StarMapViewer(stageRef.current!, overlayRef.current!, sky, {
           onView: (v: View) => {
             viewRef.current = v;
-            minimapRef.current?.draw(v);
-            if (readoutRef.current) {
-              const [ra, dec] = viewer?.toRadec(v.x, v.y) ?? [0, 0];
-              const now = performance.now();
-              if (now - lastHudSync.current > 150) {
-                lastHudSync.current = now;
-                setCenterCoord({ ra, dec });
-                setFovDeg(Math.max(0.3, Math.min(60, v.radius * 2)));
-              }
-              readoutRef.current.innerHTML =
-                `<span><b>Center x</b> ${fmt(v.x)}°</span><span><b>Center y</b> ${fmt(v.y)}°</span>` +
+            // The map calls this every frame while moving: keep the page's own work light
+            throttle("minimap", 50, () => minimapRef.current?.draw(viewRef.current!));
+            throttle("readout", 100, () => {
+              const cur = viewRef.current!;
+              const [ra, dec] = viewerRef.current?.toRadec(cur.x, cur.y) ?? [0, 0];
+              const html =
+                `<span><b>Center x</b> ${fmt(cur.x)}°</span><span><b>Center y</b> ${fmt(cur.y)}°</span>` +
                 `<span><b>J2000 RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(dec)}°</span>` +
-                `<span><b>View</b> ${v.radius * 2 < 2 ? `${fmt(v.radius * 120, 0)}′` : `${fmt(v.radius * 2, 0)}°`}</span><span><b>Tilt</b> ${fmt((v.phi * 180) / Math.PI, 0)}°</span>`;
-            }
+                `<span><b>View</b> ${cur.radius * 2 < 2 ? `${fmt(cur.radius * 120, 0)}′` : `${fmt(cur.radius * 2, 0)}°`}</span><span><b>Tilt</b> ${fmt((cur.phi * 180) / Math.PI, 0)}°</span>`;
+              if (readoutRef.current && readoutRef.current.innerHTML !== html) readoutRef.current.innerHTML = html;
+            });
+            // React state (re-renders the page): a few times a second, and once more when the view settles
+            throttle("hud", 250, () => {
+              const cur = viewRef.current!;
+              const [ra, dec] = viewerRef.current?.toRadec(cur.x, cur.y) ?? [0, 0];
+              setCenterCoord((p) => (Math.abs(p.ra - ra) < 1e-5 && Math.abs(p.dec - dec) < 1e-5 ? p : { ra, dec }));
+              const f = Math.max(0.3, Math.min(60, cur.radius * 2));
+              setFovDeg((p) => (Math.abs(p - f) < 1e-4 ? p : f));
+            });
             if (loadingRef.current) {
-              loadingRef.current.style.opacity = v.loading ? "1" : "0";
-              loadingRef.current.textContent = `Loading IRSA tiles · ${v.loading}`;
+              const text = `Loading IRSA tiles · ${v.loading}`, op = v.loading ? "1" : "0";
+              if (loadingRef.current.style.opacity !== op) loadingRef.current.style.opacity = op;
+              if (v.loading && loadingRef.current.textContent !== text) loadingRef.current.textContent = text;
             }
             if (v.mode !== modeRef.current) {
               modeRef.current = v.mode;
