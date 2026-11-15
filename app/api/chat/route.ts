@@ -6,7 +6,7 @@ import { LANDMARKS, EXTRA_LANDMARKS } from "@/lib/explorer/landmarks";
 // (fly somewhere, open a 360° view, change the date or imagery). Uses Google's Gemini API.
 // Set GEMINI_API_KEY in the environment (Vercel → Settings → Environment Variables). GEMINI_MODEL is optional.
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 /** Optional: route requests through a proxy or a local test server. */
 const BASE = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com";
 const MAX_TURNS = 14;
@@ -32,7 +32,7 @@ How to help:
   Use show_place for anything in the place list, show_constellation / show_star for those, and show_sky_position
   with J2000 RA/Dec in degrees for any other object you are confident about. Set open_360 true only if they ask to step inside / see it in 360°.
 - If a request is ambiguous, ask one short clarifying question instead of guessing.
-- Always call suggest_followups with 2–3 short follow-up questions the user might ask next (under 8 words each).
+- When useful, call suggest_followups with 2 short follow-up questions (under 8 words each). Prioritize answering promptly.
 - Say so if you are not sure of a fact. Never invent SPHEREx results or data that the app does not show.
 
 Places you can show (id: name):
@@ -122,12 +122,18 @@ export async function POST(req: Request) {
   try {
     const res = await fetch(`${BASE}/v1beta/models/${MODEL}:generateContent`, {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: `${SYSTEM}\n\nWhat the user is looking at right now (JSON): ${context}` }] },
         contents: messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
         tools: TOOLS,
-        generationConfig: { temperature: 0.4, maxOutputTokens: 700 },
+        generationConfig: {
+          maxOutputTokens: 2048,
+          ...(MODEL.startsWith("gemini-3") ? {
+            thinkingConfig: { thinkingLevel: MODEL.includes("flash-lite") ? "minimal" : "low" },
+          } : {}),
+        },
       }),
     });
     const data = await res.json();
@@ -143,6 +149,9 @@ export async function POST(req: Request) {
     const actions = parts.filter((p) => p.functionCall).map((p) => ({ name: p.functionCall!.name, args: p.functionCall!.args ?? {} }));
     return NextResponse.json({ reply, actions });
   } catch (e) {
+    if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      return NextResponse.json({ error: "timeout" }, { status: 504 });
+    }
     console.error("Gemini request failed", e);
     return NextResponse.json({ error: "upstream" }, { status: 502 });
   }

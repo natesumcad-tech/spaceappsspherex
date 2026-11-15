@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 
 export const site = {
-  teamName: "Team Big Band", 
+  teamName: "Team BigBang",
   projectName: "Sky Explorer",
   tagline:
     "Step inside the sky NASA's SPHEREx is mapping: real stars, planets and the Milky Way in 360°.",

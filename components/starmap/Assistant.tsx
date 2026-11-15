@@ -55,7 +55,9 @@ export default function Assistant({
         const msg =
           data.error === "not_configured"
             ? "I'm not switched on yet: this site needs a Gemini API key. Add GEMINI_API_KEY in Vercel (Settings → Environment Variables) and redeploy."
-            : "I couldn't reach the AI service just now. Please try again in a moment.";
+            : data.error === "timeout"
+              ? "The AI service is taking too long to respond. Please try again."
+              : "I couldn't reach the AI service just now. Please try again in a moment.";
         setMessages((m) => [...m, { role: "model", text: msg }]);
         return;
       }
