@@ -1,50 +1,95 @@
-# SPHEREx Sky Explorer — NASA Space Apps
+# Sky Explorer (SPHEREx)
 
-An interactive 2D/3D map of the infrared sky built for the **NASA Space Apps Challenge** (Planet X & SPHEREx). Built with Next.js, Three.js, and deployed on Vercel.
+An interactive 2D/3D map of the infrared sky built for the **NASA Space Apps Challenge** (Planet X & SPHEREx). Users stream live SPHEREx Data Release 1 imagery from NASA/IPAC IRSA, jump to J2000 coordinates or benchmark targets, blink 6-month passes to spot moving objects, step into 360° views of landmarks and constellations, and ask a Gemini-powered Sky Guide to navigate the map.
 
-## What's in here
+## How It Works
 
-- **Galaxy view (opens first):** The tool starts zoomed out among the Milky Way, its satellites, Andromeda and nearby galaxies out to M87, at real distances. Zoom into the Sun and the constellation stars resolve at their real 3D positions, then the view hands over to the sky map; scroll far out (or press ⊙) to return. See `lib/starmap/cosmic.ts`.
-- **Sky Map (`/map`):** A Google Maps-style sky viewer with a **2D / 3D** toggle, live-streamed **SPHEREx Data Release 1** HiPS tiles from NASA/IPAC IRSA (1.0 / 2.2 / 3.3 µm color, all 102 individual bands, plus 2MASS and Spitzer layers), a **12,000 BCE – 14,000 CE** timeline, and custom waypoints (`Shift+G` to drop, export/import as JSON).
-- **360° Views (`/explore`):** Step inside 14+ landmark stops, planets, bright stars, and all 88 constellations (built in 3D from real star distances). Includes Look / Orbit / Free-fly controls, hotspots, portals, and **PNG / JPG / WEBP** image export.
-- **Sky Guide (AI Assistant):** Press `/` or click **✦ Ask** to chat with a Gemini-powered guide that knows what you're looking at and can fly the camera, switch imagery layers, or jump to timeline dates.
+1. **Explore the sky** at `/map` in 2D or tilted 3D using Google Maps-style pan, orbit, and zoom
+2. **Switch imagery** between SPHEREx color (1.0 / 2.2 / 3.3 µm), any of the 102 individual bands, 2MASS, or Spitzer layers
+3. **Jump to coordinates** using the RA/Dec search bar (HMS/DMS or decimal) or the 5 SPHEREx benchmark target presets
+4. **Blink & compare** sequential 6-month SPHEREx passes (`Normal`, `B − A` subtract, `B + A` add) with an adjustable FOV slider
+5. **Step inside 360° views** of landmarks, planets, bright stars, and 3D constellations, and export snapshots as PNG, JPG, or WEBP
+6. **Ask the Sky Guide** (`/` or **✦ Ask**) to explain what's in view or fly the camera directly to any target
 
-## Running locally
+## Architecture
+
+```
+Browser (Next.js + Three.js)  ──▶  /api/chat (Next.js Route)  ──▶  Gemini API
+         │
+         ├── Web Worker (HEALPix)  ──▶  NASA/IPAC IRSA (SPHEREx DR1 / 2MASS / Spitzer)
+         └── Static / Local Data   ──▶  Hipparcos / HYG v4.1 (sky.json) + localStorage waypoints
+```
+
+- **Frontend**: Next.js (App Router) + Three.js rendering the 2D/3D tile quadtree, overlays, 360° sphere engine, and HUD. Deployed on Vercel.
+- **Worker**: Background Web Worker (`tile.worker.ts`) downloading and reprojecting HEALPix HiPS tiles onto the RA/Dec grid.
+- **AI Backend**: `/api/chat` (`app/api/chat/route.ts`) calling Google's Gemini API with function declarations to drive map navigation, timeline, and imagery.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 16, React 19, TypeScript, Three.js |
+| Sky Imagery | NASA/IPAC IRSA HiPS tiles (SPHEREx DR1, 2MASS, Spitzer) |
+| Star Catalog | Hipparcos / HYG v4.1 (`d3-celestial`) |
+| Tile Processing | Web Workers + custom HEALPix reprojection |
+| AI Assistant | Gemini API (`gemini-2.5-flash`) with function calling |
+| Deployment | Vercel |
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- A Gemini API key (optional, for the Sky Guide chatbot)
+
+### Run Locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open `http://localhost:3000` (or `http://localhost:3000/map` for the Sky Explorer).
 
-To enable the AI Sky Guide locally, create `.env.local` in the project root:
+### Environment Variables
 
-```env
-GEMINI_API_KEY=your_key_here
+Create `.env.local` in the project root (or set in **Vercel → Settings → Environment Variables**):
+
+- `GEMINI_API_KEY` — Google AI Studio API key for `/api/chat`
+- `GEMINI_MODEL` — Optional model override (defaults to `gemini-2.5-flash`)
+
+## Project Structure
+
+```
+app/
+  api/chat/route.ts         # Gemini API endpoint with map-control tools
+  map/                      # 2D/3D Sky Explorer page & styles
+  explore/                  # 360° view styles
+  page.tsx                  # Landing page
+components/
+  starmap/
+    StarMapApp.tsx          # Map HUD, minimap, timeline, settings, waypoints
+    CoordSearchBar.tsx      # J2000 RA/Dec search, benchmark presets, shareable URLs
+    BlinkPlayer.tsx         # 6-month time-series player, B-A/B+A, FOV slider
+    Assistant.tsx           # Sky Guide chat UI
+  explorer/
+    Explorer.tsx            # 360° sphere viewer & PNG/JPG/WEBP export
+lib/
+  starmap/                  # Three.js viewer, HEALPix/IRSA HiPS, coords, cosmic data
+  explorer/                 # 360° engine, landmarks, textures, dynamic views
+content/
+  site.ts                   # Team info, project description, links
+scripts/
+  build-sky-data.mjs        # Rebuilds public/data/sky.json from star catalog
 ```
 
-## Deploy to Vercel
+## Testing
 
-1. Import `spaceappsspherex` on [vercel.com/new](https://vercel.com/new).
-2. Add `GEMINI_API_KEY` under **Settings → Environment Variables** (optional: `GEMINI_MODEL`, defaults to `gemini-2.5-flash`).
-3. Deploy.
+```bash
+npx tsc --noEmit
+node tests/zoom-policy.test.mjs
+```
 
-## Project structure
+## License
 
-| Path | Purpose |
-| --- | --- |
-| `app/map/page.tsx` | Main 2D/3D Sky Explorer page |
-| `app/api/chat/route.ts` | Gemini API endpoint with map-control function calling |
-| `components/starmap/` | Map UI, minimap, timeline, settings, and AI assistant |
-| `components/explorer/` | 360° sphere viewer and PNG/JPG/WEBP export |
-| `lib/starmap/` | Three.js tile quadtree, HEALPix/IRSA HiPS worker, coordinates |
-| `lib/explorer/` | 360° engine, landmarks, procedural textures, dynamic views |
-| `content/site.ts` | Team info, project description, and links |
-| `scripts/build-sky-data.mjs` | Rebuilds `public/data/sky.json` from the star catalog |
-
-## Data & credits
-
-- **Infrared sky:** NASA/IPAC Infrared Science Archive (IRSA) — SPHEREx DR1, 2MASS, Spitzer
-- **Stars & constellations:** Hipparcos via `d3-celestial` (BSD-3-Clause); star distances from the HYG database v4.1 (CC BY-SA 4.0)
-- **License:** MIT
+MIT
