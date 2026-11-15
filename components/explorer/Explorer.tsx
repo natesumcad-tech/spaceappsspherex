@@ -20,7 +20,7 @@ const LANGS = [
  * The 360° sphere view, shown inside the Star Map page. The parent owns which stop is open
  * (`stopId`) and is told when the viewer wants another stop or wants to go back to the map.
  */
-export default function SphereView({ stopId, onStop, onExit }: { stopId: string; onStop: (id: string) => void; onExit: () => void }) {
+export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: (name: string) => void; stopId: string; onStop: (id: string) => void; onExit: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
@@ -304,6 +304,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
                   <button onClick={() => onStop(next.id)}>{next.title} →</button>
                 </div>
               )}
+              {onAsk && <button className="xp-back" onClick={() => onAsk(current.title)}>Ask about {current.title}</button>}
               <button className="xp-back" onClick={onExit}>
                 Back to the map (Esc)
               </button>
