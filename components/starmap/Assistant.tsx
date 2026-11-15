@@ -20,7 +20,7 @@ export default function Assistant({
   runAction,
   draft,
 }: {
-  /** Prefill the question box; `send` asks it straight away (the campaign's question chips). */
+  /** Prefill the question box; `send` asks it straight away (e.g. a suggested question). */
   draft?: { id: number; text: string; send?: boolean } | null;
   open: boolean;
   onClose: () => void;

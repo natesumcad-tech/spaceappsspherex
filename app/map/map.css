@@ -967,7 +967,7 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .mv-reticle-ring { width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 1px; transform: rotate(45deg); background: #ac8d55; border: 2px solid #f4e2bf; }
 .mv-reticle-label { color: #f4e2bf; border-color: #b79b68; font-weight: 700; }
 
-/* Three site tabs: on phones the top row wraps instead of pushing Ask and Search off screen */
+/* On phones the top row wraps instead of pushing Ask and Search off screen */
 @media (max-width: 760px) {
   .mv-top-row { flex-wrap: wrap; max-width: calc(100vw - 28px); }
 }
@@ -981,6 +981,7 @@ button.cv-label:hover { background: #fff; color: #171512; }
   transition: left 0.4s cubic-bezier(0.3, 0.7, 0.3, 1), top 0.4s cubic-bezier(0.3, 0.7, 0.3, 1), width 0.4s cubic-bezier(0.3, 0.7, 0.3, 1), height 0.4s cubic-bezier(0.3, 0.7, 0.3, 1);
   animation: tour-fade 0.3s ease both;
 }
+.tour-spot.follow { transition: none; } /* sticks to a label as the map moves, instead of trailing it */
 .tour.trying .tour-spot { box-shadow: 0 0 0 9999px rgba(12, 10, 6, 0.18), 0 0 0 2px rgba(247, 239, 223, 0.9); }
 .tour-card {
   position: absolute; pointer-events: auto; overflow: hidden;
@@ -1021,6 +1022,7 @@ button.cv-label:hover { background: #fff; color: #171512; }
   box-shadow: 0 20px 50px -18px rgba(20, 14, 6, 0.6); font-size: 0.84rem; animation: tour-drop 0.4s ease both;
 }
 .tour-check { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #3d5a28; color: #fff; font-size: 0.7rem; flex: none; }
+.tour-check.muted { background: #8a7f6f; font-style: italic; font-family: Georgia, serif; }
 .mv-tour-btn { font-weight: 700; }
 @keyframes tour-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tour-drop { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }

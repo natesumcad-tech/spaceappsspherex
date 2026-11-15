@@ -572,7 +572,7 @@ export class StarMapViewer {
     el.addEventListener("blur", () => this.events.onHover(null));
     el.addEventListener("pointerdown", e => e.stopPropagation());
     el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
-    el.addEventListener("click", () => !this.locked && (el.classList.contains("near") ? this.events.onEnter(stop) : this.flyTo(x, y, flyD, false)));
+    el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.flyTo(x, y, flyD, false)));
   }
 
   private addOverlay(kind: Overlay["kind"], text: string, x: number, y: number, o: { maxD?: number; minD?: number }) {
@@ -615,7 +615,7 @@ export class StarMapViewer {
       el.addEventListener("blur", () => this.events.onHover(null));
       el.addEventListener("pointerdown", (e) => e.stopPropagation());
       // Street View style: the first click flies you there, a second click (once you've arrived) steps inside.
-      el.addEventListener("click", () => !this.locked && (el.classList.contains("near") ? this.events.onEnter(stop) : this.travelTo(wp)));
+      el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.travelTo(wp)));
       this.overlayLayer.appendChild(el);
       this.overlays.push({ el, x, y, kind: "wp", wp, stop });
     }
@@ -740,8 +740,7 @@ export class StarMapViewer {
   }
 
   /** Place a subtle target reticle at J2000 (ra, dec) in degrees. */
-  /** `markerText`: the words on the marker itself (defaults to "Destination"). */
-  setTargetMarker(ra: number, dec: number, label?: string, markerText?: string) {
+  setTargetMarker(ra: number, dec: number, label?: string) {
     this.reticlePos = { ra, dec };
     this.reticle.className = "mv-reticle";
     this.reticle.replaceChildren();
@@ -749,7 +748,7 @@ export class StarMapViewer {
     diamond.className = "mv-reticle-ring";
     const caption = document.createElement("span");
     caption.className = "mv-reticle-label";
-    caption.textContent = markerText ?? "Destination";
+    caption.textContent = "Destination";
     this.reticle.append(diamond, caption);
     this.reticle.title = `${label ?? "Destination"} · J2000 RA ${ra.toFixed(8)}°, Dec ${dec.toFixed(8)}°`;
     this.reticle.setAttribute("role", "img");
@@ -789,14 +788,6 @@ export class StarMapViewer {
   private animate(ms: number, step: (t: number) => void, done?: () => void) {
     this.tweens.push({ start: performance.now(), ms, step, done });
     this.invalidate();
-  }
-
-  /** Locked (the guided campaign): the map keeps drawing and flying, but the visitor can't steer it. */
-  private locked = false;
-  setLocked(on: boolean) {
-    this.locked = on;
-    this.keys.clear();
-    this.drag = null;
   }
 
   /** While a sphere is open the map sits idle and ignores the mouse and keyboard. */
@@ -1190,7 +1181,7 @@ export class StarMapViewer {
   private bindInput() {
     const el = this.renderer.domElement;
     const onDown = (e: PointerEvent) => {
-      if (!this.enabled || this.locked) return;
+      if (!this.enabled) return;
       if (e.pointerType === "touch") {
         this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
         el.setPointerCapture(e.pointerId);
@@ -1242,7 +1233,7 @@ export class StarMapViewer {
     let pushOut = 0;
     let pushIn = 0;
     const onWheel = (e: WheelEvent) => {
-      if (!this.enabled || this.locked) return;
+      if (!this.enabled) return;
       e.preventDefault();
       if (performance.now() < this.lockedUntil) return; // the leftover scrolls that left a 360° view don't hijack its cutscene
       // Already as far out as the sky map goes? A few more scrolls out and we leave for the galaxies.
@@ -1274,7 +1265,7 @@ export class StarMapViewer {
     const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
     const camKeys = ["w", "a", "s", "d", "q", "e", "r", "f", "z", "x", "=", "+", "-", "arrowup", "arrowdown", "arrowleft", "arrowright"];
     const onKey = (e: KeyboardEvent) => {
-      if (!this.enabled || this.locked || typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!this.enabled || typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (camKeys.includes(k) && !(e.shiftKey && k === "g")) {
         this.keys.add(k);

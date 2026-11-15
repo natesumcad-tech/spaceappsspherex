@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STEPS, type Step } from "@/lib/ui/tourSteps";
 
@@ -31,22 +30,28 @@ function markTourDone() {
   } catch {}
 }
 
-/** The visible diamond or planet nearest the middle of the screen (not hidden under a panel). */
-function findLandmark(): HTMLElement | null {
+/** A planet (or else a constellation) label near the middle of the screen, not hidden under a panel: things with a 3D view. */
+function find3D(): HTMLElement | null {
   const w = window.innerWidth, h = window.innerHeight;
-  let best: HTMLElement | null = null, bestD = Infinity;
-  document.querySelectorAll<HTMLElement>(".mv-overlay .mv-wp, .mv-overlay .mv-planet").forEach((el) => {
-    if (el.style.display === "none") return;
-    const r = el.getBoundingClientRect();
-    if (!r.width || r.left < 40 || r.right > w - 40 || r.top < 180 || r.bottom > h - 160) return;
-    const d = Math.hypot(r.left - w / 2, r.top - h / 2);
-    if (d < bestD) (best = el), (bestD = d);
-  });
-  return best;
+  for (const sel of [".mv-overlay .mv-planet.link", ".mv-overlay .mv-con.link"]) {
+    let best: HTMLElement | null = null, bestD = Infinity;
+    document.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+      if (el.style.display === "none") return;
+      const r = el.getBoundingClientRect();
+      if (!r.width || r.left < 40 || r.right > w - 40 || r.top < 180 || r.bottom > h - 160) return;
+      const d = Math.hypot(r.left - w / 2, r.top - h / 2);
+      if (d < bestD) (best = el), (bestD = d);
+    });
+    if (best) return best;
+  }
+  return null;
 }
 
+/** 360° views you can fly around in 3D (a landmark's "sky" view is a flat image). */
+const IS_3D = ["constellation", "planet", "star", "galaxy", "orbit"];
+
 function findOne(sel: string): HTMLElement | null {
-  const el = sel === "visible-landmark" ? findLandmark() : document.querySelector<HTMLElement>(sel);
+  const el = sel === "visible-3d" ? find3D() : document.querySelector<HTMLElement>(sel);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight ? el : null;
@@ -58,7 +63,10 @@ const selectors = (s: Step) => (s.target ? (Array.isArray(s.target) ? s.target :
 /** One box around all of a step's controls. */
 function targetRect(els: HTMLElement[]) {
   if (!els.length) return null;
-  const rs = els.map((e) => e.getBoundingClientRect());
+  // A planet's element is just an anchor point: its dot and name are what you see
+  const parts = els.flatMap((e) => (e.matches(".mv-planet") ? [...e.querySelectorAll<HTMLElement>(":scope > i, :scope > span")] : [e]));
+  const rs = (parts.length ? parts : els).map((e) => e.getBoundingClientRect()).filter((r) => r.width || r.height);
+  if (!rs.length) return null;
   const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top));
   return { left: l, top: t, width: Math.max(...rs.map((r) => r.right)) - l, height: Math.max(...rs.map((r) => r.bottom)) - t };
 }
@@ -73,6 +81,7 @@ export default function Tutorial({
   hidden,
   mode,
   inSphere,
+  sphereKind,
   onClose,
 }: {
   open: boolean;
@@ -80,6 +89,8 @@ export default function Tutorial({
   hidden: boolean;
   mode: "2d" | "3d";
   inSphere: boolean;
+  /** What kind of 360° view is open (to tell 3D scenes from flat images). */
+  sphereKind: string | null;
   onClose: () => void;
 }) {
   const [i, setI] = useState(0);
@@ -105,7 +116,7 @@ export default function Tutorial({
   const go = useCallback(
     (to: number) => {
       let n = to;
-      while (n > 0 && n < STEPS.length - 1 && STEPS[n].target && STEPS[n].target !== "visible-landmark" && !selectors(STEPS[n]).some(findOne)) n += to >= i ? 1 : -1;
+      while (n > 0 && n < STEPS.length - 1 && STEPS[n].target && STEPS[n].target !== "visible-3d" && !selectors(STEPS[n]).some(findOne)) n += to >= i ? 1 : -1;
       setDid(false);
       setModeChanges(0);
       setI(Math.max(0, Math.min(STEPS.length - 1, n)));
@@ -127,10 +138,11 @@ export default function Tutorial({
     });
   }, [mode, open, hidden, i]);
 
-  // 360° step: done the moment they step inside one
+  // 360° step: done the moment they step inside a 3D one
+  const in3D = inSphere && IS_3D.includes(sphereKind ?? "");
   useEffect(() => {
-    if (open && inSphere && STEPS[i].wait?.kind === "sphere") setDid(true);
-  }, [open, inSphere, i]);
+    if (open && in3D && STEPS[i].wait?.kind === "sphere") setDid(true);
+  }, [open, in3D, i]);
 
   // Keep the spotlight on its control(s) as panels move and the map animates
   useEffect(() => {
@@ -209,10 +221,17 @@ export default function Tutorial({
   if (!open) return null;
   if (hidden)
     return step.wait?.kind === "sphere" && inSphere ? (
-      <div className="tour-banner" role="status">
-        <span className="tour-check" aria-hidden="true">✓</span>
-        You&apos;re in a 360° view. Look around, then scroll out or press Esc to finish the tour.
-      </div>
+      in3D || did ? (
+        <div className="tour-banner" role="status">
+          <span className="tour-check" aria-hidden="true">✓</span>
+          You&apos;re inside in 3D! Fly with W A S D, then scroll out or press Esc to finish the tour.
+        </div>
+      ) : (
+        <div className="tour-banner" role="status">
+          <span className="tour-check muted" aria-hidden="true">i</span>
+          This one&apos;s a flat SPHEREx image. Press Esc and try a planet or constellation to fly around in 3D.
+        </div>
+      )
     ) : null;
 
   const pad = 6;
@@ -234,7 +253,7 @@ export default function Tutorial({
   return (
     <div className={`tour ${step.wait ? "trying" : ""}`}>
       {rect ? (
-        <div className="tour-spot" style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} aria-hidden="true" />
+        <div className={`tour-spot ${step.target === "visible-3d" ? "follow" : ""}`} style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} aria-hidden="true" />
       ) : (
         !step.wait && <div className="tour-dim" aria-hidden="true" />
       )}
@@ -275,14 +294,9 @@ export default function Tutorial({
                 </button>
               )}
               {last ? (
-                <>
-                  <Link className="tour-ghost" href="/campaign" onClick={markTourDone}>
-                    Try the Campaign
-                  </Link>
-                  <button className="tour-go" onClick={finish} ref={focusQuietly}>
-                    Start exploring
-                  </button>
-                </>
+                <button className="tour-go" onClick={finish} ref={focusQuietly}>
+                  Start exploring
+                </button>
               ) : (
                 !step.wait && (
                   <button className="tour-go" onClick={() => go(i + 1)} ref={focusQuietly}>

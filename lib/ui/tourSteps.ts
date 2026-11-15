@@ -1,4 +1,4 @@
-/** The Sky Explorer tour's steps (plain data, so the server can check what the voice may read). */
+/** The Sky Explorer tour's steps. */
 
 export type Wait = "move" | "hover" | "modes" | "sphere";
 export type Step = {
@@ -27,10 +27,10 @@ export const STEPS: Step[] = [
     wait: { kind: "modes", prompt: "" },
   },
   {
-    target: "visible-landmark",
-    title: "Step inside",
-    body: "Every planet, star and diamond has a 360° view. Click one to fly there, then click it again to step inside.",
-    wait: { kind: "sphere", prompt: "Open any 360° view" },
+    target: "visible-3d",
+    title: "Step inside in 3D",
+    body: "Planets and constellations are real 3D scenes. Click one to fly there, then click it again to step inside and fly around it.",
+    wait: { kind: "sphere", prompt: "Open a planet or constellation" },
   },
   {
     target: [".mv-search-btn", ".mv-ask"],
@@ -52,6 +52,3 @@ export const STEPS: Step[] = [
     body: "Press the ? button any time to see this again.",
   },
 ];
-
-/** What the guide reads aloud for a step. */
-export const stepSpeech = (s: Step) => `${s.title}. ${s.body}`;
