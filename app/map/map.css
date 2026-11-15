@@ -1031,3 +1031,8 @@ button.cv-label:hover { background: #fff; color: #171512; }
   .tour-spot, .tour-card, .tour-bar span { transition: none; }
   .tour-card, .tour-inner, .tour-dim, .tour-spot, .tour-banner, .tour-chip.live::before { animation: none; }
 }
+
+/* The "View in 360°" pill under a label you've arrived at is a button too: it steps inside */
+.mv-wp.near .mv-360, .mv-planet.link.near .mv-360, .mv-con.link.near .mv-360, .mv-star.link.near .mv-360 { pointer-events: auto; cursor: pointer; }
+.mv-ov.near .mv-360:hover, .mv-wp.near .mv-360:hover { background: #171512; color: #f7efdf; }
+.mv-ov.near .mv-360:hover::before, .mv-wp.near .mv-360:hover::before { color: #f7efdf; }
