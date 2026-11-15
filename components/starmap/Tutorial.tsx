@@ -17,6 +17,13 @@ export function tourDone() {
     return false;
   }
 }
+/** Testing helper: forget that this browser has seen the tour. */
+export function resetTour() {
+  document.cookie = `${COOKIE}=; max-age=0; path=/; SameSite=Lax`;
+  try {
+    localStorage.removeItem(STORE);
+  } catch {}
+}
 function markTourDone() {
   document.cookie = `${COOKIE}=1; max-age=${60 * 60 * 24 * 365}; path=/; SameSite=Lax`;
   try {

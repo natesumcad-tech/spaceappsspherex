@@ -2,6 +2,7 @@ import PageTransition from "@/components/PageTransition";
 import Image from "next/image";
 import Link from "next/link";
 import SiteTabs from "@/components/SiteTabs";
+import ResetTutorialButton from "@/components/ResetTutorialButton";
 import ScrollReveal from "@/components/ScrollReveal";
 import SpectrumExplorer from "@/components/SpectrumExplorer";
 import { site, project, team, mission, resources } from "@/content/site";
@@ -23,10 +24,13 @@ export default function Home() {
       <header className="h-hero">
         <div className="h-sky" aria-hidden="true" />
         <div className="h-nav">
-          <Link href="/" className="h-logo">
-            <span className="h-logo-mark" aria-hidden="true" />
-            {site.teamName}
-          </Link>
+          <div className="h-brand">
+            <Link href="/" className="h-logo">
+              <span className="h-logo-mark" aria-hidden="true" />
+              {site.teamName}
+            </Link>
+            <ResetTutorialButton />
+          </div>
           <SiteTabs active="home" />
         </div>
 
