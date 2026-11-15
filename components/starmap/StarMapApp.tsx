@@ -313,7 +313,12 @@ export default function StarMapApp() {
 
   // Load settings & custom waypoints saved in this browser
   useEffect(() => {
-    setSettings({ ...DEFAULT_SETTINGS, ...load(STORE_SETTINGS, {}) });
+    // Modest devices (e.g. school Chromebooks) start in low quality so the map stays smooth; any choice
+    // the visitor saves in Settings wins.
+    const saved = load<Partial<Settings>>(STORE_SETTINGS, {});
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const modest = (nav.hardwareConcurrency || 8) <= 4 || (nav.deviceMemory ?? 8) <= 4;
+    setSettings({ ...DEFAULT_SETTINGS, ...(modest && !saved.quality ? { quality: "low" as const } : {}), ...saved });
     setCustom(load<Waypoint[]>(STORE_WP, []));
     if (window.innerWidth < 800) setHelp(false);
   }, []);
@@ -663,7 +668,7 @@ export default function StarMapApp() {
   const ep = EPOCHS[epoch];
 
   return (
-    <div ref={rootRef} className={`mv ${toolsOpen ? "tools-open" : ""} ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
+    <div ref={rootRef} role="main" aria-label="Sky Explorer: an interactive map of the infrared sky" className={`mv ${toolsOpen ? "tools-open" : ""} ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
       <div ref={stageRef} className="mv-stage">
         <div ref={overlayRef} className="mv-overlay" />
       </div>

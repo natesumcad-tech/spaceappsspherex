@@ -61,7 +61,7 @@ plt.show()`;
   return (
     <div className="bk-wrap" role="dialog" aria-label="Real SPHEREx data at this spot">
       <div className="bk-card dp-card">
-        <header className="bk-head">
+        <div className="bk-head">
           <div>
             <span className="bk-kicker">Get the real data</span>
             <h2>
@@ -71,7 +71,7 @@ plt.show()`;
           <button className="bk-x" onClick={onClose} aria-label="Close">
             ×
           </button>
-        </header>
+        </div>
         <p className="bk-story">
           Everything on this map comes from public NASA archives. Here are the actual SPHEREx images of the middle of your view: the
           same files astronomers download.

@@ -122,7 +122,7 @@ export default function BlinkViewer({
   return (
     <div className="bk-wrap" role="dialog" aria-label="SPHEREx blink viewer">
       <div className="bk-card">
-        <header className="bk-head">
+        <div className="bk-head">
           <div>
             <span className="bk-kicker">Blink · real SPHEREx passes</span>
             <h2>{data?.title ?? (data ? "This patch of sky, six months apart" : "Blink two SPHEREx passes")}</h2>
@@ -130,7 +130,7 @@ export default function BlinkViewer({
           <button className="bk-x" onClick={onClose} aria-label="Close the blink viewer">
             ×
           </button>
-        </header>
+        </div>
 
         {loading && (
           <div className="bk-state">

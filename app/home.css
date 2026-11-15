@@ -515,3 +515,5 @@
 .h-credits b { font-size: 0.9rem; }
 .h-credits b a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .h-credits span { font-size: 0.82rem; line-height: 1.5; opacity: 0.8; }
+
+.h-fine { color: #5c5348 !important; } /* readable contrast (WCAG AA) */
