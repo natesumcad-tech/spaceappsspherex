@@ -123,6 +123,7 @@ export default function StarMapApp() {
   const [intro, setIntro] = useState(false);
   const [tour, setTour] = useState(false);
   const [questOpen, setQuestOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false); // phones: coordinates and Blink live behind a button
   const questTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (questTimer.current && clearTimeout(questTimer.current)), []);
   // The page is a fixed, full-screen map: if focusing something ever scrolls it, snap straight back
@@ -662,7 +663,7 @@ export default function StarMapApp() {
   const ep = EPOCHS[epoch];
 
   return (
-    <div ref={rootRef} className={`mv ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
+    <div ref={rootRef} className={`mv ${toolsOpen ? "tools-open" : ""} ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
       <div ref={stageRef} className="mv-stage">
         <div ref={overlayRef} className="mv-overlay" />
       </div>
@@ -758,6 +759,9 @@ export default function StarMapApp() {
           ✦ Ask
         </button>
         <Search items={searchItems} onPick={pickSearch} />
+        <button className={`mv-glass mv-tools-btn ${toolsOpen ? "on" : ""}`} onClick={() => setToolsOpen((o) => !o)} aria-expanded={toolsOpen} aria-label="Coordinates and Blink tools">
+          Tools
+        </button>
         </div>
         <CoordSearchBar
           centerRa={centerCoord.ra}
@@ -840,7 +844,7 @@ export default function StarMapApp() {
             </svg>
           </button>
         </div>
-        <Collapsible id="map-overview" className="mv-glass mv-minicard" title={<span className="cl-label">Overview</span>} summary={layerById(settings.layer).name}>
+        <Collapsible id="map-overview" closedOnSmall className="mv-glass mv-minicard" title={<span className="cl-label">Overview</span>} summary={layerById(settings.layer).name}>
           <Minimap ref={minimapRef} onMove={(x, y) => viewerRef.current?.setTarget(x, y)} />
           <button className="mv-data-btn" onClick={() => setDataAt({ ...centerCoord })} title="The real SPHEREx images of the middle of your view, ready to download">
             ⇩ Get the real data here
@@ -907,9 +911,17 @@ export default function StarMapApp() {
       />
 
       {/* Controls help */}
-      <Collapsible id="map-controls" className="mv-glass mv-help" title={<span className="cl-label">Controls</span>} defaultOpen={help}>
+      <Collapsible id="map-controls" closedOnSmall className="mv-glass mv-help" title={<span className="cl-label">Controls</span>} defaultOpen={help}>
         {(
-          <ul>
+          <>
+          <ul className="mv-touch-help">
+            <li><b>Move</b> drag with one finger</li>
+            <li><b>Zoom</b> pinch · double-tap to zoom in</li>
+            <li><b>Rotate</b> twist two fingers</li>
+            <li><b>Tilt into 3D</b> slide two fingers up or down</li>
+            <li><b>360° view</b> tap any planet, star or constellation name to fly there, then tap it again</li>
+          </ul>
+          <ul className="mv-key-help">
             <li><b>Pan</b> middle-drag · left-drag · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></li>
             <li><b>Orbit</b> <kbd>Shift</kbd> + middle-drag · right-drag · <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
             <li><b>Zoom</b> scroll · <kbd>Z</kbd><kbd>X</kbd></li>
@@ -917,6 +929,7 @@ export default function StarMapApp() {
             <li><b>360° view</b> click any diamond, planet, star or constellation name to fly there, then click it again (or keep zooming in)</li>
             <li><b>Waypoint</b> <kbd>Shift</kbd>+<kbd>G</kbd> · <b>Home</b> <kbd>H</kbd></li>
           </ul>
+          </>
         )}
       </Collapsible>
 
@@ -978,6 +991,7 @@ export default function StarMapApp() {
       {/* Timeline */}
       <Collapsible
         id="map-timeline"
+        closedOnSmall
         className="mv-glass mv-timeline"
         title={
           <div className="mv-tl-head">

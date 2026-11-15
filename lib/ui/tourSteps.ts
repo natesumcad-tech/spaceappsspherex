@@ -6,6 +6,8 @@ export type Step = {
   target?: string | string[];
   title: string;
   body: string;
+  /** Wording for touch screens, where it differs. */
+  touch?: { body: string; prompt?: string };
   /** Something to try: the step notices when you do it and moves on by itself. */
   wait?: { kind: Wait; prompt: string };
 };
@@ -18,6 +20,7 @@ export const STEPS: Step[] = [
   {
     title: "Look around",
     body: "Drag to pan and scroll to zoom.",
+    touch: { body: "Drag with one finger to move, pinch to zoom, and twist two fingers to rotate.", prompt: "Drag or pinch the map" },
     wait: { kind: "move", prompt: "Drag or scroll the map" },
   },
   {

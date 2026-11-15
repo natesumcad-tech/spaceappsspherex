@@ -12,6 +12,7 @@ export default function Collapsible({
   summary,
   className = "",
   defaultOpen = true,
+  closedOnSmall = false,
   children,
 }: {
   id: string;
@@ -19,6 +20,8 @@ export default function Collapsible({
   summary?: ReactNode;
   className?: string;
   defaultOpen?: boolean;
+  /** Start folded on phone-sized screens (unless the visitor opened it before). */
+  closedOnSmall?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -26,10 +29,11 @@ export default function Collapsible({
     try {
       const v = localStorage.getItem(`ui.open.${id}`);
       if (v) setOpen(v === "1");
+      else if (closedOnSmall && window.innerWidth < 760) setOpen(false);
     } catch {
       /* storage unavailable */
     }
-  }, [id]);
+  }, [id, closedOnSmall]);
   const toggle = () =>
     setOpen((o) => {
       try {

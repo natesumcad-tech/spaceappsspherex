@@ -144,7 +144,10 @@ export class StarMapViewer {
   private keyVel = { x: 0, y: 0 };
   private drag: { mode: "pan" | "orbit"; x: number; y: number; anchor: THREE.Vector2 | null; id: number } | null = null;
   private touches = new Map<number, { x: number; y: number }>();
-  private pinch = { dist: 0, mid: 0 };
+  /** Two-finger gesture: zoom, twist and move together (anchored between the fingers), or tilt. */
+  private pinch = { dist: 0, ang: 0, mx: 0, my: 0, mode: "" as "" | "transform" | "tilt", acc: 0, ay: 0, by: 0 };
+  /** Recent one-finger tap, for double-tap to zoom. */
+  private tap = { t: 0, x: 0, y: 0, downAt: 0, moved: false, lastT: 0, lastX: 0, lastY: 0 };
   private lastTime = performance.now();
   private cursor: THREE.Vector2 | null = null;
   private warpT = 0;
@@ -1205,6 +1208,8 @@ export class StarMapViewer {
       if (e.pointerType === "touch") {
         this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
         el.setPointerCapture(e.pointerId);
+        if (this.touches.size === 1) Object.assign(this.tap, { downAt: performance.now(), x: e.clientX, y: e.clientY, moved: false });
+        else this.tap.moved = true; // a second finger: not a tap
         if (this.touches.size === 1) this.drag = { mode: "pan", x: e.clientX, y: e.clientY, anchor: this.pickClient(e.clientX, e.clientY), id: e.pointerId };
         else this.startPinch();
         return;
@@ -1221,6 +1226,7 @@ export class StarMapViewer {
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === "touch" && this.touches.has(e.pointerId)) {
         this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (Math.hypot(e.clientX - this.tap.x, e.clientY - this.tap.y) > 10) this.tap.moved = true;
         if (this.touches.size >= 2) return this.movePinch();
       }
       if (!this.drag || this.drag.id !== e.pointerId) {
@@ -1242,7 +1248,14 @@ export class StarMapViewer {
       this.invalidate();
     };
     const onUp = (e: PointerEvent) => {
+      const wasTouch = e.pointerType === "touch" && this.touches.has(e.pointerId);
       this.touches.delete(e.pointerId);
+      if (wasTouch && this.touches.size === 0 && !this.tap.moved && performance.now() - this.tap.downAt < 350) this.onTap(e.clientX, e.clientY);
+      if (this.touches.size === 1) {
+        // lifted one of two fingers: carry on panning with the other
+        const [id, t] = [...this.touches.entries()][0];
+        this.drag = { mode: "pan", x: t.x, y: t.y, anchor: this.pickClient(t.x, t.y), id };
+      }
       if (this.drag?.mode === "orbit" && this.phi > 0 && this.phi < SNAP_PHI) {
         const from = this.phi;
         this.animate(350, (t) => (this.phi = from * (1 - ease(t)))); // snap into the flat 2D view
@@ -1318,16 +1331,62 @@ export class StarMapViewer {
 
   private startPinch() {
     const [a, b] = [...this.touches.values()];
-    this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: (a.y + b.y) / 2 };
+    this.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, mode: "", acc: 0, ay: a.y, by: b.y };
     this.drag = null;
+    this.tweens = this.tweens.filter((t) => t.ms < 400);
   }
   private movePinch() {
     const [a, b] = [...this.touches.values()];
-    const dist = Math.hypot(a.x - b.x, a.y - b.y), mid = (a.y + b.y) / 2;
-    if (this.pinch.dist) this.d = clamp(this.d * (this.pinch.dist / dist), D_MIN, D_MAX);
-    this.phi = clamp(this.phi - (mid - this.pinch.mid) * 0.006, 0, PHI_MAX); // two-finger drag tilts
-    this.pinch = { dist, mid };
+    const P = this.pinch;
+    const dist = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    let dAng = ang - P.ang;
+    if (dAng > Math.PI) dAng -= 2 * Math.PI;
+    if (dAng < -Math.PI) dAng += 2 * Math.PI;
+    // Decide what the gesture is once the fingers have moved a little: both sliding up/down together
+    // without spreading or turning is a tilt; anything else is zoom + twist + move.
+    if (!P.mode) {
+      P.acc += Math.abs(my - P.my) + Math.abs(dist - P.dist) + Math.abs(dAng) * 60;
+      if (P.acc > 12) {
+        const dyA = a.y - P.ay, dyB = b.y - P.by;
+        P.mode = Math.sign(dyA) === Math.sign(dyB) && Math.abs(dyA) > 6 && Math.abs(dyB) > 6 && Math.abs(dist - P.dist) < 10 ? "tilt" : "transform";
+      }
+    }
+    if (P.mode === "tilt") {
+      this.phi = clamp(this.phi - (my - P.my) * 0.006, 0, PHI_MAX);
+    } else if (P.mode === "transform") {
+      const before = this.pickClient(P.mx, P.my); // the spot that was between the fingers…
+      if (P.dist) this.d = clamp(this.d * (P.dist / dist), D_MIN, D_MAX);
+      this.theta += dAng; // twisting the fingers clockwise turns the map clockwise
+      this.updateCamera();
+      const after = this.pickClient(mx, my); // …stays between them
+      if (before && after) this.setTarget(this.target.x + before.x - after.x, this.target.y + before.y - after.y);
+    }
+    Object.assign(P, { dist, ang, mx, my });
+    if (P.mode) {
+      P.ay = a.y;
+      P.by = b.y;
+    }
     this.invalidate();
+  }
+
+  /** Double-tap with one finger: zoom in on that spot. */
+  private onTap(x: number, y: number) {
+    const now = performance.now(), T = this.tap;
+    if (now - T.lastT < 400 && Math.hypot(x - T.lastX, y - T.lastY) < 40) {
+      T.lastT = 0;
+      const p = this.pickClient(x, y);
+      if (p) {
+        const from = { x: this.target.x, y: this.target.y, d: this.d };
+        const to = { x: from.x + (p.x - from.x) * 0.5, y: from.y + (p.y - from.y) * 0.5, d: clamp(from.d * 0.5, D_MIN, D_MAX) };
+        this.animate(320, (t) => {
+          const e = ease(t);
+          this.setTarget(from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e);
+          this.d = from.d + (to.d - from.d) * e;
+        });
+      }
+      return;
+    }
+    Object.assign(T, { lastT: now, lastX: x, lastY: y });
   }
 
   private applyKeys(dt: number) {

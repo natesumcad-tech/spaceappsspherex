@@ -1242,3 +1242,36 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .dp-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .dp-links li { display: grid; gap: 1px; font-size: 0.84rem; }
 .dp-links span { font-size: 0.76rem; color: #625b50; }
+
+/* ── Phones and tablets ── */
+.mv-touch-help { display: none; }
+@media (pointer: coarse) {
+  .mv-touch-help { display: block; }
+  .mv-key-help { display: none; }
+}
+.mv-tools-btn { display: none; font: inherit; font-size: 0.82rem; font-weight: 600; padding: 0 14px; min-height: 40px; cursor: pointer; color: #171512; }
+.mv-tools-btn.on { background: #171512 !important; color: #f7efdf; }
+@media (max-width: 760px) {
+  .mv-tools-btn { display: inline-flex; align-items: center; }
+  /* coordinate bar and Blink panel only when asked for, so the sky isn't buried */
+  .mv:not(.tools-open) .mv-coord-search, .mv:not(.tools-open) .mv-blink-bar { display: none !important; }
+  .mv-zoom button, .mv-top-row .mv-seg button, .mv-ask, .mv-search-btn { min-width: 40px; min-height: 40px; }
+  .mv-help { max-width: calc(100vw - 90px); }
+  .mv-minicard { max-width: min(300px, calc(100vw - 80px)); }
+  .q-card, .tour-card { max-height: 55vh; }
+}
+@media (max-width: 760px) {
+  .mv-help { display: block; } /* collapsed to its header: tap it for the touch gestures */
+}
+@media (max-width: 760px) {
+  .mv-top-left { max-width: calc(100vw - 76px) !important; } /* leave the top-right corner for the settings button */
+  .mv-top-row { max-width: 100%; }
+  .mv.tools-open .mv-coord-search, .mv.tools-open .mv-blink-bar { position: relative; z-index: 26; max-width: calc(100vw - 28px); width: calc(100vw - 28px); box-sizing: border-box; }
+  .mv-coord-form { flex-wrap: wrap; max-width: 100%; }
+  .mv-coord-center { white-space: normal !important; font-size: 0.66rem !important; }
+  .mv-blink-row { flex-wrap: wrap; gap: 6px; }
+  .mv-blink-help { max-width: none; }
+}
+@media (max-width: 760px) {
+  .mv-top-right .mv-minicard { margin-top: 50px; } /* below the second row of top buttons */
+}

@@ -126,6 +126,7 @@ export default function Tutorial({
 
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
+  const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   const count = STEPS.length - 2; // the welcome and closing cards aren't numbered
 
   const finish = useCallback(() => {
@@ -310,7 +311,7 @@ export default function Tutorial({
             )}
           </div>
           <h2 id="tour-title">{step.title}</h2>
-          <p id="tour-body">{step.body}</p>
+          <p id="tour-body">{touch && step.touch ? step.touch.body : step.body}</p>
 
           <div className="tour-foot">
             {step.wait?.kind === "modes" ? (
@@ -320,7 +321,7 @@ export default function Tutorial({
               </div>
             ) : step.wait ? (
               <div className="tour-task">
-                <span className={`tour-chip ${did ? "ok" : "live"}`}>{did ? "✓ Nice!" : step.wait.prompt}</span>
+                <span className={`tour-chip ${did ? "ok" : "live"}`}>{did ? "✓ Nice!" : (touch && step.touch?.prompt) || step.wait.prompt}</span>
               </div>
             ) : (
               <span />
