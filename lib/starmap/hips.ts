@@ -18,6 +18,8 @@ export type Layer = {
   observed: string;
   /** "cube" layers hold one grayscale image per wavelength. */
   cube?: boolean;
+  /** IRSA's release stamp, added to tile addresses so a re-published map is fetched fresh. */
+  v?: string;
   /** Which part of the sky an overlay covers, so we never ask for tiles that don't exist. */
   region?: { plane: { lMin: number; lMax: number; bMax: number } } | { circle: { ra: number; dec: number; r: number } };
 };
@@ -29,8 +31,10 @@ export const SPHEREX: Layer = {
   ext: "png",
   maxOrder: 5,
   cube: true,
-  released: "Oct 2026",
+  // The release we last saw; the page checks IRSA for a newer one as it opens (/api/hips)
+  released: "1 Nov 2026",
   observed: "24 Apr 2025 – 14 May 2026",
+  v: "2026-11-01T01:58Z",
 };
 
 /** Wavelength (µm) of each of SPHEREx's 102 frames, from the DR1 HiPS metadata. */
@@ -98,7 +102,31 @@ export const layerById = (id: string) => ALL_LAYERS.find((l) => l.id === id)!;
 
 export function tileUrl(layer: Layer, order: number, tile: number, frame = 0) {
   const dir = Math.floor(tile / 10000) * 10000;
-  return `${layer.url}/Norder${order}/Dir${dir}/Npix${tile}${frame ? `_${frame}` : ""}.${layer.ext}`;
+  return `${layer.url}/Norder${order}/Dir${dir}/Npix${tile}${frame ? `_${frame}` : ""}.${layer.ext}${layer.v ? `?v=${encodeURIComponent(layer.v)}` : ""}`;
+}
+
+/** What /api/hips reports: the SPHEREx map IRSA currently publishes, and every survey's release date. */
+export type LiveCatalog = {
+  spherex?: { url: string; name: string; v: string; released: string; observed: string; maxOrder: number; wavelengths?: number[]; blank?: number[] };
+  /** Release date by HiPS address. */
+  layers?: Record<string, string>;
+  checkedAt: string;
+};
+
+/** Point the map at the data IRSA publishes right now (called on the page and in the tile worker). */
+export function applyLive(c: LiveCatalog) {
+  const s = c.spherex;
+  if (s) {
+    Object.assign(SPHEREX, { url: s.url, name: s.name || SPHEREX.name, v: s.v, maxOrder: s.maxOrder || SPHEREX.maxOrder });
+    if (s.released) SPHEREX.released = s.released;
+    if (s.observed) SPHEREX.observed = s.observed;
+    if (s.wavelengths?.length === SPHEREX_WL.length) s.wavelengths.forEach((w, i) => (SPHEREX_WL[i] = w));
+    if (s.blank?.length) {
+      BLANK_FRAMES.clear();
+      s.blank.forEach((b) => BLANK_FRAMES.add(b));
+    }
+  }
+  for (const l of ALL_LAYERS) if (l !== SPHEREX && c.layers?.[l.url]) l.released = c.layers[l.url];
 }
 
 // ── HEALPix (nested scheme) ──
@@ -151,6 +179,8 @@ export type TileRequest = {
   base: string;
   /** For the SPHEREx cube: one frame (single wavelength) or three frames [red, green, blue]. */
   frames: number[];
+  /** IRSA release the request was made for (part of the cache key only). */
+  rev?: string;
   overlays: string[];
   light: boolean;
   detail: number;

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { discardDetailedTile } from "../explorer/zoom-policy";
 import type { SkyData } from "@/lib/explorer/astro";
 import { DEG, MAP_H, MAP_W, planetPositions, projector, unprojector } from "./coords";
-import { SPHEREX_RGB, layerById, makeLoader, renderTile, type TileRequest } from "./hips";
+import { SPHEREX, SPHEREX_RGB, applyLive, layerById, makeLoader, renderTile, type LiveCatalog, type TileRequest } from "./hips";
 import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import type { Waypoint } from "./data";
 
@@ -99,7 +99,11 @@ function withEarth(list: ReturnType<typeof planetPositions>) {
 
 type TileEntry = { mesh: THREE.Mesh; tex: THREE.DataTexture | null; px: number; version: string; used: number; L: number; retryAt?: number };
 type Tween = { start: number; ms: number; step: (t: number) => void; done?: () => void };
-type Overlay = { el: HTMLElement; x: number; y: number; kind: "con" | "star" | "planet" | "wp"; minD?: number; maxD?: number; wp?: Waypoint; stop?: string };
+type Overlay = {
+  el: HTMLElement; x: number; y: number; kind: "con" | "star" | "planet" | "wp"; minD?: number; maxD?: number; wp?: Waypoint; stop?: string;
+  /** What was last written to the page, so unchanged labels cost nothing per frame. */
+  shown?: boolean; sx?: number; sy?: number; op?: number; isNear?: boolean;
+};
 
 const ROOT = 30; // level-0 tile size in degrees (12 × 6 tiles)
 const LMAX = 8; // deepest level: 30 / 2⁸ ≈ 0.12° tiles, so zooming in stays sharp
@@ -242,9 +246,23 @@ export class StarMapViewer {
     }
   }
 
+  /** Which IRSA release the tiles come from (changes when IRSA re-publishes the map). */
+  private liveRev = SPHEREX.v ?? "";
+  /** Use the SPHEREx map IRSA publishes right now; tiles already on screen stay until the new ones arrive. */
+  setLive(c: LiveCatalog) {
+    applyLive(c);
+    this.worker?.postMessage({ live: c });
+    const rev = c.spherex?.v ?? "";
+    if (rev === this.liveRev) return;
+    this.liveRev = rev;
+    this.requestOverview();
+    this.invalidate();
+  }
+
   private imagery() {
     const s = this.settings;
     return {
+      rev: this.liveRev,
       base: s.layer,
       frames: s.layer === "spherex" ? (s.band >= 0 ? [s.band] : [...SPHEREX_RGB]) : [0],
       overlays: s.overlays,
@@ -1139,7 +1157,11 @@ export class StarMapViewer {
     }
 
     for (const o of this.overlays) {
-      if (o.stop) o.el.classList.toggle("near", o === near);
+      const isNear = o === near;
+      if (o.stop && o.isNear !== isNear) {
+        o.isNear = isNear;
+        o.el.classList.toggle("near", isNear);
+      }
       let show =
         o.kind === "wp" ? s.waypoints : o.kind === "planet" ? s.planets && s.names : s.names && this.d <= (o.maxD ?? D_MAX) && this.d >= (o.minD ?? 0);
       const dist = Math.hypot(o.x - this.target.x, o.y - this.target.y);
@@ -1149,13 +1171,29 @@ export class StarMapViewer {
         show = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
       }
       if (!show) {
-        if (o.el.style.display !== "none") o.el.style.display = "none";
+        if (o.shown !== false) {
+          o.shown = false;
+          o.el.style.display = "none";
+        }
         continue;
       }
-      const x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
-      o.el.style.display = "";
-      o.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
-      o.el.style.opacity = String(clamp(1 - (dist - R * 0.6) / (R * 0.4), 0, 1)); // fade with the fog
+      // Only touch the page when something visibly changed (a label rewritten every frame is what makes
+      // a page with hundreds of them stutter)
+      const x = Math.round((v.x * 0.5 + 0.5) * w * 2) / 2, y = Math.round((-v.y * 0.5 + 0.5) * h * 2) / 2;
+      if (o.shown !== true) {
+        o.shown = true;
+        o.el.style.display = "";
+      }
+      if (x !== o.sx || y !== o.sy) {
+        o.sx = x;
+        o.sy = y;
+        o.el.style.transform = `translate(${x}px, ${y}px)`;
+      }
+      const op = Math.round(clamp(1 - (dist - R * 0.6) / (R * 0.4), 0, 1) * 20) / 20; // fade with the fog
+      if (op !== o.op) {
+        o.op = op;
+        o.el.style.opacity = String(op);
+      }
     }
     // The hover card follows the thing it describes, opening away from the screen edges
     if (this.cardAt) {

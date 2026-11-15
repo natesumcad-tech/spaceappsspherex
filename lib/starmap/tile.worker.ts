@@ -1,9 +1,10 @@
 // Background thread that downloads IRSA tiles and reprojects them, so the page never stutters.
-import { makeLoader, renderTile, type TileRequest } from "./hips";
+import { applyLive, makeLoader, renderTile, type LiveCatalog, type TileRequest } from "./hips";
 
 const load = makeLoader();
 
-self.onmessage = async (e: MessageEvent<TileRequest>) => {
+self.onmessage = async (e: MessageEvent<TileRequest | { live: LiveCatalog }>) => {
+  if ("live" in e.data) return applyLive(e.data.live);
   const req = e.data;
   try {
     const { px, partial } = await renderTile(req, load);

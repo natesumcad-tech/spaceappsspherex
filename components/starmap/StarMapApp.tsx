@@ -7,7 +7,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import type { SkyData } from "@/lib/explorer/astro";
 import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
 import { planetDistance, planetPositions, raToX } from "@/lib/starmap/coords";
-import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById } from "@/lib/starmap/hips";
+import { BASE_LAYERS, BLANK_FRAMES, OVERLAYS, SPHEREX_WL, layerById, type LiveCatalog } from "@/lib/starmap/hips";
 import { createPortal } from "react-dom";
 import { DEFAULT_SETTINGS, type MapHover, type Settings, type StarMapViewer, type View } from "@/lib/starmap/viewer";
 import SphereView from "@/components/explorer/Explorer";
@@ -81,6 +81,7 @@ export default function StarMapApp() {
   const [hasMarker, setHasMarker] = useState(false);
   const [fovDeg, setFovDeg] = useState(10);
   /** Run `fn` at most every `ms` per key, always finishing with a last call once things settle. */
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const throttles = useRef(new Map<string, { at: number; timer: ReturnType<typeof setTimeout> | null }>());
   const throttle = (key: string, ms: number, fn: () => void) => {
     const t = throttles.current.get(key) ?? { at: 0, timer: null };
@@ -129,6 +130,8 @@ export default function StarMapApp() {
   const [intro, setIntro] = useState(false);
   const [tour, setTour] = useState(false);
   const [questOpen, setQuestOpen] = useState(false);
+  /** The SPHEREx map IRSA publishes right now (null until checked, or if IRSA didn't answer). */
+  const [live, setLive] = useState<LiveCatalog | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false); // phones: coordinates and Blink live behind a button
   const questTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (questTimer.current && clearTimeout(questTimer.current)), []);
@@ -372,14 +375,18 @@ export default function StarMapApp() {
                 `<span><b>${L("View")}</b> ${cur.radius * 2 < 2 ? `${fmt(cur.radius * 120, 0)}′` : `${fmt(cur.radius * 2, 0)}°`}</span><span><b>${L("Tilt")}</b> ${fmt((cur.phi * 180) / Math.PI, 0)}°</span>`;
               if (readoutRef.current && readoutRef.current.innerHTML !== html) readoutRef.current.innerHTML = html;
             });
-            // React state (re-renders the page): a few times a second, and once more when the view settles
-            throttle("hud", 250, () => {
+            // React state re-renders the whole page, so while the map moves do it at most once a second,
+            // then once more as soon as the view settles
+            const hud = () => {
               const cur = viewRef.current!;
               const [ra, dec] = viewerRef.current?.toRadec(cur.x, cur.y) ?? [0, 0];
               setCenterCoord((p) => (Math.abs(p.ra - ra) < 1e-5 && Math.abs(p.dec - dec) < 1e-5 ? p : { ra, dec }));
               const f = Math.max(0.3, Math.min(60, cur.radius * 2));
               setFovDeg((p) => (Math.abs(p - f) < 1e-4 ? p : f));
-            });
+            };
+            throttle("hud", 1000, hud);
+            if (settleTimer.current) clearTimeout(settleTimer.current);
+            settleTimer.current = setTimeout(hud, 160);
             if (loadingRef.current) {
               const text = `${translate(langRef.current, "Loading IRSA tiles")} · ${v.loading}`, op = v.loading ? "1" : "0";
               if (loadingRef.current.style.opacity !== op) loadingRef.current.style.opacity = op;
@@ -668,6 +675,24 @@ export default function StarMapApp() {
     runAction(action);
   };
 
+  // Follow the dataset: ask which SPHEREx map IRSA publishes now, on load and every 30 minutes. A new
+  // release or a re-published map swaps in by itself (tiles, dates, wavelengths).
+  useEffect(() => {
+    if (!ready) return;
+    const check = () =>
+      fetch("/api/hips")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((c: LiveCatalog | null) => {
+          if (!c?.spherex) return;
+          viewerRef.current?.setLive(c);
+          setLive(c);
+        })
+        .catch(() => {});
+    check();
+    const t = setInterval(check, 30 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [ready]);
+
   // Map labels follow the language too
   useEffect(() => {
     viewerRef.current?.setLanguage(lang, (s) => translate(lang, s));
@@ -876,6 +901,11 @@ export default function StarMapApp() {
           </button>
           <div ref={readoutRef} className="mv-readout" title={t("These are view-center coordinates. Scrolling zooms toward your cursor, which can shift the center. Share J2000 RA/Dec for a fixed sky position.")} />
           <ImageryControl settings={settings} set={set} />
+          {live?.spherex && (
+            <p className="mv-live" title={t("Checked against NASA/IPAC IRSA's live catalogue at {time}. When IRSA publishes new SPHEREx data, this map switches to it automatically.", { time: new Date(live.checkedAt).toLocaleTimeString(lang === "es" ? "es-ES" : "en-US", { hour: "2-digit", minute: "2-digit" }) })}>
+              <i aria-hidden="true" /> {t("Live from IRSA · {name} updated {date}", { name: live.spherex.name, date: live.spherex.released })}
+            </p>
+          )}
         </Collapsible>
         <div ref={loadingRef} className="mv-glass mv-loadpill" aria-live="polite" />
       </div>
@@ -932,6 +962,7 @@ export default function StarMapApp() {
         bandUm={settings.layer === "spherex" && settings.band >= 0 ? SPHEREX_WL[settings.band] : null}
         star={questStar}
         planet={questPlanet}
+        onCenter={(name) => runAction({ name: "show_star", args: { name } })}
         onClose={() => setQuestOpen(false)}
       />
 

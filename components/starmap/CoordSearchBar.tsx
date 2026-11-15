@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
   BENCHMARK_TARGETS,
@@ -30,6 +30,16 @@ export default function CoordSearchBar({
   const t = useT();
   const tr = t;
   const [query, setQuery] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  // The rescue mission can type coordinates in for you (you still press Go)
+  useEffect(() => {
+    const fill = (e: Event) => {
+      setQuery((e as CustomEvent<string>).detail);
+      input.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener("coord-fill", fill);
+    return () => window.removeEventListener("coord-fill", fill);
+  }, []);
   const [openPresets, setOpenPresets] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -54,6 +64,7 @@ export default function CoordSearchBar({
       <form className="mv-coord-form" onSubmit={submit}>
         <input
           type="text"
+          ref={input}
           className="mv-coord-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -63,7 +74,7 @@ export default function CoordSearchBar({
         />
         <button
           type="submit"
-          className="mv-coord-btn"
+          className="mv-coord-btn mv-coord-go"
           disabled={!parsed || !parsed.ok}
         >
           {t("Go")}
@@ -115,8 +126,14 @@ export default function CoordSearchBar({
 
       <div className="mv-coord-center">
         <span>Center J2000:</span>
-        <code>{formatRaHMS(centerRa)}</code>
-        <code>{formatDecDMS(centerDec)}</code>
+        <span className="mv-cc mv-cc-ra" title={t("Right ascension (RA): how far east around the sky, in hours")}>
+          <small>RA</small>
+          <code>{formatRaHMS(centerRa)}</code>
+        </span>
+        <span className="mv-cc mv-cc-dec" title={t("Declination (Dec): how far north (+) or south (−), in degrees")}>
+          <small>Dec</small>
+          <code>{formatDecDMS(centerDec)}</code>
+        </span>
         <code className="mv-coord-dec">({centerRa.toFixed(3)}°, {centerDec >= 0 ? "+" : ""}{centerDec.toFixed(3)}°)</code>
       </div>
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MISSION, type Line, type MissionCtx, type PlanetInfo, type StarInfo } from "@/lib/quest/mission";
 import { spherexCutout } from "@/lib/starmap/cutout";
 import { topSlot } from "@/lib/ui/placement";
+import { formatDecDMS, formatRaHMS } from "@/lib/starmap/coordSearch";
 import { useT, useTV } from "@/lib/i18n";
 
 /** Mission progress lives in this browser, so it survives a reload. */
@@ -141,6 +142,77 @@ function RealImage({ cut }: { cut: NonNullable<Line["image"]> }) {
   );
 }
 
+/**
+ * The "read me the coordinates" helper: a checklist that ticks itself off, with the two numbers to copy
+ * shown in the same colors as the circles on the map's “Center J2000” line.
+ */
+function ReportHelp({
+  starName,
+  center,
+  star,
+  onCenter,
+  raIn,
+  decIn,
+  setRaIn,
+  setDecIn,
+}: {
+  starName: string;
+  center: { ra: number; dec: number };
+  star: (name: string) => StarInfo | null;
+  onCenter: (name: string) => void;
+  raIn: string;
+  decIn: string;
+  setRaIn: (s: string) => void;
+  setDecIn: (s: string) => void;
+}) {
+  const t = useT();
+  const truth = star(starName);
+  const centered = !truth || sep(center.ra, center.dec, truth.ra, truth.dec) < 1;
+  const ra = parseRA(raIn), dec = parseDec(decIn);
+  const raOk = !!truth && ra !== null && Math.abs(((ra - truth.ra + 540) % 360) - 180) <= 4;
+  const decOk = !!truth && dec !== null && Math.abs(dec - truth.dec) <= 1.5;
+  // What to type: the middle of the map, rounded the way the commander asks for it
+  const raText = formatRaHMS(center.ra).replace(/^(\d+h \d+m).*/, "$1");
+  const decText = formatDecDMS(center.dec).replace(/^([+−-]?\d+°\s*\d+[′']).*/, "$1");
+  return (
+    <ol className="q-steps">
+      <li className={centered ? "ok" : ""}>
+        <i>{centered ? "✓" : "1"}</i>
+        <span>
+          {t("Put {star} in the middle of the map.", { star: t(starName) })}{" "}
+          {!centered && (
+            <button className="q-chip-btn" onClick={() => onCenter(starName)}>
+              {t("Center it for me")}
+            </button>
+          )}
+        </span>
+      </li>
+      <li className={raOk ? "ok" : ""}>
+        <i>{raOk ? "✓" : "2"}</i>
+        <span>
+          {t("Copy the")} <b className="q-tag ra">RA</b> {t("(circled in blue on the “Center J2000” line) into the RA box. It's hours and minutes:")}{" "}
+          {centered && (
+            <button className="q-chip ra" onClick={() => setRaIn(raText)} title={t("Tap to fill it in")}>
+              {raText}
+            </button>
+          )}
+        </span>
+      </li>
+      <li className={decOk ? "ok" : ""}>
+        <i>{decOk ? "✓" : "3"}</i>
+        <span>
+          {t("Copy the")} <b className="q-tag dec">Dec</b> {t("(circled in orange) into the Dec box. It's degrees, + means north:")}{" "}
+          {centered && (
+            <button className="q-chip dec" onClick={() => setDecIn(decText)} title={t("Tap to fill it in")}>
+              {decText}
+            </button>
+          )}
+        </span>
+      </li>
+    </ol>
+  );
+}
+
 type Phase = "offer" | "talk" | "seek" | "done";
 
 /**
@@ -155,6 +227,7 @@ export default function Quest({
   bandUm,
   star,
   planet,
+  onCenter,
   onClose,
 }: {
   open: boolean;
@@ -167,6 +240,8 @@ export default function Quest({
   bandUm: number | null;
   star: (name: string) => StarInfo | null;
   planet: (name: string) => PlanetInfo | null;
+  /** Fly the map so this star sits in the middle. */
+  onCenter: (name: string) => void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -191,7 +266,7 @@ export default function Quest({
         return p && Math.abs(p.left - n.left) + Math.abs(p.top - n.top) + Math.abs(p.width - n.width) < 1 ? p : n;
       });
     place();
-    const t = setInterval(place, 400);
+    const t = setInterval(() => !document.hidden && place(), 1000);
     window.addEventListener("resize", place);
     return () => {
       clearInterval(t);
@@ -319,7 +394,7 @@ export default function Quest({
       if (step.glow) document.querySelector(step.glow)?.classList.add("quest-target");
     };
     mark();
-    const t = setInterval(mark, 500);
+    const t = setInterval(mark, 1000);
     return () => {
       clearInterval(t);
       document.querySelectorAll(".quest-target").forEach((e) => e.classList.remove("quest-target"));
@@ -474,30 +549,56 @@ export default function Quest({
           –
         </button>
       </div>
+      {check.kind === "report" && <ReportHelp starName={check.star} center={center} star={star} onCenter={onCenter} raIn={raIn} decIn={decIn} setRaIn={setRaIn} setDecIn={setDecIn} />}
       {check.kind === "report" && (
         <form className="q-form" onSubmit={submitReading}>
-          <label>
-            RA
+          <label className="q-in-ra">
+            <span>RA</span>
             <input value={raIn} onChange={(e) => setRaIn(e.target.value)} placeholder="5h 55m" inputMode="text" />
           </label>
-          <label>
-            Dec
-            <input value={decIn} onChange={(e) => setDecIn(e.target.value)} placeholder="+7.4°" inputMode="text" />
+          <label className="q-in-dec">
+            <span>Dec</span>
+            <input value={decIn} onChange={(e) => setDecIn(e.target.value)} placeholder="+7° 24′" inputMode="text" />
           </label>
-          <button className="q-go" type="submit">
+          <button className="q-go" type="submit" disabled={!raIn.trim() || !decIn.trim()}>
             {t("Send")}
           </button>
         </form>
       )}
-      {check.kind === "report" && (
-        <p className="q-format">
-          <b>RA</b> {t("in hours & minutes, e.g.")} <code>5h 55m</code> · <b>Dec</b> {t("in degrees, + for north, e.g.")} <code>+7 24</code>. {t("Both are on the glowing “Center J2000” line.")}
-        </p>
-      )}
       {check.kind === "goto" && (
-        <p className="q-format">
-          {t("Type")} <code>4h 32m +26</code> {t("in the glowing coordinate bar (RA first, then Dec) and press")} <b>{t("Go")}</b>.
-        </p>
+        <div className="q-goto">
+          <p className="q-breakdown">
+            <span className="q-chip ra">4h 32m</span> = <b>RA</b> {t("(4 hours 32 minutes east)")} · <span className="q-chip dec">+26</span> = <b>Dec</b> {t("(26° north)")}
+          </p>
+          <ol className="q-steps">
+            <li>
+              <i>1</i>
+              <span>
+                {t("Type")} <code>4h 32m +26</code> {t("in the glowing coordinate bar at the top left, RA first, then Dec.")}{" "}
+                <button className="q-chip-btn" onClick={() => window.dispatchEvent(new CustomEvent("coord-fill", { detail: "4h 32m +26" }))}>
+                  {t("Type it in for me")}
+                </button>
+              </span>
+            </li>
+            <li>
+              <i>2</i>
+              <span>{t("Press the circled Go button.")}</span>
+            </li>
+          </ol>
+        </div>
+      )}
+      {(check.kind === "report" || check.kind === "goto") && (
+        <details className="q-explain">
+          <summary>{t("What are RA and Dec?")}</summary>
+          <p>{t("Picture the sky as a giant globe around Earth, with the same kind of grid lines as a map of Earth.")}</p>
+          <p>
+            <b className="q-tag dec">Dec</b> {t("is like latitude: how far north (+) or south (−) of the sky's equator, from +90° to −90°.")}
+          </p>
+          <p>
+            <b className="q-tag ra">RA</b> {t("is like longitude: how far east around the sky, measured in hours (0h to 24h) because the sky turns once a day.")}
+          </p>
+          <RaDecDiagram />
+        </details>
       )}
       {nope && <p className="q-nope">{nope}</p>}
       <div className="q-seek-foot">

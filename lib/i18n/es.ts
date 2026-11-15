@@ -571,6 +571,26 @@ export const ES: Record<string, string> = {
   "Center y": "Centro y",
   "View": "Vista",
   "Language / Idioma": "Idioma / Language",
+  // coordinate helpers
+  "Right ascension (RA): how far east around the sky, in hours": "Ascensión recta (RA): cuánto hacia el este alrededor del cielo, en horas",
+  "Declination (Dec): how far north (+) or south (−), in degrees": "Declinación (Dec): cuánto hacia el norte (+) o el sur (−), en grados",
+  "(4 hours 32 minutes east)": "(4 horas 32 minutos hacia el este)",
+  "(26° north)": "(26° al norte)",
+  "in the glowing coordinate bar at the top left, RA first, then Dec.": "en la barra de coordenadas iluminada de arriba a la izquierda: primero RA, luego Dec.",
+  "Type it in for me": "Escríbelo por mí",
+  "Press the circled Go button.": "Pulsa el botón Ir rodeado.",
+  "Put {star} in the middle of the map.": "Pon {star} en el centro del mapa.",
+  "Center it for me": "Céntrala por mí",
+  "Copy the": "Copia la",
+  "(circled in blue on the “Center J2000” line) into the RA box. It's hours and minutes:": "(rodeada en azul en la línea «Center J2000») en la casilla RA. Son horas y minutos:",
+  "(circled in orange) into the Dec box. It's degrees, + means north:": "(rodeada en naranja) en la casilla Dec. Son grados; + significa norte:",
+  "Tap to fill it in": "Toca para rellenarlo",
+  "What are RA and Dec?": "¿Qué son la RA y la Dec?",
+  "Picture the sky as a giant globe around Earth, with the same kind of grid lines as a map of Earth.": "Imagina el cielo como un globo gigante alrededor de la Tierra, con el mismo tipo de cuadrícula que un mapa de la Tierra.",
+  "is like latitude: how far north (+) or south (−) of the sky's equator, from +90° to −90°.": "es como la latitud: cuánto al norte (+) o al sur (−) del ecuador del cielo, de +90° a −90°.",
+  "is like longitude: how far east around the sky, measured in hours (0h to 24h) because the sky turns once a day.": "es como la longitud: cuánto hacia el este alrededor del cielo, medida en horas (de 0h a 24h) porque el cielo da una vuelta al día.",
+  "Checked against NASA/IPAC IRSA's live catalogue at {time}. When IRSA publishes new SPHEREx data, this map switches to it automatically.": "Comprobado con el catálogo en directo de NASA/IPAC IRSA a las {time}. Cuando IRSA publica nuevos datos de SPHEREx, este mapa cambia a ellos automáticamente.",
+  "Live from IRSA · {name} updated {date}": "En directo desde IRSA · {name} actualizado el {date}",
 };
 
 /** Phrases inside computed text (distances, times…), replaced when no exact translation exists. */

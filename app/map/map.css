@@ -34,7 +34,7 @@
 .mv-stage { position: absolute; inset: 0; }
 .mv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
 .mv-canvas:active { cursor: grabbing; }
-.mv-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.mv-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; contain: layout style; }
 .mv-warp { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .mv-loading {
   position: absolute;
@@ -1286,3 +1286,45 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .lang-switch button:hover { opacity: 1; }
 .lang-switch button:focus-visible { outline: 2px solid #c9a46a; outline-offset: 1px; }
 @media (pointer: coarse) { .lang-switch button { min-height: 36px; min-width: 40px; } }
+
+/* ── Coordinates made easier: RA in blue, Dec in orange, everywhere ── */
+.mv-cc { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px 1px 3px; border-radius: 999px; border: 1px solid transparent; }
+.mv-cc small { font-size: 9px; font-weight: 700; letter-spacing: .04em; padding: 1px 5px; border-radius: 999px; color: #0d0b08; }
+.mv-cc-ra small { background: #7fb3ff; }
+.mv-cc-dec small { background: #ff9d7a; }
+/* during the mission: circle each number and say which box it goes in */
+.mv-coord-center.quest-target { box-shadow: none !important; animation: none !important; padding: 18px 0 2px; }
+.mv-coord-center.quest-target .mv-cc { position: relative; border-width: 2px; animation: q-ring 1.6s ease-in-out infinite; }
+.mv-coord-center.quest-target .mv-cc-ra { border-color: #7fb3ff; }
+.mv-coord-center.quest-target .mv-cc-dec { border-color: #ff9d7a; animation-delay: .8s; }
+.mv-coord-center.quest-target .mv-cc::before { position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%); font: 600 10px/1 var(--font-sans, system-ui, sans-serif); white-space: nowrap; padding: 3px 7px; border-radius: 6px; color: #0d0b08; }
+.mv-coord-center.quest-target .mv-cc-ra::before { content: "① RA box"; background: #7fb3ff; }
+.mv-coord-center.quest-target .mv-cc-dec::before { content: "② Dec box"; background: #ff9d7a; }
+:root[lang="es"] .mv-coord-center.quest-target .mv-cc-ra::before { content: "① casilla RA"; }
+:root[lang="es"] .mv-coord-center.quest-target .mv-cc-dec::before { content: "② casilla Dec"; }
+.mv-coord-form.quest-target .mv-coord-go { box-shadow: 0 0 0 3px #f0c674; animation: q-ring 1.6s ease-in-out infinite; }
+@keyframes q-ring { 50% { box-shadow: 0 0 0 5px rgba(240, 198, 116, .35); } }
+
+.q-steps { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 7px; font-size: 13px; line-height: 1.45; }
+.q-steps li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; }
+.q-steps li i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: rgba(0,0,0,.08); }
+.q-steps li.ok i { background: #3f8f5f; color: #fff; }
+.q-steps li.ok > span { opacity: .65; }
+.q-tag { padding: 0 6px; border-radius: 999px; color: #0d0b08; font-size: 11px; }
+.q-tag.ra, .q-chip.ra { background: #7fb3ff; }
+.q-tag.dec, .q-chip.dec { background: #ff9d7a; }
+.q-chip { display: inline-block; border: 0; border-radius: 999px; padding: 2px 9px; font: 600 12px/1.5 var(--font-mono, ui-monospace, monospace); color: #0d0b08; cursor: pointer; }
+button.q-chip:hover { filter: brightness(1.08); }
+.q-chip-btn { border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 999px; padding: 1px 9px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.q-in-ra span, .q-in-dec span { display: inline-block; padding: 0 6px; border-radius: 999px; color: #0d0b08; font-size: 11px; font-weight: 700; }
+.q-in-ra span { background: #7fb3ff; }
+.q-in-dec span { background: #ff9d7a; }
+.q-in-ra input { border-color: #7fb3ff !important; }
+.q-in-dec input { border-color: #ff9d7a !important; }
+.q-breakdown { font-size: 13px; margin: 8px 0 0; line-height: 1.8; }
+@media (prefers-reduced-motion: reduce) { .mv-coord-center.quest-target .mv-cc, .mv-coord-form.quest-target .mv-coord-go { animation: none; } }
+.q-explain { margin: 8px 0 4px; font-size: 13px; line-height: 1.5; }
+.q-explain summary { cursor: pointer; font-weight: 600; }
+.q-explain p { margin: 6px 0; }
+.mv-live { margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--muted, #645b4f); white-space: normal; overflow-wrap: anywhere; }
+.mv-live i { display: inline-block; vertical-align: middle; margin: 0 4px 2px 2px; width: 7px; height: 7px; border-radius: 50%; background: #3f8f5f; box-shadow: 0 0 0 3px rgba(63, 143, 95, .2); }
