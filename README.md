@@ -91,6 +91,10 @@ npx tsc --noEmit
 node tests/zoom-policy.test.mjs
 ```
 
+## AI Usage
+
+Artificial Intelligience(Anthropic's Claude) was used in this project, along with Google Gemini for the "Sky Explorer" chatbot.
+
 ## License
 
 MIT

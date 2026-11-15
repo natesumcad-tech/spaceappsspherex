@@ -2,6 +2,13 @@ import * as THREE from "three";
 import type { SkyData } from "@/lib/explorer/astro";
 import { bvToKelvin, kelvinToRGB } from "@/lib/explorer/astro";
 import { DEG, EQ_TO_GAL, apply, radecToUnit } from "./coords";
+import { KeyState, isShiftToken } from "./keyState";
+
+const COSMIC_KEYS = new Set([
+  "w", "a", "s", "d", "z", "x", "=", "-",
+  "arrowup", "arrowdown", "arrowleft", "arrowright",
+  "shiftleft", "shiftright", "shift",
+]);
 
 // The zoomed-out view: the Milky Way and nearby galaxies in real 3D (1 scene unit = 1 light-year,
 // the Sun at the origin, galactic coordinates with the galactic north pole up). Zoom in on the Sun
@@ -156,6 +163,8 @@ export class CosmicView {
   dist = HOME_DIST;
   private active = false;
   private raf = 0;
+  private keys = new KeyState();
+  private lastTime = performance.now();
   private tween: { from: { t: THREE.Vector3; d: number }; to: { t: THREE.Vector3; d: number }; start: number; ms: number } | null = null;
   private drag: { x: number; y: number } | null = null;
   /** Lower `prio` wins when labels would overlap. */
@@ -286,11 +295,14 @@ export class CosmicView {
     this.active = on;
     this.renderer.domElement.style.pointerEvents = on ? "auto" : "none";
     this.labelLayer.style.display = on ? "" : "none";
-    if (on) {
-      this.entered = false;
-      cancelAnimationFrame(this.raf);
-      this.raf = requestAnimationFrame(this.loop);
+    if (!on) {
+      this.keys.clear();
+      return;
     }
+    this.entered = false;
+    this.lastTime = performance.now();
+    cancelAnimationFrame(this.raf);
+    this.raf = requestAnimationFrame(this.loop);
   }
 
   /** Arrive from the sky map: start just outside the Sun's neighborhood and pull back. */
@@ -394,18 +406,24 @@ export class CosmicView {
       e.preventDefault();
       this.zoomBy(Math.exp(e.deltaY * (e.ctrlKey ? 0.012 : 0.0032)));
     };
-    const key = (e: KeyboardEvent) => {
-      if (this.active && !(e.target as HTMLElement)?.closest?.("input, textarea, select")) this.cancelIntro();
-      if (!this.active || (e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
-      const k = e.key.toLowerCase();
-      if (k === "z" || k === "=" || k === "+") this.zoomBy(0.8);
-      else if (k === "x" || k === "-") this.zoomBy(1.25);
-      else if (k === "a" || k === "arrowleft") this.az += 0.08;
-      else if (k === "d" || k === "arrowright") this.az -= 0.08;
-      else if (k === "w" || k === "arrowup") this.el = Math.min(1.45, this.el + 0.06);
-      else if (k === "s" || k === "arrowdown") this.el = Math.max(-1.45, this.el - 0.06);
-      else return;
-      e.preventDefault();
+    const typing = (e: KeyboardEvent) => !!(e.target as HTMLElement)?.closest?.("input, textarea, select, [contenteditable]");
+    const keydown = (e: KeyboardEvent) => {
+      if (!this.active || typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!e.repeat) this.cancelIntro();
+      const { token, added } = this.keys.keydown(e, COSMIC_KEYS);
+      if (!token) return;
+      if (!isShiftToken(token)) {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (added) this.tween = null;
+      }
+    };
+    const keyup = (e: KeyboardEvent) => {
+      this.keys.keyup(e);
+    };
+    const blur = () => this.keys.clear();
+    const onVisibility = () => {
+      if (document.hidden) this.keys.clear();
     };
     c.addEventListener("pointerdown", down);
     c.addEventListener("pointermove", move);
@@ -413,8 +431,27 @@ export class CosmicView {
     c.addEventListener("pointercancel", up);
     c.addEventListener("contextmenu", (e) => e.preventDefault());
     this.container.addEventListener("wheel", wheel, { passive: false });
-    window.addEventListener("keydown", key);
-    this.cleanup.push(() => window.removeEventListener("keydown", key));
+    window.addEventListener("keydown", keydown);
+    window.addEventListener("keyup", keyup);
+    window.addEventListener("blur", blur);
+    document.addEventListener("visibilitychange", onVisibility);
+    this.cleanup.push(() => {
+      window.removeEventListener("keydown", keydown);
+      window.removeEventListener("keyup", keyup);
+      window.removeEventListener("blur", blur);
+      document.removeEventListener("visibilitychange", onVisibility);
+    });
+  }
+
+  private applyKeys(dt: number) {
+    if (!this.keys.hasActiveMotion) return;
+    const boost = this.keys.shift ? 2 : 1;
+    if (this.keys.has("a", "arrowleft")) { this.tween = null; this.az += 1.6 * dt * boost; }
+    if (this.keys.has("d", "arrowright")) { this.tween = null; this.az -= 1.6 * dt * boost; }
+    if (this.keys.has("w", "arrowup")) { this.tween = null; this.el = Math.min(1.45, this.el + 1.2 * dt * boost); }
+    if (this.keys.has("s", "arrowdown")) { this.tween = null; this.el = Math.max(-1.45, this.el - 1.2 * dt * boost); }
+    if (this.keys.has("z", "=")) this.zoomBy(Math.exp(-1.8 * dt * boost));
+    if (this.keys.has("x", "-")) this.zoomBy(Math.exp(1.8 * dt * boost));
   }
 
   private resize() {
@@ -432,6 +469,10 @@ export class CosmicView {
   private loop = () => {
     if (!this.active) return;
     this.raf = requestAnimationFrame(this.loop);
+    const now = performance.now();
+    const dt = THREE.MathUtils.clamp((now - this.lastTime) / 1000, 0.001, 0.05);
+    this.lastTime = now;
+    this.applyKeys(dt);
     if (this.tween) {
       const k = Math.min(1, (performance.now() - this.tween.start) / this.tween.ms);
       const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
