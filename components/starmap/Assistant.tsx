@@ -2,12 +2,54 @@
 
 import "./assistant.css";
 import { useEffect, useRef, useState } from "react";
+import { buildChatCacheKey, type ChatCachePayload } from "@/lib/assistant/cache";
+import { coordinateQuestion } from "@/lib/assistant/coordinates";
 
 export type AssistantAction = { name: string; args: Record<string, unknown> };
 type Source = { id: number; title: string; url: string };
-type Msg = { role: "user" | "model"; text: string; notes?: string[]; sources?: Source[]; sourceUnavailable?: boolean };
+type Msg = { role: "user" | "model"; text: string; notes?: string[]; sources?: Source[]; sourceUnavailable?: boolean; cached?: boolean };
 
 const STARTERS = ["Take me to the Andromeda Galaxy", "Where does SPHEREx look for ice?", "Show me Orion in 3D", "What am I looking at?"];
+const CLIENT_CACHE_KEY = "starmap.ai_cache.v1";
+const CLIENT_CACHE_TTL_MS = 30 * 60 * 1000;
+const CLIENT_CACHE_MAX = 80;
+
+type StoredCacheEntry = { at: number; data: ChatCachePayload };
+
+function readClientCache(key: string): ChatCachePayload | null {
+  try {
+    const raw = sessionStorage.getItem(CLIENT_CACHE_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, StoredCacheEntry>;
+    const entry = map[key];
+    if (!entry) return null;
+    if (Date.now() - entry.at > CLIENT_CACHE_TTL_MS) {
+      delete map[key];
+      sessionStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(map));
+      return null;
+    }
+    return entry.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeClientCache(key: string, data: ChatCachePayload) {
+  try {
+    const raw = sessionStorage.getItem(CLIENT_CACHE_KEY);
+    const map: Record<string, StoredCacheEntry> = raw ? JSON.parse(raw) : {};
+    delete map[key];
+    map[key] = { at: Date.now(), data };
+    const keys = Object.keys(map);
+    while (keys.length > CLIENT_CACHE_MAX) {
+      const oldest = keys.shift();
+      if (oldest) delete map[oldest];
+    }
+    sessionStorage.setItem(CLIENT_CACHE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore storage quota / private mode */
+  }
+}
 
 /**
  * The Sky Explorer guide: a chat panel that answers questions, asks follow-ups, and drives the map
@@ -48,19 +90,54 @@ export default function Assistant({
     else { setInput(draft.text); field.current?.focus(); }
   }, [draft]);
 
+  const applyReply = (data: Partial<ChatCachePayload>, isCached: boolean) => {
+    const notes: string[] = [];
+    let next: string[] = data.followups ?? [];
+    for (const a of (data.actions ?? []) as AssistantAction[]) {
+      if (a.name === "suggest_followups") next = ((a.args.questions as string[]) ?? []).filter((x) => typeof x === "string").slice(0, 3);
+      else {
+        const note = runAction(a);
+        if (note) notes.push(note);
+      }
+    }
+    setMessages((m) => [
+      ...m,
+      {
+        role: "model",
+        text: data.reply || (notes.length ? "Here you go." : "Sorry, I don't have an answer for that."),
+        notes,
+        sources: data.sources,
+        sourceUnavailable: data.sourceStatus === "unavailable",
+        cached: isCached,
+      },
+    ]);
+    setSuggestions(next);
+  };
+
   const send = async (text: string) => {
     const q = text.trim();
     if (!q || loading) return;
     const history: Msg[] = [...messages, { role: "user", text: q }];
+    const cleanHistory = history.map(({ role, text }) => ({ role, text }));
+    const context = getContext();
+    const clientKey = buildChatCacheKey("client", cleanHistory, context, Boolean(coordinateQuestion(q)));
+
     setMessages(history);
     setInput("");
     setSuggestions([]);
+
+    const localHit = readClientCache(clientKey);
+    if (localHit) {
+      applyReply(localHit, true);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.map(({ role, text }) => ({ role, text })), context: getContext() }),
+        body: JSON.stringify({ messages: cleanHistory, context }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -73,17 +150,16 @@ export default function Assistant({
         setMessages((m) => [...m, { role: "model", text: msg }]);
         return;
       }
-      const notes: string[] = [];
-      let next: string[] = data.followups ?? [];
-      for (const a of (data.actions ?? []) as AssistantAction[]) {
-        if (a.name === "suggest_followups") next = ((a.args.questions as string[]) ?? []).filter((x) => typeof x === "string").slice(0, 3);
-        else {
-          const note = runAction(a);
-          if (note) notes.push(note);
-        }
+      if (data.sourceStatus !== "unavailable") {
+        writeClientCache(clientKey, {
+          reply: data.reply ?? "",
+          actions: data.actions ?? [],
+          followups: data.followups ?? [],
+          sources: data.sources ?? [],
+          sourceStatus: data.sourceStatus,
+        });
       }
-      setMessages((m) => [...m, { role: "model", text: data.reply || (notes.length ? "Here you go." : "Sorry, I don't have an answer for that."), notes, sources: data.sources, sourceUnavailable: data.sourceStatus === "unavailable" }]);
-      setSuggestions(next);
+      applyReply(data, Boolean(data.cached));
     } catch {
       setMessages((m) => [...m, { role: "model", text: "I couldn't reach the AI service just now. Please try again in a moment." }]);
     } finally {
@@ -132,6 +208,11 @@ export default function Assistant({
                 {n}
               </span>
             ))}
+            {m.cached && (
+              <span className="mv-ai-cached" title="Instant cached generative AI response">
+                ⚡ Cached
+              </span>
+            )}
           </div>
         ))}
         {loading && (
