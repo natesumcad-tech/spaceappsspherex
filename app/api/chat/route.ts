@@ -183,7 +183,8 @@ export async function POST(req: Request) {
     const actions = parts.filter((p) => p.functionCall).map((p) => ({ name: p.functionCall!.name, args: p.functionCall!.args ?? {} }));
     const suggestion = actions.find(a => a.name === "suggest_followups")?.args;
     let reply = textReply || (typeof suggestion?.answer === "string" ? suggestion.answer.trim() : "");
-    if (!reply) return NextResponse.json({ error: "empty_answer" }, { status: 502 });
+    if (!reply && !actions.some(a => a.name !== "suggest_followups")) return NextResponse.json({ error: "empty_answer" }, { status: 502 });
+    if (!reply) reply = "I'll update the map to your requested destination.";
     const ids = Array.isArray(suggestion?.source_ids) ? suggestion.source_ids : [];
     const sources = evidence.filter(s => ids.includes(s.id) || reply.includes(`[${s.id}]`)).map(({ excerpt, ...source }) => source);
     const navigationActions = [];
