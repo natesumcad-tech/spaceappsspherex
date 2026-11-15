@@ -371,6 +371,16 @@ export class SkyEngine {
     const target = radecToVec(ra, dec);
     const desired = radecToVec(ra, lm.kind === "orbit" ? dec : THREE.MathUtils.clamp(dec, -20, 20));
     this.skyGroup.quaternion.setFromUnitVectors(target, desired);
+    // The SPHEREx image normally rides along with the (infinitely far) sky. In a landmark's view you
+    // can fly toward it, so there it's fixed in space instead, lined up with the sky from the start.
+    if (lm.kind === "sky" && lm.patch) {
+      this.scene.add(this.patchGroup);
+      this.patchGroup.quaternion.copy(this.skyGroup.quaternion);
+    } else {
+      this.skyGroup.add(this.patchGroup);
+      this.patchGroup.quaternion.identity();
+    }
+    this.patchGroup.position.set(0, 0, 0);
 
     const yp = dirToYawPitch(desired);
     this.yaw = yp.yaw;
@@ -400,7 +410,14 @@ export class SkyEngine {
       const rel = this.cam.position.clone().sub(this.pivot);
       this.orbit = { az: Math.atan2(rel.x, rel.z), el: Math.asin(THREE.MathUtils.clamp(rel.y / (rel.length() || 1), -1, 1)), r: THREE.MathUtils.clamp(rel.length(), this.rRange.min, this.rRange.max) };
     }
-    if (lm.kind === "planet" && lm.planet === "earth" && this.pivot) this.navMode = "orbit"; // start circling the globe
+    // A landmark's SPHEREx image hangs ~860 units out: let people fly up toward it and around in front of it
+    if (lm.kind === "sky" && lm.patch && !this.flyRadius) {
+      this.flyRadius = 640;
+      this.flySpeed = 150;
+    }
+    // Start in free fly wherever there's something to fly to (Earth starts circling the globe)
+    if (lm.kind === "planet" && lm.planet === "earth" && this.pivot) this.navMode = "orbit";
+    else if (this.flyRadius > 0) this.navMode = "fly";
     this.navKey = "";
     this.fg.updateMatrixWorld(true);
     lm.hotspots?.forEach((h) => this.addHotspot(h));
