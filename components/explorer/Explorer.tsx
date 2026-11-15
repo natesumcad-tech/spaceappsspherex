@@ -5,7 +5,7 @@ import { LANDMARKS, SECTIONS, byId } from "@/lib/explorer/landmarks";
 import type { NavMode, NavState, SkyEngine } from "@/lib/explorer/engine";
 import type { SkyData } from "@/lib/explorer/astro";
 import Collapsible from "@/components/ui/Collapsible";
-import { useLang, useT, useTV } from "@/lib/i18n";
+import { translate, useLang, useT, useTV } from "@/lib/i18n";
 
 const LANGS = [
   ["en", "English"],
@@ -44,6 +44,8 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
   const t = useT();
   const tv = useTV();
   const ui = useLang().lang;
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
   const [lang, setLang] = useState(ui === "es" ? "es" : "en");
   const [toast, setToast] = useState<string | null>(null);
   const [nav, setNav] = useState<NavState | null>(null);
@@ -77,6 +79,7 @@ export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: 
         if (cancelled) return;
         engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onAsk: (name) => onAskRef.current?.(name), onNavigate: (id) => onStopRef.current(id), onNav: setNav, onExit: () => onExitRef.current() });
         engineRef.current = engine;
+        engine.tr = (text, vars) => translate(uiRef.current, text, vars);
         engine.init(data);
         setReady(true);
       } catch (e) {

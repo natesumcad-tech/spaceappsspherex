@@ -943,13 +943,13 @@ export class SkyEngine {
     const card = document.createElement("div");
     card.className = "hs-card";
     const title = document.createElement("strong");
-    title.textContent = h.title;
+    title.textContent = this.tr(h.title);
     const body = document.createElement("p");
-    body.textContent = h.body;
+    body.textContent = this.tr(h.body);
     const actions = document.createElement("div");
     actions.className = "hs-actions";
     const look = document.createElement("button");
-    look.textContent = "Look closer";
+    look.textContent = this.tr("Look closer");
     const p = pos;
     look.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -958,7 +958,7 @@ export class SkyEngine {
     actions.appendChild(look);
     if (h.link && h.link !== this.current?.id) {
       const go = document.createElement("button");
-      go.textContent = `Go to ${byId(h.link)?.title ?? "stop"} ↗`;
+      go.textContent = this.tr("Go to {name} ↗", { name: this.tr(byId(h.link)?.title ?? "stop") });
       go.addEventListener("click", (e) => {
         e.stopPropagation();
         this.events.onNavigate(h.link!);
@@ -984,6 +984,9 @@ export class SkyEngine {
     this.vel = { yaw: 0, pitch: 0 };
     this.fov = THREE.MathUtils.clamp(this.fov * 0.6, FOV_MIN, 100);
   }
+
+  /** Translates the info points' text (set by the page for the interface language). */
+  tr: (text: string, vars?: Record<string, string>) => string = (text, vars) => (vars ? Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v), text) : text);
 
   setLanguage(lang: string) {
     this.lang = lang;

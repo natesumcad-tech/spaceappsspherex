@@ -60,12 +60,14 @@ const UI = {
   en: {
     labelSuffix: ": travel, explore or ask a question",
     view360: "View in 360°",
+    waypoint: "Waypoint",
     destination: "Destination",
     planets: {} as Record<string, string>,
   },
   es: {
     labelSuffix: ": viajar, explorar o preguntar",
     view360: "Ver en 360°",
+    waypoint: "Punto de interés",
     destination: "Destino",
     planets: { Sun: "Sol", Mercury: "Mercurio", Venus: "Venus", Mars: "Marte", Jupiter: "Júpiter", Saturn: "Saturno", Uranus: "Urano", Neptune: "Neptuno", Earth: "Tierra" } as Record<string, string>,
   },
@@ -647,7 +649,8 @@ export class StarMapViewer {
       el.appendChild(document.createElement("i")); // the diamond itself (the button carries the screen position)
       const stop = waypointStop(wp); // every waypoint has a 360° view
       el.insertAdjacentHTML("beforeend", `<em class="mv-360">${UI[this.lang].view360}</em>`);
-      el.setAttribute("aria-label", `Waypoint: ${wp.title}`);
+      el.dataset.name = wp.title;
+      el.setAttribute("aria-label", `${UI[this.lang].waypoint}: ${this.tr(wp.title)}`);
       if (wp.color) el.style.setProperty("--wc", wp.color);
       el.style.display = "none";
       el.addEventListener("pointerenter", () => this.hover({ wp, stop: waypointStop(wp), x, y }));
@@ -691,7 +694,10 @@ export class StarMapViewer {
 
   /** Label language for star, constellation and planet names ("en", "es", …). */
   private lang: keyof typeof UI = "en";
-  setLanguage(lang: string) {
+  /** Translates waypoint names (set by the page). */
+  private tr: (text: string) => string = (text) => text;
+  setLanguage(lang: string, tr?: (text: string) => string) {
+    if (tr) this.tr = tr;
     const l = (lang in UI ? lang : "en") as keyof typeof UI;
     if (l === this.lang) return;
     this.lang = l;

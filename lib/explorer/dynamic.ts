@@ -97,7 +97,7 @@ export function constellationStop(sky: SkyData, con: SkyData["constellations"][n
     if (n.con !== con.id || sky.stars[n.i][2] > 3.5) continue;
     const [, , mag, bv, dpc] = sky.stars[n.i];
     const [kind] = STAR_KIND(bvToKelvin(bv));
-    const far = dpc > 0 ? ` about ${Math.round(dpc * 3.2616).toLocaleString()} light-years away` : "";
+    const far = dpc > 0 ? ` about ${Math.round(dpc * 3.2616).toLocaleString("en-US")} light-years away` : "";
     hotspots.push({
       title: n.names.en,
       body: `${kind[0].toUpperCase()}${kind.slice(1)},${far}, shining at magnitude ${mag.toFixed(2)}. Orbit or fly away to see how far it sits from its neighbors.`,
@@ -159,7 +159,7 @@ export function starStop(sky: SkyData, s: SkyData["named"][number]): string {
     description: `${name} is ${kind} and one of the brightest stars in the night sky, in the constellation ${con}. Its color comes from the temperature of its surface.`,
     facts: [
       ["Brightness", `magnitude ${mag.toFixed(2)}`],
-      ["Surface (est.)", `≈ ${(Math.round(k / 100) * 100).toLocaleString()} K`],
+      ["Surface (est.)", `≈ ${(Math.round(k / 100) * 100).toLocaleString("en-US")} K`],
       ["Constellation", con],
       ["Hipparcos no.", String(s.hip)],
     ],

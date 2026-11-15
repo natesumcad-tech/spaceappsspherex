@@ -23,7 +23,7 @@ import BlinkViewer, { type FeaturedBlink } from "./BlinkViewer";
 import DataPanel from "./DataPanel";
 import Tutorial, { tourDone } from "./Tutorial";
 import Quest, { loadQuest } from "./Quest";
-import { LangSwitch, translate, useLang, useT, useTV } from "@/lib/i18n";
+import { LangSwitch, addTranslations, translate, useLang, useT, useTV } from "@/lib/i18n";
 
 const STORE_WP = "starmap.waypoints.v1";
 /** How long after the tutorial (or landing, for returning visitors) the optional mission is offered. */
@@ -353,6 +353,10 @@ export default function StarMapApp() {
         ]);
         if (cancelled) return;
         skyRef.current = sky;
+        // Star and constellation names in Spanish, from the catalogue (used by the 360° views and cards)
+        const es: Record<string, string> = {};
+        for (const n of [...sky.named, ...sky.constellations]) if ((n.names as Record<string, string>).es) es[n.names.en] = (n.names as Record<string, string>).es;
+        addTranslations("es", es);
         viewer = new StarMapViewer(stageRef.current!, overlayRef.current!, sky, {
           onView: (v: View) => {
             viewRef.current = v;
@@ -397,7 +401,7 @@ export default function StarMapApp() {
           onZoomOutLimit: () => goCosmic(),
         });
         viewerRef.current = viewer;
-        viewer.setLanguage(langRef.current);
+        viewer.setLanguage(langRef.current, (s) => translate(langRef.current, s));
         viewer.invalidate();
 
         const { CosmicView } = await import("@/lib/starmap/cosmic");
@@ -666,7 +670,7 @@ export default function StarMapApp() {
 
   // Map labels follow the language too
   useEffect(() => {
-    viewerRef.current?.setLanguage(lang);
+    viewerRef.current?.setLanguage(lang, (s) => translate(lang, s));
   }, [lang, ready]);
 
   // "/" opens the guide
@@ -709,9 +713,9 @@ export default function StarMapApp() {
           </div>
           {galaxy && (
             <aside className="mv-glass cv-card" aria-live="polite">
-              <span className="mv-kind">{galaxy.kind}</span>
-              <h2>{galaxy.name}</h2>
-              <p>{galaxy.description}</p>
+              <span className="mv-kind">{t(galaxy.kind)}</span>
+              <h2>{t(galaxy.name)}</h2>
+              <p>{t(galaxy.description)}</p>
               <dl>
                 <div>
                   <dt>{t("Distance")}</dt>
