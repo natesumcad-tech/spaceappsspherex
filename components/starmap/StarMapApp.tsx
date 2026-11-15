@@ -20,7 +20,7 @@ import CoordSearchBar from "./CoordSearchBar";
 import BlinkPlayer, { type CompareMode } from "./BlinkPlayer";
 
 const STORE_WP = "starmap.waypoints.v1";
-const STORE_SETTINGS = "starmap.settings.v1";
+const STORE_SETTINGS = "starmap.settings.v2"; // v2: the measurement grid is on by default
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -468,7 +468,7 @@ export default function StarMapApp() {
           )}
           <div className={`mv-glass cv-hud ${intro ? "intro" : ""}`}>
             <div ref={cosmicHudRef} className="cv-scale" />
-            <p>Drag to turn · scroll to zoom · click a galaxy. Zoom into the Sun to see its constellations.</p>
+            <p>Drag to turn · scroll to zoom. Zoom into the Sun to see its constellations.</p>
             <button className="mv-primary" onClick={() => cosmicRef.current?.dive()}>
               Zoom into the Sun ↓
             </button>
@@ -1216,7 +1216,7 @@ const TOGGLES: [keyof Settings, string, string][] = [
   ["descriptions", "Descriptions", "Detail cards that slide in when you hover a waypoint"],
   ["waypoints", "Waypoints", "The white markers you can click to fast travel"],
   ["planets", "Planets", "The Sun and planets at the date on the timeline"],
-  ["grid", "Grid pattern", "RA / Dec grid lines, with the axes through the origin"],
+  ["grid", "Measurement grid", "Graph-paper lines with labeled degrees that adapt as you zoom, and bold axes through the origin"],
 ];
 
 function SettingsWindow({

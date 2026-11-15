@@ -31,7 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   names: true,
   descriptions: true,
   waypoints: true,
-  grid: false,
+  grid: true,
   planets: true,
   quality: "auto",
 };
@@ -308,21 +308,169 @@ export class StarMapViewer {
     strip(MAP_W, 0, -90 + h, Math.PI / 2); // south edge
   }
 
+  // ───────────────────────── Measurement grid (Desmos-style) ─────────────────────────
+  // Minor and major lines whose spacing adapts to the zoom, bold axes through the origin, and a
+  // number on every major line, along the axes or pinned to the screen edge.
+
+  private gridMinor = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf2e6d0, transparent: true, opacity: 0.1, depthWrite: false, fog: false }));
+  private gridMajor = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf2e6d0, transparent: true, opacity: 0.32, depthWrite: false, fog: false }));
+  private gridAxes = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf7efdf, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
+  private gridKey = "";
+  private gridLabels: HTMLDivElement[] = [];
+  private gridLabelLayer!: HTMLDivElement;
+  private gridInfo = { major: 10, minor: 2, bounds: [0, 0, 0, 0] as [number, number, number, number] };
+
   private buildGrid() {
-    // RA/Dec graticule (off by default). The tile grid is what lays the map out; this just shows it.
-    const pts: number[] = [];
-    for (let x = -180; x <= 180; x += 15) pts.push(x, 0, 90, x, 0, -90);
-    for (let y = -80; y <= 80; y += 10) pts.push(-180, 0, -y, 180, 0, -y);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-    const axes = new THREE.BufferGeometry();
-    axes.setAttribute("position", new THREE.Float32BufferAttribute([-180, 0, 0, 180, 0, 0, 0, 0, -90, 0, 0, 90], 3));
-    const g1 = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthWrite: false }));
-    const g2 = new THREE.LineSegments(axes, new THREE.LineBasicMaterial({ color: 0xffd3e6, transparent: true, opacity: 0.6, depthWrite: false }));
-    this.grid.add(g1, g2);
-    this.grid.position.y = 0.01;
-    this.grid.renderOrder = 20;
+    this.grid.add(this.gridMinor, this.gridMajor, this.gridAxes);
+    this.grid.position.y = 0.012;
+    this.gridMinor.renderOrder = this.gridMajor.renderOrder = 20;
+    this.gridAxes.renderOrder = 22;
     this.grid.visible = this.settings.grid;
+    this.gridLabelLayer = document.createElement("div");
+    this.gridLabelLayer.className = "mv-gridlabels";
+    this.overlayLayer.prepend(this.gridLabelLayer);
+  }
+
+  /** Major spacing in a 1–2–5 sequence; minor lines split it in 5 (or 4 for a "2"). */
+  private static gridSteps(span: number) {
+    const raw = span / 8;
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p;
+    const [k, div] = m < 1.5 ? [1, 5] : m < 3.5 ? [2, 4] : m < 7.5 ? [5, 5] : [10, 5];
+    const major = Math.min(30, k * p);
+    return { major, minor: major / (major === 30 ? 6 : div) };
+  }
+
+  /** The part of the map you can see (map degrees), from rays through the screen edges. */
+  private visibleBounds(): [number, number, number, number] {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    const R = this.renderRadius;
+    for (let a = -1; a <= 1; a += 0.5)
+      for (let b = -1; b <= 1; b += 0.5) {
+        let p = this.pickNDC(a, b);
+        if (!p || p.distanceTo(this.target) > R) {
+          const ray = new THREE.Raycaster();
+          ray.setFromCamera(new THREE.Vector2(a, b), this.camera);
+          const h = new THREE.Vector2(ray.ray.direction.x, -ray.ray.direction.z);
+          p = h.lengthSq() < 1e-6 ? this.target.clone() : this.target.clone().add(h.normalize().multiplyScalar(R));
+        }
+        x0 = Math.min(x0, p.x);
+        x1 = Math.max(x1, p.x);
+        y0 = Math.min(y0, p.y);
+        y1 = Math.max(y1, p.y);
+      }
+    return [Math.max(-180, x0), Math.min(180, x1), Math.max(-90, y0), Math.min(90, y1)];
+  }
+
+  private updateGrid() {
+    const b = this.visibleBounds();
+    // Size the grid from what fits on screen (the shorter side), so it reads like Desmos at every zoom
+    const span = Math.max(1e-3, Math.min(Math.max(b[1] - b[0], b[3] - b[2]), this.d * 2 * Math.tan((FOV / 2) * DEG) * Math.max(1, this.camera.aspect)));
+    const { major, minor } = StarMapViewer.gridSteps(span);
+    const snap = (v: number, s: number, f: (n: number) => number) => f(v / s) * s;
+    const gb: [number, number, number, number] = [
+      Math.max(-180, snap(b[0], major, Math.floor)),
+      Math.min(180, snap(b[1], major, Math.ceil)),
+      Math.max(-90, snap(b[2], major, Math.floor)),
+      Math.min(90, snap(b[3], major, Math.ceil)),
+    ];
+    this.gridInfo = { major, minor, bounds: b };
+    const key = `${major}|${gb.join(",")}`;
+    if (key === this.gridKey) return;
+    this.gridKey = key;
+    const mi: number[] = [], ma: number[] = [], ax: number[] = [];
+    const eps = minor * 1e-3;
+    const nX = Math.round((gb[1] - gb[0]) / minor), nY = Math.round((gb[3] - gb[2]) / minor);
+    if (nX > 600 || nY > 600) return;
+    for (let i = 0; i <= nX; i++) {
+      const x = gb[0] + i * minor;
+      const isMajor = Math.abs(x / major - Math.round(x / major)) < eps / major;
+      const isAxis = Math.abs(x) < eps;
+      (isAxis ? ax : isMajor ? ma : mi).push(x, 0, -gb[2], x, 0, -gb[3]);
+    }
+    for (let j = 0; j <= nY; j++) {
+      const y = gb[2] + j * minor;
+      const isMajor = Math.abs(y / major - Math.round(y / major)) < eps / major;
+      const isAxis = Math.abs(y) < eps;
+      (isAxis ? ax : isMajor ? ma : mi).push(gb[0], 0, -y, gb[1], 0, -y);
+    }
+    const set = (l: THREE.LineSegments, pts: number[]) => {
+      l.geometry.dispose();
+      l.geometry = new THREE.BufferGeometry();
+      l.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    };
+    set(this.gridMinor, mi);
+    set(this.gridMajor, ma);
+    set(this.gridAxes, ax);
+  }
+
+  private static fmtTick(v: number, step: number) {
+    const dec = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+    const s = Math.abs(v) < step * 1e-6 ? "0" : v.toFixed(dec);
+    return `${s.replace("-", "−")}°`;
+  }
+
+  /** Numbers on the major lines: along the axes when they're in view, else pinned to the screen edges. */
+  private updateGridLabels() {
+    const layer = this.gridLabelLayer;
+    if (!this.settings.grid || !this.enabled) {
+      layer.style.display = "none";
+      return;
+    }
+    layer.style.display = "";
+    const { major, bounds: b } = this.gridInfo;
+    const w = this.container.clientWidth, h = this.container.clientHeight;
+    const v = new THREE.Vector3();
+    const pad = (b[1] - b[0]) * 0.04, padY = (b[3] - b[2]) * 0.06;
+    // Anchor rows/columns: the axis if visible, otherwise just inside the bottom / left of the view
+    const yAnchor = THREE.MathUtils.clamp(0, b[2] + padY, b[3] - padY);
+    const xAnchor = THREE.MathUtils.clamp(0, b[0] + pad, b[1] - pad);
+    const items: { text: string; x: number; y: number; cls: string }[] = [];
+    // Panels on screen: numbers hop just clear of them instead of hiding underneath
+    const cr = this.container.getBoundingClientRect();
+    const obstacles = [...document.querySelectorAll<HTMLElement>(".mv-glass, .mv-blink-bar, .mv-coord-form, .mv-wrench, .mv-cardhost .mv-pop")]
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => ({ l: r.left - cr.left - 4, r: r.right - cr.left + 4, t: r.top - cr.top - 4, b: r.bottom - cr.top + 4 }));
+    const pinRight = xAnchor > b[0] + (b[1] - b[0]) / 2; // y numbers sit on the side the axis is on
+    const push = (wx: number, wy: number, text: string, cls: string) => {
+      v.set(wx, 0, -wy).project(this.camera);
+      if (v.z > 1 || Math.abs(v.x) > 0.97 || Math.abs(v.y) > 0.97) return;
+      let x = (v.x * 0.5 + 0.5) * w, y = (-v.y * 0.5 + 0.5) * h;
+      const tw = text.length * 6.6 + 8;
+      for (let pass = 0; pass < 3; pass++) {
+        const hit = obstacles.find((o) =>
+          cls === "gx" || cls === "g0" ? x + tw / 2 > o.l && x - tw / 2 < o.r && y + 18 > o.t && y < o.b : y + 8 > o.t && y - 8 < o.b && (pinRight ? x - tw - 6 < o.r && x > o.l : x + tw + 6 > o.l && x < o.r),
+        );
+        if (!hit) break;
+        if (cls === "gx" || cls === "g0") y = hit.t - 20; // hop above the panel, keeping the line's x
+        else x = pinRight ? hit.l - 2 : hit.r + 2; // hop beside the panel, keeping the line's y
+      }
+      if (x < 0 || x > w || y < 0 || y > h - 12) return;
+      items.push({ text, x, y, cls: cls === "gy" && pinRight ? "gy right" : cls });
+    };
+    const xs = Math.ceil(b[0] / major), xe = Math.floor(b[1] / major);
+    const ys = Math.ceil(b[2] / major), ye = Math.floor(b[3] / major);
+    if (xe - xs > 60 || ye - ys > 60) return;
+    for (let i = xs; i <= xe; i++) if (i !== 0) push(i * major, yAnchor, StarMapViewer.fmtTick(i * major, major), "gx");
+    for (let j = ys; j <= ye; j++) if (j !== 0) push(xAnchor, j * major, StarMapViewer.fmtTick(j * major, major), "gy");
+    if (Math.abs(xAnchor) < 1e-9 && Math.abs(yAnchor) < 1e-9) push(0, 0, "0", "g0");
+    while (this.gridLabels.length < items.length) {
+      const el = document.createElement("div");
+      layer.appendChild(el);
+      this.gridLabels.push(el);
+    }
+    this.gridLabels.forEach((el, k) => {
+      const it = items[k];
+      if (!it) {
+        el.style.display = "none";
+        return;
+      }
+      el.style.display = "";
+      el.className = `mv-gl ${it.cls}`;
+      el.textContent = it.text;
+      el.style.transform = `translate(${it.x.toFixed(1)}px, ${it.y.toFixed(1)}px)`;
+    });
   }
 
   /** Constellation lines, labels, planets and waypoints all move with the epoch on the timeline. */
@@ -1151,8 +1299,10 @@ export class StarMapViewer {
 
     if (this.updateTiles()) busy = true;
     this.updateImages();
+    if (this.settings.grid) this.updateGrid();
     this.renderer.render(this.scene, this.camera);
     this.updateOverlays();
+    this.updateGridLabels();
     if (this.warpT > 0 || this.tweens.length) {
       this.drawWarp(dt);
       busy = true;

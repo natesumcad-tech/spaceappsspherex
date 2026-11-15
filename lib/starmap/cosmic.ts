@@ -21,20 +21,7 @@ export type Galaxy = {
   wp?: string;
 };
 
-export const GALAXIES: Galaxy[] = [
-  { id: "lmc", name: "Large Magellanic Cloud", kind: "Satellite galaxy", ra: 80.894, dec: -69.756, dist: 160_000, size: 14_000, wp: "lmc", description: "The Milky Way's biggest satellite galaxy, full of star-forming clouds." },
-  { id: "smc", name: "Small Magellanic Cloud", kind: "Satellite galaxy", ra: 13.187, dec: -72.829, dist: 200_000, size: 7_000, wp: "smc", description: "A dwarf galaxy being stretched by the Milky Way and the Large Magellanic Cloud." },
-  { id: "m31", name: "Andromeda Galaxy", kind: "Spiral galaxy", ra: 10.685, dec: 41.269, dist: 2_500_000, size: 150_000, wp: "m31", description: "The nearest big galaxy. It and the Milky Way are heading for a merger in about 4–5 billion years." },
-  { id: "m33", name: "Triangulum Galaxy", kind: "Spiral galaxy", ra: 23.462, dec: 30.66, dist: 2_730_000, size: 60_000, wp: "m33", description: "The third-largest member of our Local Group of galaxies." },
-  { id: "ngc253", name: "Sculptor Galaxy", kind: "Starburst galaxy", ra: 11.888, dec: -25.288, dist: 11_400_000, size: 90_000, description: "A dusty spiral forming stars unusually fast." },
-  { id: "m81", name: "Bode's Galaxy (M81)", kind: "Spiral galaxy", ra: 148.888, dec: 69.065, dist: 11_800_000, size: 90_000, description: "A grand spiral and the heart of a nearby galaxy group." },
-  { id: "m82", name: "Cigar Galaxy (M82)", kind: "Starburst galaxy", ra: 148.97, dec: 69.68, dist: 11_500_000, size: 37_000, description: "Stirred up by M81, it is forming stars about ten times faster than the Milky Way." },
-  { id: "cena", name: "Centaurus A", kind: "Active galaxy", ra: 201.365, dec: -43.019, dist: 12_000_000, size: 60_000, wp: "cena", description: "A giant galaxy with a supermassive black hole firing jets far into space." },
-  { id: "m101", name: "Pinwheel Galaxy (M101)", kind: "Spiral galaxy", ra: 210.802, dec: 54.349, dist: 21_000_000, size: 170_000, wp: "m101", description: "A huge face-on spiral; SPHEREx tutorials map its glowing dust." },
-  { id: "m51", name: "Whirlpool Galaxy (M51)", kind: "Interacting galaxy", ra: 202.47, dec: 47.195, dist: 23_000_000, size: 76_000, wp: "m51", description: "A spiral tugging on a small companion galaxy." },
-  { id: "m104", name: "Sombrero Galaxy (M104)", kind: "Spiral galaxy", ra: 189.998, dec: -11.623, dist: 31_000_000, size: 50_000, wp: "m104", description: "An edge-on spiral with a bright bulge and a dark lane of dust." },
-  { id: "m87", name: "M87", kind: "Giant elliptical galaxy", ra: 187.706, dec: 12.391, dist: 53_500_000, size: 120_000, description: "Home of the first black hole ever imaged, in 2019, at the heart of the Virgo Cluster." },
-];
+// Only our own galaxy is shown: this is the sky SPHEREx maps from inside the Milky Way.
 
 const MW = { id: "milky-way", name: "Milky Way", kind: "Our galaxy", size: 100_000, dist: 0, description: "Our home galaxy: a barred spiral of 100–400 billion stars. The Sun is about 26,000 light-years from its center." };
 
@@ -50,7 +37,7 @@ const homeTarget = (d: number, out = new THREE.Vector3()) => {
 };
 const ENTER_SKY = 1_200; // zoom closer than this to the Sun and the sky map takes over
 const D_MIN = 400;
-const D_MAX = 90_000_000;
+const D_MAX = 260_000; // far enough to see the whole Milky Way, no farther
 
 const gaussian = () => {
   let u = 0;
@@ -216,23 +203,7 @@ export class CosmicView {
     mwPts.rotation.y = 0.5;
     this.scene.add(mwPts);
 
-    // Nearby galaxies: particle disks for the two big Local Group spirals, glowing sprites for the rest
-    for (const g of GALAXIES) {
-      const p = radecDist(g.ra, g.dec, g.dist);
-      if (g.id === "m31" || g.id === "m33") {
-        const s = spiralGalaxy(g.size / 2, g.id === "m31" ? 40_000 : 15_000, [0.08, 0.09, 0.12]);
-        const pts = cloud(s.pos, s.col, s.size, mat(150_000, 3));
-        pts.position.copy(p);
-        pts.rotation.set(g.id === "m31" ? 1.3 : 0.9, 0.6, 0.3);
-        this.scene.add(pts);
-      }
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: galaxyTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: g.id === "m31" || g.id === "m33" ? 0.35 : 0.9 }));
-      sp.scale.setScalar(g.size * 1.4);
-      sp.position.copy(p);
-      this.scene.add(sp);
-      this.addLabel(g.name, p, () => this.select(g), "cv-gal", { min: HOME_DIST * 1.4, max: g.dist * 40, prio: 10 + Math.log10(g.dist) - g.size / 1e6 }); // only once you zoom out past the Milky Way
-    }
-    this.addLabel("Milky Way", new THREE.Vector3(SUN_TO_CENTER, 0, 0), () => this.select(MW), "cv-gal cv-mw", { min: 20_000, max: 6_000_000, prio: 1 });
+    this.addLabel("Milky Way", new THREE.Vector3(SUN_TO_CENTER, 0, 0), () => this.select(MW), "cv-gal cv-mw", { min: 20_000, prio: 1 });
 
     // Every catalogue star with a distance, at its real position: a tiny cloud around the Sun
     const pos: number[] = [], col: number[] = [], size: number[] = [];
@@ -294,7 +265,7 @@ export class CosmicView {
     const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: galaxyTexture(), color: 0xffe28a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false }));
     sun.scale.setScalar(0.035);
     this.scene.add(sun);
-    this.addLabel("Sun · you are here", new THREE.Vector3(), () => this.dive(), "cv-sun", { prio: 0, max: 300_000 });
+    this.addLabel("Sun · you are here", new THREE.Vector3(), () => this.dive(), "cv-sun", { prio: 0, max: 170_000 });
     this.labels.sort((a, b) => a.prio - b.prio);
   }
 
@@ -448,7 +419,7 @@ export class CosmicView {
 
   private scaleName() {
     const d = this.dist;
-    return d < 9_000 ? "Our stellar neighborhood" : d < 400_000 ? "The Milky Way" : d < 8_000_000 ? "The Local Group" : "Nearby galaxies";
+    return d < 9_000 ? "Our stellar neighborhood" : "The Milky Way";
   }
 
   private loop = () => {
