@@ -380,6 +380,9 @@ export default function StarMapApp() {
     };
   };
 
+  const navigationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (navigationTimer.current) clearTimeout(navigationTimer.current); }, []);
+
   const runAction = (a: AssistantAction): string | null => {
     const viewer = viewerRef.current, sky = skyRef.current;
     if (!viewer || !sky) return null;
@@ -387,6 +390,10 @@ export default function StarMapApp() {
     const open = !!a.args.open_360;
     if (cosmicOn.current && a.name !== "set_timeline" && a.name !== "set_imagery") leaveCosmic(false);
     const go = (stop: string | null, x: number, y: number, d: number, label: string) => {
+      if (navigationTimer.current) clearTimeout(navigationTimer.current);
+      const [ra, dec] = viewer.toRadec(x, y);
+      viewer.setTargetMarker(ra, dec, label);
+      setHasMarker(true);
       if (open && stop) {
         enterSphere(stop);
         return `◎ Opened ${label} in 360°`;
@@ -394,7 +401,7 @@ export default function StarMapApp() {
       const fly = () => viewer.flyTo(x, y, d, false);
       if (sphereRef.current) {
         exitSphere();
-        setTimeout(fly, 450);
+        navigationTimer.current = setTimeout(fly, 1700);
       } else fly();
       return `✈ Flew to ${label}`;
     };
@@ -430,7 +437,7 @@ export default function StarMapApp() {
         const [ra, dec] = viewer.toRadec(x, y);
         viewer.setTargetMarker(ra, dec, String(a.args.label ?? "Requested map position"));
         setHasMarker(true);
-        return go(null, x, y, 1.5 / (2 * Math.tan(20 * Math.PI / 180)), String(a.args.label ?? "that map position"));
+        return go(null, x, y, 0.3 / (2 * Math.tan(20 * Math.PI / 180)), String(a.args.label ?? "that map position"));
       }
       case "show_sky_position": {
         const ra = Number(a.args.ra_deg), dec = Number(a.args.dec_deg);
@@ -438,7 +445,7 @@ export default function StarMapApp() {
         const [x, y] = viewer.project(((ra % 360) + 360) % 360, dec);
         viewer.setTargetMarker(((ra % 360) + 360) % 360, dec, String(a.args.label ?? "Requested sky position"));
         setHasMarker(true);
-        return go(null, x, y, 1.5 / (2 * Math.tan(20 * Math.PI / 180)), String(a.args.label ?? "that spot"));
+        return go(null, x, y, 0.3 / (2 * Math.tan(20 * Math.PI / 180)), String(a.args.label ?? "that spot"));
       }
       case "set_timeline": {
         const i = EPOCHS.findIndex((e) => e.label === a.args.epoch);

@@ -1,3 +1,4 @@
+import { resolveObject } from "@/lib/assistant/resolve";
 import { coordinateDestination } from "@/lib/assistant/coordinates";
 import { retrieveNasa, followups } from "@/lib/assistant/nasa";
 import { NextResponse } from "next/server";
@@ -32,7 +33,7 @@ How to help:
 - Help people find things and understand them. Be warm, accurate and brief: under 110 words, plain text, no markdown.
 - When someone wants to see or go somewhere, call the matching function AND reply with a short sentence about it.
   Use show_place for anything in the place list, show_constellation / show_star for those, and show_sky_position
-  with J2000 RA/Dec in degrees for any other object you are confident about. Set open_360 true only if they ask to step inside / see it in 360°.
+  for exact user-supplied J2000 coordinates. For other named objects call resolve_object: a catalogue lookup supplies the position, never estimate coordinates. Set open_360 true only if they ask to step inside / see it in 360°.
 - Map x/y are NOT RA/Dec: map x runs -180 to 180 with east to the left, map y runs -90 to 90. For explicit x/y use show_map_position, preserving the numbers. For RA/Dec use show_sky_position. An unlabeled sky position does not need a star name. Never guess a star identity from coordinates.
 - If coordinates have no labels and could refer to either system, ask whether they are map x/y or J2000 RA/Dec. Bare nonnegative decimal pairs use RA/Dec, matching the coordinate search field.
 - If a request is ambiguous, ask one short clarifying question instead of guessing.
@@ -75,6 +76,11 @@ const TOOLS = [
         name: "show_map_position",
         description: "Fly to displayed map x/y coordinates at the current timeline epoch, without converting them to RA/Dec.",
         parameters: { type: "OBJECT", properties: { x: { type: "NUMBER" }, y: { type: "NUMBER" }, label: { type: "STRING" } }, required: ["x", "y"] },
+      },
+      {
+        name: "resolve_object",
+        description: "Look up an astronomical object by catalogue identifier/name and navigate to its verified J2000 coordinates. Use for objects outside the app place/star lists; never guess their coordinates.",
+        parameters: { type: "OBJECT", properties: { name: { type: "STRING" } }, required: ["name"] },
       },
       {
         name: "show_sky_position",
@@ -176,11 +182,25 @@ export async function POST(req: Request) {
       .trim();
     const actions = parts.filter((p) => p.functionCall).map((p) => ({ name: p.functionCall!.name, args: p.functionCall!.args ?? {} }));
     const suggestion = actions.find(a => a.name === "suggest_followups")?.args;
-    const reply = textReply || (typeof suggestion?.answer === "string" ? suggestion.answer.trim() : "");
+    let reply = textReply || (typeof suggestion?.answer === "string" ? suggestion.answer.trim() : "");
     if (!reply) return NextResponse.json({ error: "empty_answer" }, { status: 502 });
     const ids = Array.isArray(suggestion?.source_ids) ? suggestion.source_ids : [];
     const sources = evidence.filter(s => ids.includes(s.id) || reply.includes(`[${s.id}]`)).map(({ excerpt, ...source }) => source);
-    return NextResponse.json({ reply, actions: actions.filter(a => a.name !== "suggest_followups"), followups: followups(suggestion?.questions), sources, sourceStatus: evidence.length ? "available" : "unavailable" });
+    const navigationActions = [];
+    for (const action of actions.filter(a => a.name !== "suggest_followups")) {
+      if (action.name === "resolve_object" || action.name === "show_sky_position") {
+        const name = String(action.args.name ?? action.args.label ?? "");
+        const verified = await resolveObject(name);
+        if (!verified) {
+          reply = `I couldn't verify the coordinates for ${name || "that object"}, so I haven't moved the map. Please provide a catalogue identifier or exact J2000 RA/Dec.`;
+          continue;
+        }
+        navigationActions.push({ name: "show_sky_position", args: { ra_deg: verified.ra, dec_deg: verified.dec, label: name } });
+        reply = `Heading to ${name} at J2000 RA ${verified.ra.toFixed(8)}°, Dec ${verified.dec.toFixed(8)}°. The Destination diamond marks the catalogue position.`;
+        sources.push({ id: 4, title: "CDS Sesame · verified catalogue position", url: verified.url });
+      } else navigationActions.push(action);
+    }
+    return NextResponse.json({ reply, actions: navigationActions, followups: followups(suggestion?.questions), sources, sourceStatus: evidence.length ? "available" : "unavailable" });
   } catch (e) {
     if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
       return NextResponse.json({ error: "timeout" }, { status: 504 });

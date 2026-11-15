@@ -985,3 +985,7 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .lbl-ask { display: none; position: absolute; top: 100%; left: 0; padding: 10px 12px; min-width: 170px; border: 1px solid #b2986d; border-radius: 8px; background: #f7efdf; color: #171512; font: 12px var(--font-body), sans-serif; cursor: pointer; white-space: nowrap; text-transform: none; letter-spacing: 0; }
 .lbl-link:hover .lbl-ask, .lbl-link:focus-within .lbl-ask { display: block; }
 .lbl-link:focus-visible { outline: 2px solid #f1dfbb; outline-offset: 3px; }
+
+/* One precise destination point, reused whenever navigation changes. */
+.mv-reticle-ring { width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 1px; transform: rotate(45deg); background: #ac8d55; border: 2px solid #f4e2bf; }
+.mv-reticle-label { color: #f4e2bf; border-color: #b79b68; font-weight: 700; }
