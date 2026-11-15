@@ -1,18 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-//  Edit this file to customise the site for your team.
-//  Everything marked TODO is a placeholder.
+//  The site's text: project description, mission facts, sources and credits.
 // ─────────────────────────────────────────────────────────────
 
 export const site = {
-  teamName: "Team BigBang",
   projectName: "Sky Explorer",
   tagline:
     "Step inside the sky NASA's SPHEREx is mapping: real stars, planets and the Milky Way in 360°.",
   event: "NASA Space Apps Challenge",
-  // TODO: link to your team page on spaceappschallenge.org
-  teamPageUrl: "https://www.spaceappschallenge.org/2026/find-a-team/bigbang/",
-  // TODO: link to your GitHub repo
-  repoUrl: "https://github.com/natesumcad-tech/spaceappsspherex",
 };
 
 export const project = {
@@ -29,14 +23,6 @@ export const project = {
   ],
   tools: ["Next.js", "three.js", "TypeScript", "Vercel", "SPHEREx DR1 (IRSA)", "HYG star catalogue", "JPL orbital elements", "SIMBAD", "Google Gemini"],
 };
-
-export const team: { name: string; role: string }[] = [
-  // TODO: replace with your teammates
-  { name: "A", role: "Web" },
-  { name: "B", role: "Full Stack" },
-  { name: "C", role: "Data & Sciences" },
-  { name: "D", role: "Style & Presentation" },
-];
 
 export const mission = {
   stats: [
@@ -126,7 +112,7 @@ export const credits: { title: string; text: string; url?: string }[] = [
 export const aiUse: { title: string; text: string }[] = [
   {
     title: "Coding assistant",
-    text: "We built much of the code with help from an AI coding assistant (Anthropic's Claude), directing the design and reviewing and testing what it produced.",
+    text: "Much of the code was built with help from an AI coding assistant (Anthropic's Claude), with the design directed and the results reviewed and tested by hand.",
   },
   {
     title: "Sky guide",

@@ -79,7 +79,7 @@ lib/
   starmap/                  # Three.js viewer, HEALPix/IRSA HiPS, coords, cosmic data
   explorer/                 # 360° engine, landmarks, textures, dynamic views
 content/
-  site.ts                   # Team info, project description, links
+  site.ts                   # Project description, mission facts, sources, credits
 scripts/
   build-sky-data.mjs        # Rebuilds public/data/sky.json from star catalog
 ```
@@ -93,7 +93,7 @@ node tests/zoom-policy.test.mjs
 
 ## AI Usage
 
-Artificial Intelligience(Anthropic's Claude) was used in this project, along with Google Gemini for the "Sky Explorer" chatbot.
+Artificial intelligence (Anthropic's Claude) was used to help write the code for this project, along with Google Gemini for the "Sky Explorer" chatbot.
 
 ## License
 

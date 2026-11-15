@@ -203,7 +203,7 @@ export async function POST(req: Request) {
         if (identification.remoteStatus === "available") coordinateSource = { id: 5, title: "SIMBAD · objects near these coordinates", url: identification.url };
         else {
           remoteIdentifyFailed = true;
-          if (identification.local.length) coordinateSource = { id: 5, title: "Sky Explorer · local sky catalogue", url: "https://github.com/natesumcad-tech/spaceappsspherex" };
+          if (identification.local.length) coordinateSource = { id: 5, title: "Sky Explorer · local sky catalogue", url: "https://orbit3d.earth/map" };
         }
       }
       const evidence = await retrieveNasa(messages.filter(m => m.role === "user").slice(-3).map(m => m.text).join(" ") + " " + context);

@@ -5,7 +5,7 @@ import SiteTabs from "@/components/SiteTabs";
 import ResetTutorialButton from "@/components/ResetTutorialButton";
 import ScrollReveal from "@/components/ScrollReveal";
 import SpectrumExplorer from "@/components/SpectrumExplorer";
-import { site, project, team, mission, resources, credits, aiUse } from "@/content/site";
+import { site, project, mission, resources, credits, aiUse } from "@/content/site";
 import "./home.css";
 
 // 102 bars: one for each SPHEREx band, shaped like a gentle spectrum
@@ -27,7 +27,7 @@ export default function Home() {
           <div className="h-brand">
             <Link href="/" className="h-logo">
               <span className="h-logo-mark" aria-hidden="true" />
-              {site.teamName}
+              {site.projectName}
             </Link>
             <ResetTutorialButton />
           </div>
@@ -63,7 +63,7 @@ export default function Home() {
               <span />
               <span />
               <span />
-              <div className="h-url">nasaspaceappsbigbang.vercel.app/map</div>
+              <div className="h-url">orbit3d.earth/map</div>
             </div>
             <Image
               src="/shots/explorer-saturn.jpg"
@@ -132,7 +132,7 @@ export default function Home() {
                 <span />
                 <span />
                 <span />
-                <div className="h-url">nasaspaceappsbigbang.vercel.app/map</div>
+                <div className="h-url">orbit3d.earth/map</div>
               </div>
               <Image
                 src="/shots/starmap-2d.jpg"
@@ -224,13 +224,13 @@ export default function Home() {
         {/* ── Project ── */}
         <section id="project" className="h-section">
           <h2 className="h-split center">
-            {project.challenge} <span>05 · Our project</span>
+            {project.challenge} <span>05 · The project</span>
           </h2>
           <div className="h-project">
             <div className="h-box">
               <h3>The problem</h3>
               <p>{project.problem}</p>
-              <h3>Our solution</h3>
+              <h3>The solution</h3>
               <p>{project.solution}</p>
             </div>
             <div className="h-box">
@@ -250,32 +250,10 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Team ── */}
-        <section id="team" className="h-section">
-          <h2 className="h-split center">
-            {site.teamName} <span>06 · Team</span>
-          </h2>
-          <ul className="h-team">
-            {team.map((m, i) => (
-              <li key={m.name}>
-                <span className={`h-avatar tint-${i % 4}`} aria-hidden="true">
-                  {m.name
-                    .split(" ")
-                    .map((w) => w[0])
-                    .join("")
-                    .slice(0, 2)}
-                </span>
-                <b>{m.name}</b>
-                <span>{m.role}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
         {/* ── Resources + final CTA ── */}
         <section className="h-section">
           <h2 className="h-split center">
-            Data & references <span>07 · Sources</span>
+            Data & references <span>06 · Sources</span>
           </h2>
           <ul className="h-resources">
             {resources.map((r) => (
@@ -292,7 +270,7 @@ export default function Home() {
         {/* ── Credits & AI use ── */}
         <section id="credits" className="h-section">
           <h2 className="h-split center">
-            Credits <span>08 · Data, code & AI</span>
+            Credits <span>07 · Data, code & AI</span>
           </h2>
           <div className="h-project">
             <div className="h-box">
@@ -307,7 +285,7 @@ export default function Home() {
               </ul>
             </div>
             <div className="h-box">
-              <h3>How we used AI</h3>
+              <h3>How AI was used</h3>
               <ul className="h-credits">
                 {aiUse.map((c) => (
                   <li key={c.title}>
@@ -333,17 +311,10 @@ export default function Home() {
 
       <footer className="h-footer">
         <span>
-          Built for the {site.event} by Big Bang.
+          Built for the {site.event}.
         </span>
         <span>
-          <a href={site.teamPageUrl} target="_blank" rel="noreferrer">
-            Team page
-          </a>{" "}
-          ·{" "}
-          <a href={site.repoUrl} target="_blank" rel="noreferrer">
-            Source code
-          </a>{" "}
-          · <a href="#credits">Credits</a>
+          <a href="#credits">Credits</a>
         </span>
         <span className="h-fine">
           SPHEREx mission information courtesy of NASA/JPL-Caltech. A student hackathon project, not an official NASA website.
