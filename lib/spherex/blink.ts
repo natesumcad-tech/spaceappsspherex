@@ -12,7 +12,7 @@ const SIA = "https://irsa.ipac.caltech.edu/SIA";
 // Uranus and Neptune go dark), so prefer them unless a longer one covers the field much better.
 const BAND_PREFERENCE = ["D1", "D2", "D3", "D4", "D5", "D6"];
 
-type Exposure = { obsId: string; url: string; mjd: number; band: string; umMin: number; umMax: number; center: [number, number]; corners: [number, number][] };
+export type Exposure = { obsId: string; url: string; mjd: number; band: string; umMin: number; umMax: number; center: [number, number]; corners: [number, number][] };
 
 export type BlinkBody = { name: string; x: number; y: number; inFrame: boolean };
 export type BlinkPass = {
@@ -41,7 +41,7 @@ const mjdToDate = (mjd: number) => new Date(Date.UTC(1858, 10, 17) + mjd * 864e5
 const mjdToYear = (mjd: number) => 2000 + (mjd - 51544.5) / 365.25;
 
 /** All SPHEREx DR1 exposures covering a point. */
-async function findExposures(ra: number, dec: number, signal?: AbortSignal): Promise<Exposure[]> {
+export async function findExposures(ra: number, dec: number, signal?: AbortSignal): Promise<Exposure[]> {
   const q = new URLSearchParams({ COLLECTION: "spherex_dr1", POS: `CIRCLE ${ra} ${dec} 0.002`, RESPONSEFORMAT: "VOTABLE", MAXREC: "3000" });
   let text = "";
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -104,7 +104,7 @@ function fieldCoverage(e: Exposure, ra: number, dec: number, size: number) {
 }
 
 /** Group exposures into survey passes (a gap of more than ~6 weeks starts a new one). */
-function passes(exps: Exposure[]) {
+export function passes(exps: Exposure[]) {
   const sorted = [...exps].sort((a, b) => a.mjd - b.mjd);
   const groups: Exposure[][] = [];
   for (const e of sorted) {

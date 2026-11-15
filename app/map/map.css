@@ -1216,3 +1216,29 @@ button.cv-label:hover { background: #fff; color: #171512; }
 .bk-gone-label { transform: translate(-8%, -160%); }
 .bk-gone-label.right { transform: translate(-92%, -160%); }
 .cv-note { font-size: 0.68rem !important; opacity: 0.75; margin-top: 4px !important; }
+
+/* ── Get the real data ── */
+.mv-data-btn {
+  display: block; width: 100%; margin: 8px 0 2px; font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  padding: 7px 10px; border-radius: 9px; border: 1px solid #d9ccb7; background: #fffaf1; color: #171512; text-align: center;
+}
+.mv-data-btn:hover { border-color: #bfae93; background: #f6eedf; }
+.bk-link { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; color: #171512; font-weight: 600; }
+.bk-link:focus-visible { outline: 2px solid #171512; outline-offset: 2px; }
+.dp-card { width: min(560px, 100%); }
+.dp-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e6dac6; }
+.dp-sec h3 { margin: 0 0 8px; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: #8a7f6f; }
+.dp-error { margin: 0; font-size: 0.84rem; color: #8a3b1b; }
+.dp-pass { margin-bottom: 10px; }
+.dp-pass-head { margin: 0 0 6px; font-size: 0.8rem; color: #4a4338; }
+.dp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dp-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.78rem; background: #fffaf1; border: 1px solid #e6dac6; border-radius: 8px; padding: 5px 9px; }
+.dp-band { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.74rem; min-width: 112px; }
+.dp-list a, .dp-links a { color: #171512; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.dp-bullets { margin: 0; padding-left: 18px; font-size: 0.82rem; line-height: 1.5; color: #4a4338; display: grid; gap: 4px; }
+.dp-code { position: relative; margin-top: 8px; }
+.dp-code pre { margin: 0; max-height: 220px; overflow: auto; background: #171512; color: #f1e8d8; border-radius: 10px; padding: 10px 12px; font-size: 0.7rem; line-height: 1.5; }
+.dp-code .bk-seg { position: absolute; top: 6px; right: 6px; padding: 3px 8px; font-size: 0.7rem; }
+.dp-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dp-links li { display: grid; gap: 1px; font-size: 0.84rem; }
+.dp-links span { font-size: 0.76rem; color: #625b50; }

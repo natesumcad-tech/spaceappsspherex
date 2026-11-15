@@ -40,6 +40,7 @@ export default function BlinkViewer({
   onClose,
   onRetry,
   onFeatured,
+  onData,
 }: {
   data: FeaturedBlink | null;
   loading: { label: string; since: number } | null;
@@ -47,6 +48,7 @@ export default function BlinkViewer({
   onClose: () => void;
   onRetry: () => void;
   onFeatured: () => void;
+  onData: (ra: number, dec: number) => void;
 }) {
   const [mode, setMode] = useState<Mode>("blink");
   const [frame, setFrame] = useState(0);
@@ -227,7 +229,10 @@ export default function BlinkViewer({
               </div>
             </dl>
             <p className="bk-source">
-              <b>Real data</b> SPHEREx DR1 Level 2 images (NASA/JPL-Caltech) from NASA/IPAC IRSA · planet positions from their orbits (JPL elements)
+              <b>Real data</b> SPHEREx DR1 Level 2 images (NASA/JPL-Caltech) from NASA/IPAC IRSA · planet positions from their orbits (JPL elements) ·{" "}
+              <button className="bk-link" onClick={() => onData(data.ra, data.dec)}>
+                download these images
+              </button>
             </p>
           </>
         )}

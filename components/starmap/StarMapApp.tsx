@@ -20,6 +20,7 @@ import type { CosmicView, Galaxy } from "@/lib/starmap/cosmic";
 import CoordSearchBar from "./CoordSearchBar";
 import BlinkPlayer from "./BlinkPlayer";
 import BlinkViewer, { type FeaturedBlink } from "./BlinkViewer";
+import DataPanel from "./DataPanel";
 import Tutorial, { tourDone } from "./Tutorial";
 import Quest, { loadQuest } from "./Quest";
 
@@ -98,6 +99,7 @@ export default function StarMapApp() {
   const [blinkError, setBlinkError] = useState<string | null>(null);
   const blinkReq = useRef<AbortController | null>(null);
   const blinkLast = useRef<"here" | "featured">("here");
+  const [dataAt, setDataAt] = useState<{ ra: number; dec: number } | null>(null); // "Get the real data" panel
   const [help, setHelp] = useState(true);
   const [sphere, setSphere] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -840,6 +842,9 @@ export default function StarMapApp() {
         </div>
         <Collapsible id="map-overview" className="mv-glass mv-minicard" title={<span className="cl-label">Overview</span>} summary={layerById(settings.layer).name}>
           <Minimap ref={minimapRef} onMove={(x, y) => viewerRef.current?.setTarget(x, y)} />
+          <button className="mv-data-btn" onClick={() => setDataAt({ ...centerCoord })} title="The real SPHEREx images of the middle of your view, ready to download">
+            ⇩ Get the real data here
+          </button>
           <div ref={readoutRef} className="mv-readout" title="These are view-center coordinates. Scrolling zooms toward your cursor, which can shift the center. Share J2000 RA/Dec for a fixed sky position." />
           <ImageryControl settings={settings} set={set} />
         </Collapsible>
@@ -886,8 +891,10 @@ export default function StarMapApp() {
           onClose={closeBlink}
           onRetry={() => (blinkLast.current === "featured" ? blinkFeatured() : blinkHere())}
           onFeatured={blinkFeatured}
+          onData={(ra, dec) => setDataAt({ ra, dec })}
         />
       )}
+      {dataAt && <DataPanel ra={dataAt.ra} dec={dataAt.dec} onClose={() => setDataAt(null)} />}
       <Quest
         open={questOpen}
         hidden={cosmic || tour || blinkOpen}
@@ -938,6 +945,7 @@ export default function StarMapApp() {
                 onStep={enterSphere}
                 imaged={`${layerById(settings.layer).name}: ${layerById(settings.layer).observed}`}
                 onDelete={(id) => setCustom((c) => c.filter((w) => w.id !== id))}
+                onData={(ra, dec) => setDataAt({ ra, dec })}
               />
             ) : (
               <PlanetDetails
@@ -1021,6 +1029,7 @@ function WaypointDetails({
   near,
   onStep,
   onDelete,
+  onData,
 }: {
   wp: Waypoint;
   viewer: StarMapViewer | null;
@@ -1028,6 +1037,7 @@ function WaypointDetails({
   near: boolean;
   onStep: (stop: string) => void;
   onDelete: (id: string) => void;
+  onData: (ra: number, dec: number) => void;
 }) {
   return (
     <>
@@ -1072,6 +1082,9 @@ function WaypointDetails({
             Travel here
           </button>
         )}
+        <button className="mv-secondary" onClick={() => onData(wp.ra, wp.dec)} title="Download the real SPHEREx images of this spot">
+          Real data
+        </button>
         {wp.custom && (
           <button className="mv-secondary" onClick={() => onDelete(wp.id)}>
             Delete
