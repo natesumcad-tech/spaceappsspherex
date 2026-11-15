@@ -172,15 +172,16 @@ export default function StarMapApp() {
   const exitSphere = useCallback(() => {
     if (!sphereRef.current || leaving.current) return;
     leaving.current = true;
-    // Cutscene: the 360° view irises shut into its spot while the map pulls back out around it
+    // Cutscene — stepping inside, played backwards: the 360° view darkens, fades to the map,
+    // and the map flies back out of the spot with the hyperspace streaks
     const quick = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setClosing(true);
     setUrl(null);
-    quietUntil.current = performance.now() + (quick ? 500 : 1800);
+    quietUntil.current = performance.now() + (quick ? 500 : 1900);
     viewerRef.current?.setEnabled(true);
-    viewerRef.current?.pullOut(14, quick ? 400 : 1700);
+    viewerRef.current?.pullOut(14, quick ? 400 : 1100, quick ? 0 : 300);
     if (finishTimer.current) clearTimeout(finishTimer.current);
-    finishTimer.current = setTimeout(finishExit, quick ? 350 : 1600); // fallback if the animation never reports
+    finishTimer.current = setTimeout(finishExit, quick ? 350 : 1100); // fallback if the animation never reports
   }, [finishExit]);
 
 
@@ -826,7 +827,6 @@ export default function StarMapApp() {
           <div className={`mv-sphere ${closing ? "closing" : ""}`} onAnimationEnd={(e) => e.animationName === "mv-sphere-out" && finishExit()}>
             <SphereView stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
           </div>
-          {closing && <div className="mv-iris" aria-hidden="true" />}
         </>
       )}
 

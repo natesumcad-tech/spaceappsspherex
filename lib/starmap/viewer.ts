@@ -671,15 +671,30 @@ export class StarMapViewer {
     this.flyTo(0, 0, 70, true);
   }
 
-  /** Coming down from the galaxy view: start at the widest view and settle in on the origin. */
-  /** Leaving a 360° view: start right on top of the spot, then pull back out to see its neighborhood. */
-  pullOut(toD = 14, ms = 1700) {
+  /**
+   * Leaving a 360° view — the stepping-inside flight played backwards: the map waits right on top of
+   * the spot (hidden under the fading sphere), then flies back out with the same hyperspace streaks.
+   */
+  pullOut(toD = 14, ms = 1100, delay = 0) {
     this.tweens = [];
+    if (this.pullTimer) clearTimeout(this.pullTimer);
+    this.lockedUntil = performance.now() + delay + ms;
     const from = clamp(Math.min(this.d, 1.1), D_MIN, D_MAX), to = Math.max(toD, from);
     this.d = from;
-    this.animate(ms, (t) => (this.d = Math.exp(Math.log(from) + (Math.log(to) - Math.log(from)) * (1 - Math.pow(1 - t, 3)))));
+    this.invalidate();
+    this.pullTimer = setTimeout(() => {
+      this.pullTimer = null;
+      this.startWarp();
+      this.animate(ms, (t) => {
+        this.d = Math.exp(Math.log(from) + (Math.log(to) - Math.log(from)) * ease(t));
+        this.warpT = Math.sin(Math.PI * t);
+      }, () => (this.warpT = 0));
+    }, delay);
   }
+  private pullTimer: ReturnType<typeof setTimeout> | null = null;
+  private lockedUntil = 0;
 
+  /** Coming down from the galaxy view: start at the widest view and settle in on the origin. */
   arriveFromSpace() {
     this.tweens = [];
     this.target.set(0, 0);
@@ -1175,6 +1190,7 @@ export class StarMapViewer {
     const onWheel = (e: WheelEvent) => {
       if (!this.enabled) return;
       e.preventDefault();
+      if (performance.now() < this.lockedUntil) return; // the leftover scrolls that left a 360° view don't hijack its cutscene
       // Already as far out as the sky map goes? A few more scrolls out and we leave for the galaxies.
       if (e.deltaY > 0 && this.d >= D_MAX * 0.98) {
         pushOut += e.deltaY;
