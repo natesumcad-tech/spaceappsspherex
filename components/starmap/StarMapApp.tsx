@@ -13,6 +13,7 @@ import Collapsible from "@/components/ui/Collapsible";
 import { byId } from "@/lib/explorer/landmarks";
 import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import Assistant, { type AssistantAction } from "./Assistant";
+import type { CosmicView, Galaxy } from "@/lib/starmap/cosmic";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v1";
@@ -67,6 +68,33 @@ export default function StarMapApp() {
   sphereRef.current = sphere;
   const skyRef = useRef<SkyData | null>(null);
   const [askOpen, setAskOpen] = useState(false);
+
+  // ── Zoomed out: the galaxies (CosmicView). The tool opens here; dive into the Sun to reach the sky map ──
+  const cosmicStageRef = useRef<HTMLDivElement>(null);
+  const cosmicLabelsRef = useRef<HTMLDivElement>(null);
+  const cosmicRef = useRef<CosmicView | null>(null);
+  const cosmicHudRef = useRef<HTMLDivElement>(null);
+  const [cosmic, setCosmic] = useState(true);
+  const cosmicOn = useRef(true);
+  const [galaxy, setGalaxy] = useState<(Pick<Galaxy, "name" | "kind" | "size" | "dist" | "description"> & { wp?: string }) | null>(null);
+
+  const leaveCosmic = useCallback((goHome = true) => {
+    if (!cosmicOn.current) return;
+    cosmicOn.current = false;
+    setCosmic(false);
+    setGalaxy(null);
+    cosmicRef.current?.setActive(false);
+    viewerRef.current?.setEnabled(true);
+    if (goHome) viewerRef.current?.home();
+  }, []);
+  const goCosmic = useCallback(() => {
+    if (cosmicOn.current || !cosmicRef.current) return;
+    cosmicOn.current = true;
+    setCosmic(true);
+    viewerRef.current?.setEnabled(false);
+    cosmicRef.current.setActive(true);
+    cosmicRef.current.pullBack();
+  }, []);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setUrl = (stop: string | null) => {
@@ -186,15 +214,36 @@ export default function StarMapApp() {
           onOverview: (c) => minimapRef.current?.setImage(c),
           onEnter: (stop) => enterRef.current(stop),
           onNear: setNearStop,
+          onZoomOutLimit: () => goCosmic(),
         });
         viewerRef.current = viewer;
         viewer.invalidate();
+
+        const { CosmicView } = await import("@/lib/starmap/cosmic");
+        if (cancelled) return;
+        const cv = new CosmicView(cosmicStageRef.current!, cosmicLabelsRef.current!, sky, {
+          onEnterSky: () => leaveCosmic(true),
+          onSelect: (g) => setGalaxy(g ? { ...g } : null),
+          onView: (v) => {
+            const el = cosmicHudRef.current;
+            if (!el) return;
+            const d = v.dist >= 1e6 ? `${(v.dist / 1e6).toFixed(1)} million ly` : `${Math.round(v.dist).toLocaleString()} ly`;
+            el.innerHTML = `<b>${v.scale}</b><span>${d} from ${v.targetName === "Sun" ? "the Sun" : v.targetName}</span>`;
+          },
+        });
+        cosmicRef.current = cv;
         setReady(true);
         // Old /explore links and shared ?stop= links open that sphere straight away
         // Make sure views for waypoints exist before following a shared link to one
         [...PRESET_WAYPOINTS, ...load<Waypoint[]>(STORE_WP, [])].forEach(waypointStop);
         const stop = new URL(window.location.href).searchParams.get("stop");
-        if (stop && byId(stop)) setTimeout(() => enterRef.current(stop), 300);
+        if (stop && byId(stop)) {
+          leaveCosmic(false); // shared links go straight to their 360° view
+          setTimeout(() => enterRef.current(stop), 300);
+        } else {
+          viewer.setEnabled(false);
+          cv.setActive(true); // first visit: start zoomed out, among the galaxies
+        }
       } catch (e) {
         console.error(e);
         setError("Your browser couldn't start the 3D map. Try a recent version of Chrome, Edge, Firefox or Safari.");
@@ -202,6 +251,8 @@ export default function StarMapApp() {
     })();
     return () => {
       cancelled = true;
+      cosmicRef.current?.dispose();
+      cosmicRef.current = null;
       viewer?.dispose();
       viewerRef.current = null;
     };
@@ -277,6 +328,7 @@ export default function StarMapApp() {
     if (!viewer || !sky) return null;
     const norm = (t: unknown) => String(t ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const open = !!a.args.open_360;
+    if (cosmicOn.current && a.name !== "set_timeline" && a.name !== "set_imagery") leaveCosmic(false);
     const go = (stop: string | null, x: number, y: number, d: number, label: string) => {
       if (open && stop) {
         enterSphere(stop);
@@ -369,10 +421,60 @@ export default function StarMapApp() {
   const ep = EPOCHS[epoch];
 
   return (
-    <div className={`mv ${sphere ? "in-sphere" : ""}`}>
+    <div className={`mv ${sphere ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
       <div ref={stageRef} className="mv-stage">
         <div ref={overlayRef} className="mv-overlay" />
       </div>
+
+      {/* Zoomed out: the Milky Way and nearby galaxies */}
+      <div ref={cosmicStageRef} className={`cv-stage ${cosmic ? "on" : ""}`} aria-hidden={!cosmic}>
+        <div ref={cosmicLabelsRef} className="cv-labels" />
+      </div>
+      {cosmic && ready && (
+        <>
+          <div className="mv-glass cv-hud">
+            <div ref={cosmicHudRef} className="cv-scale" />
+            <p>Drag to turn · scroll to zoom · click a galaxy. Zoom into the Sun to see its constellations.</p>
+            <button className="mv-primary" onClick={() => cosmicRef.current?.dive()}>
+              Zoom into the Sun ↓
+            </button>
+          </div>
+          {galaxy && (
+            <aside className="mv-glass cv-card" aria-live="polite">
+              <span className="mv-kind">{galaxy.kind}</span>
+              <h2>{galaxy.name}</h2>
+              <p>{galaxy.description}</p>
+              <dl>
+                <div>
+                  <dt>Distance</dt>
+                  <dd>{galaxy.dist ? (galaxy.dist >= 1e6 ? `${(galaxy.dist / 1e6).toFixed(1)} million ly` : `${(galaxy.dist / 1000).toFixed(0)},000 ly`) : "We're inside it"}</dd>
+                </div>
+                <div>
+                  <dt>Size</dt>
+                  <dd>≈ {galaxy.size.toLocaleString()} ly</dd>
+                </div>
+              </dl>
+              <div className="mv-wp-actions">
+                {galaxy.wp && (
+                  <button
+                    className="mv-primary"
+                    onClick={() => {
+                      const wp = PRESET_WAYPOINTS.find((w) => w.id === galaxy.wp);
+                      leaveCosmic(false);
+                      if (wp) enterSphere(waypointStop(wp));
+                    }}
+                  >
+                    View in 360° ↗
+                  </button>
+                )}
+                <button className="mv-secondary" onClick={() => cosmicRef.current?.flyHome()}>
+                  Back to the Sun
+                </button>
+              </div>
+            </aside>
+          )}
+        </>
+      )}
 
       {!ready && !error && <div className="mv-loading">Laying out the sky…</div>}
       {error && <div className="mv-loading">{error}</div>}
@@ -389,9 +491,10 @@ export default function StarMapApp() {
         <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
           <button
             role="tab"
-            aria-selected={!sphere && mode === "2d"}
+            aria-selected={!sphere && !cosmic && mode === "2d"}
             onClick={() => {
               exitSphere();
+              leaveCosmic(false);
               viewerRef.current?.set2D(true);
             }}
           >
@@ -399,9 +502,10 @@ export default function StarMapApp() {
           </button>
           <button
             role="tab"
-            aria-selected={!sphere && mode === "3d"}
+            aria-selected={!sphere && !cosmic && mode === "3d"}
             onClick={() => {
               exitSphere();
+              leaveCosmic(false);
               viewerRef.current?.set2D(false);
             }}
           >
@@ -448,6 +552,9 @@ export default function StarMapApp() {
 
       {/* Zoom & home */}
       <div className="mv-zoom">
+        <button className="mv-glass" onClick={goCosmic} aria-label="Zoom out to the galaxies" title="Zoom out to the galaxies">
+          ⊙
+        </button>
         <button className="mv-glass" onClick={() => viewerRef.current?.zoomBy(0.7)} aria-label="Zoom in">
           +
         </button>

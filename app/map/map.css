@@ -575,3 +575,32 @@
 .mv-ai-fine { margin: 6px 2px 0; font-size: 0.64rem; color: var(--faint); }
 @media (max-width: 520px) { .mv-ai { top: 60px; left: 8px; right: 8px; width: auto; max-height: calc(100vh - 80px); } }
 @media (prefers-reduced-motion: reduce) { .mv-ai, .mv-ai-dots i { transition: none; animation: none; } }
+
+/* ── Zoomed out: the galaxies ── */
+.cv-stage { position: absolute; inset: 0; z-index: 4; opacity: 0; pointer-events: none; transition: opacity 0.6s ease; background: #000; }
+.cv-stage.on { opacity: 1; pointer-events: auto; }
+.cv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.cv-canvas:active { cursor: grabbing; }
+.cv-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.cv-label { position: absolute; left: 0; top: 0; translate: -50% -150%; white-space: nowrap; will-change: transform; font-size: 12px; color: rgba(235, 240, 255, 0.9); text-shadow: 0 0 4px #000; }
+button.cv-label { pointer-events: auto; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.35); color: #fff; padding: 2px 9px; border-radius: 999px; text-shadow: none; }
+button.cv-label:hover { background: #fff; color: #262a52; }
+.cv-mw { font-size: 13px !important; padding: 3px 11px !important; background: rgba(195, 160, 255, 0.25) !important; }
+.cv-sun { background: rgba(255, 226, 138, 0.2) !important; border-color: rgba(255, 226, 138, 0.6) !important; translate: -50% 40% !important; }
+.cv-con { font-family: var(--font-mono), ui-monospace, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(196, 204, 255, 0.85); }
+.cv-hud { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 6; width: min(560px, calc(100vw - 28px)); padding: 10px 14px; border-radius: 16px; display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; align-items: center; }
+.cv-hud p { grid-column: 1; margin: 0; font-size: 0.74rem; color: var(--muted); }
+.cv-hud .mv-primary { grid-column: 2; grid-row: 1 / span 2; }
+.cv-scale { display: flex; align-items: baseline; gap: 10px; }
+.cv-scale b { font-family: var(--font-display), system-ui, sans-serif; font-size: 1rem; }
+.cv-scale span { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.7rem; color: var(--muted); }
+.cv-card { position: absolute; left: 14px; bottom: 14px; z-index: 6; width: min(320px, calc(100vw - 28px)); padding: 14px 16px; border-radius: 18px; }
+.cv-card h2 { font-family: var(--font-display), system-ui, sans-serif; font-weight: 600; letter-spacing: -0.02em; font-size: 1.3rem; margin: 6px 0 4px; color: var(--text); }
+.cv-card p { font-size: 0.82rem; color: var(--muted); margin: 0; line-height: 1.45; }
+.cv-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0 0; }
+.cv-card dl div { background: #f6f4ff; border-radius: 8px; padding: 5px 8px; }
+.cv-card dt { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.cv-card dd { margin: 0; font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.76rem; font-weight: 600; }
+/* While zoomed out, the sky-map panels step aside */
+.mv.in-cosmic .mv-top-right, .mv.in-cosmic .mv-zoom, .mv.in-cosmic .mv-help, .mv.in-cosmic .mv-timeline, .mv.in-cosmic .mv-cardhost { visibility: hidden; }
+@media (max-width: 760px) { .cv-hud { grid-template-columns: 1fr; } .cv-hud .mv-primary { grid-column: 1; grid-row: auto; } .cv-card { bottom: 150px; } }

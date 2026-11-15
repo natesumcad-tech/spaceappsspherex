@@ -29,6 +29,9 @@ Every push to GitHub redeploys the site automatically.
 
 ## Sky Explorer (`/map`)
 
+**Starts zoomed out** among the galaxies (`lib/starmap/cosmic.ts`): the Milky Way with the Sun marked, its satellites, Andromeda, Triangulum and nearby galaxies out to M87 (~54 million ly), at their real directions and distances. Zoom into the Sun and the constellation stars resolve out of it at their real 3D positions (HYG distances); closer than ~1,200 ly the view hands over to the sky map. Scrolling far out on the map (or ⊙) goes back to the galaxies.
+
+
 A Google Maps-style map of the whole sky with a **2D / 3D** switch, plus Street View-style 360° views of **everything on it**: every waypoint (yours too), planet, the Sun, every bright named star and all 88 constellations. Click one to fly there; once you've arrived it lights up with **View in 360°**; click it again to step inside. `/explore` and `?stop=` links open the matching sphere.
 
 - **Camera (Fusion 360 style):** middle-drag pans, Shift + middle-drag orbits (a green dot marks the pivot), the scroll wheel zooms toward the cursor. Left-drag also pans and right-drag also orbits. Keyboard: WASD/arrows pan, Q/E turn, R/F tilt, Z/X zoom, T toggles 2D/3D, H returns to the origin.

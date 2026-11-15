@@ -48,6 +48,8 @@ type Events = {
   onOverview: (c: HTMLCanvasElement) => void;
   /** A waypoint or planet you're already close to was clicked: open its 360° view. */
   onEnter: (stop: string) => void;
+  /** Kept scrolling out at the widest view: zoom out to the galaxies. */
+  onZoomOutLimit?: () => void;
   /** The landmark you're close enough to step into changed (null = none). */
   onNear: (stop: string | null) => void;
 };
@@ -958,9 +960,19 @@ export class StarMapViewer {
       if (this.drag?.id === e.pointerId || this.touches.size === 0) this.drag = null;
       this.invalidate();
     };
+    let pushOut = 0;
     const onWheel = (e: WheelEvent) => {
       if (!this.enabled) return;
       e.preventDefault();
+      // Already as far out as the sky map goes? A few more scrolls out and we leave for the galaxies.
+      if (e.deltaY > 0 && this.d >= D_MAX * 0.98) {
+        pushOut += e.deltaY;
+        if (pushOut > 400) {
+          pushOut = 0;
+          this.events.onZoomOutLimit?.();
+          return;
+        }
+      } else if (e.deltaY < 0) pushOut = 0;
       const before = this.pickClient(e.clientX, e.clientY);
       const k = e.ctrlKey ? 0.01 : 0.0015; // ctrl+wheel = trackpad pinch
       this.d = clamp(this.d * Math.exp(e.deltaY * k), D_MIN, D_MAX);
