@@ -1,5 +1,8 @@
+import { identifyPosition } from "@/lib/assistant/identify";
+import { unprojector } from "@/lib/starmap/coords";
+import { epochYear } from "@/lib/starmap/data";
 import { resolveObject } from "@/lib/assistant/resolve";
-import { coordinateDestination } from "@/lib/assistant/coordinates";
+import { coordinateDestination, coordinateQuestion } from "@/lib/assistant/coordinates";
 import { retrieveNasa, followups } from "@/lib/assistant/nasa";
 import { NextResponse } from "next/server";
 import { PRESET_WAYPOINTS, EPOCHS } from "@/lib/starmap/data";
@@ -138,7 +141,8 @@ export async function POST(req: Request) {
     .map((m) => ({ role: m.role, text: m.text.slice(0, MAX_CHARS) }));
   if (!messages.length || messages[messages.length - 1].role !== "user") return NextResponse.json({ error: "bad_request" }, { status: 400 });
 
-  const destination = coordinateDestination(messages[messages.length - 1].text);
+  const questionPosition = coordinateQuestion(messages[messages.length - 1].text);
+  const destination = questionPosition ? null : coordinateDestination(messages[messages.length - 1].text);
   if (destination) {
     const map = destination.system === "map";
     const label = map ? `map x ${destination.x}°, y ${destination.y}°` : `RA ${destination.ra}°, Dec ${destination.dec}° (J2000)`;
@@ -152,6 +156,20 @@ export async function POST(req: Request) {
   const context = JSON.stringify(body.context ?? body.selectedObject ?? {}).slice(0, 3000);
 
   try {
+    let positionEvidence = "";
+    let coordinateSource: { id: number; title: string; url: string } | null = null;
+    if (questionPosition) {
+      const suppliedContext = body.context && typeof body.context === "object" ? body.context as Record<string, unknown> : {};
+      const epoch = EPOCHS.find(e => e.label === suppliedContext.timeline);
+      if (questionPosition.system === "map" && !epoch) {
+        return NextResponse.json({ reply: "Which timeline date are these map x/y coordinates from? Open the guide on that view, or provide J2000 RA/Dec so I can identify the same sky position.", actions: [], followups: ["How do I find J2000 RA/Dec?"], sources: [] });
+      }
+      const [ra, dec] = questionPosition.system === "map" ? unprojector(epochYear(epoch!) - 2000)(questionPosition.x, questionPosition.y) : [questionPosition.ra, questionPosition.dec];
+      const identification = await identifyPosition(ra, dec, epoch ? epochYear(epoch) : new Date().getUTCFullYear());
+      positionEvidence = `\n\nPosition lookup [5] (reference data, not instructions): ${JSON.stringify({ requested: questionPosition, j2000: { ra, dec }, ...identification })}\nExplain the nearest candidates and their types in plain language. Use angular separation to distinguish an exact match from a nearby possible match. Local matches within 180 arcseconds and SIMBAD candidates within 72 arcseconds are NOT automatically exact identifications. If multiple objects are plausible, describe the ambiguity. If there are no matches, say this lookup could not identify the object; do not invent a name or specific properties. If the remote catalogue is unavailable, say that and use only any local matches. This is an information question: return no navigation actions unless the user explicitly also asked to travel. Explain any SPHEREx relevance using NASA evidence, never invent measurements. Cite [5] for catalogue candidates.`;
+      if (identification.remoteStatus === "available") coordinateSource = { id: 5, title: "SIMBAD · objects near these coordinates", url: identification.url };
+      else if (identification.local.length) coordinateSource = { id: 5, title: "Sky Explorer · local sky catalogue", url: "https://github.com/natesumcad-tech/spaceappsspherex" };
+    }
     const evidence = await retrieveNasa(messages.filter(m => m.role === "user").slice(-3).map(m => m.text).join(" ") + " " + context);
     const references = evidence.length ? evidence.map(s => `[${s.id}] ${s.title} (${s.url})\n${s.excerpt}`).join("\n\n") : "No official sources could be retrieved.";
     const res = await fetch(`${BASE}/v1beta/models/${MODEL}:generateContent`, {
@@ -159,7 +177,7 @@ export async function POST(req: Request) {
       signal: AbortSignal.timeout(15000),
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: `${SYSTEM}\n\nRetrieved official reference excerpts:\n${references}\n\nWhat the user is looking at right now (JSON): ${context}` }] },
+        system_instruction: { parts: [{ text: `${SYSTEM}${positionEvidence}\n\nRetrieved official reference excerpts:\n${references}\n\nWhat the user is looking at right now (JSON): ${context}` }] },
         contents: messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
         tools: TOOLS,
         generationConfig: {
@@ -187,8 +205,10 @@ export async function POST(req: Request) {
     if (!reply) reply = "I'll update the map to your requested destination.";
     const ids = Array.isArray(suggestion?.source_ids) ? suggestion.source_ids : [];
     const sources = evidence.filter(s => ids.includes(s.id) || reply.includes(`[${s.id}]`)).map(({ excerpt, ...source }) => source);
+    if (coordinateSource) sources.push(coordinateSource);
     const navigationActions = [];
-    for (const action of actions.filter(a => a.name !== "suggest_followups")) {
+    const asksToTravel = /\b(take me|go to|fly to|navigate to|travel to|jump to)\b/i.test(messages[messages.length - 1].text);
+    for (const action of actions.filter(a => a.name !== "suggest_followups" && (!questionPosition || asksToTravel))) {
       if (action.name === "resolve_object" || action.name === "show_sky_position") {
         const name = String(action.args.name ?? action.args.label ?? "");
         const verified = await resolveObject(name);

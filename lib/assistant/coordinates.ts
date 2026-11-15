@@ -24,3 +24,9 @@ export function coordinateDestination(text: string): CoordinateDestination | nul
   const ra = Number(match[1]), dec = Number(match[2]);
   return ra >= 0 && ra < 360 && Math.abs(dec) <= 90 ? { system: "equatorial", ra, dec } : null;
 }
+
+/** Extract coordinates for an informational question without requesting navigation. */
+export function coordinateQuestion(text: string): CoordinateDestination | null {
+  if (!/\b(what|which|identify|explain|tell|describe)\b/i.test(text)) return null;
+  return coordinateDestination(`go to ${text}`);
+}
