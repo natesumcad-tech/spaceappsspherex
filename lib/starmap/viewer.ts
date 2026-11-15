@@ -194,7 +194,8 @@ export class StarMapViewer {
     private events: Events,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // 1.5× is sharp on retina screens at about half the pixels of 2× (the map is mostly soft imagery)
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.className = "mv-canvas";
@@ -987,7 +988,6 @@ export class StarMapViewer {
     const H = this.vh;
     const q = this.settings.quality === "high" ? 1.6 : this.settings.quality === "low" ? 0.6 : Math.min(window.devicePixelRatio || 1, 1.5);
     let threshold = ((this.tilePx / H) * FOV * DEG) / q;
-    if (this.fast) threshold *= 2; // moving quickly: one level less detail (it sharpens when you slow down)
     let wanted: { L: number; i: number; j: number; dist: number }[] = [];
     for (let attempt = 0; attempt < 5; attempt++) {
       wanted = [];
@@ -1570,7 +1570,6 @@ export class StarMapViewer {
   private fast = false;
   private calmSince = 0;
   private lastPos = { x: 0, y: 0, d: 1 };
-  private fullDpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2);
   private trackMotion(now: number, dt: number) {
     const radius = this.d * Math.tan((FOV / 2) * DEG);
     const moved = Math.hypot(this.target.x - this.lastPos.x, this.target.y - this.lastPos.y) + Math.abs(Math.log(this.d / this.lastPos.d)) * radius;
@@ -1578,22 +1577,16 @@ export class StarMapViewer {
     const speed = dt > 0 ? moved / dt / Math.max(1e-6, radius) : 0;
     if (speed > 0.5) {
       this.calmSince = 0;
-      if (!this.fast) {
-        this.fast = true;
-        if (this.fullDpr > 1.2) this.setDpr(1); // fewer pixels while the view is a blur anyway
-      }
+      // (No resolution or detail switching here: resizing the canvas and swapping every tile for a
+      // coarser one each time you start or stop moving was what made the first moment of a key press stutter.)
+      this.fast = true;
     } else if (this.fast) {
       this.calmSince ||= now;
       if (now - this.calmSince > 180) {
         this.fast = false;
-        if (this.fullDpr > 1.2) this.setDpr(this.fullDpr);
-        this.tilesAt = 0; // re-plan at full detail right away
+        this.tilesAt = 0; // re-plan right away
       }
     }
-  }
-  private setDpr(r: number) {
-    this.renderer.setPixelRatio(r);
-    this.renderer.setSize(this.vw, this.vh);
   }
 
   private frame = () => {
