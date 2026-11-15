@@ -23,6 +23,8 @@ import Tutorial, { tourDone } from "./Tutorial";
 import Quest, { loadQuest } from "./Quest";
 
 const STORE_WP = "starmap.waypoints.v1";
+/** How long after the tutorial (or landing, for returning visitors) the optional mission is offered. */
+const QUEST_DELAY = 7000;
 const STORE_SETTINGS = "starmap.settings.v2"; // v2: the measurement grid is on by default
 
 function load<T>(key: string, fallback: T): T {
@@ -96,6 +98,8 @@ export default function StarMapApp() {
   const [intro, setIntro] = useState(false);
   const [tour, setTour] = useState(false);
   const [questOpen, setQuestOpen] = useState(false);
+  const questTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (questTimer.current && clearTimeout(questTimer.current)), []);
   // The page is a fixed, full-screen map: if focusing something ever scrolls it, snap straight back
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -212,7 +216,7 @@ export default function StarMapApp() {
       // Seen the tour before: offer the optional mission once (or pick an unfinished one back up)
       const q = loadQuest();
       if (q.offered && !(q.started && !q.done)) return;
-      const t = setTimeout(() => setQuestOpen(true), 1600);
+      const t = setTimeout(() => setQuestOpen(true), QUEST_DELAY);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => setTour(true), 1400);
@@ -812,7 +816,9 @@ export default function StarMapApp() {
 
       <Tutorial open={tour} hidden={!!sphere || cosmic} mode={mode} inSphere={!!sphere} sphereKind={sphere ? (byId(sphere)?.kind ?? null) : null} onClose={() => {
           setTour(false);
-          if (!loadQuest().offered) setTimeout(() => setQuestOpen(true), 700); // then offer the optional mission
+          // then, after a few seconds of exploring on their own, offer the optional mission
+          if (questTimer.current) clearTimeout(questTimer.current);
+          if (!loadQuest().offered) questTimer.current = setTimeout(() => setQuestOpen(true), QUEST_DELAY);
         }}
       />
       <Quest
