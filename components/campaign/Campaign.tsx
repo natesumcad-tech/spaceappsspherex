@@ -7,7 +7,7 @@ import Assistant, { type AssistantAction } from "@/components/starmap/Assistant"
 import type { SkyData } from "@/lib/explorer/astro";
 import type { StarMapViewer } from "@/lib/starmap/viewer";
 import { CHAPTERS, COMING_SOON, type CampaignStop, type Chapter } from "@/lib/campaign/chapters";
-import { hush, speak } from "@/lib/ui/speech";
+import { hush, preload, speak, unlockAudio } from "@/lib/ui/speech";
 
 const STORE = "campaign.progress.v1";
 type Progress = { chapter: string; stop: number; line: number };
@@ -158,9 +158,13 @@ export default function Campaign() {
   // Narration and saved progress follow the dialogue
   useEffect(() => {
     if (phase !== "playing" || traveling) return;
-    if (voice) speak(text);
+    if (voice) {
+      speak(text);
+      const next = chapter.stops[stopIdx].lines[line + 1] ?? chapter.stops[stopIdx + 1]?.lines[0];
+      if (next) preload(next); // download the next line while this one plays
+    }
     saveProgress({ chapter: chapter.id, stop: stopIdx, line });
-  }, [phase, traveling, text, voice, chapter.id, stopIdx, line]);
+  }, [phase, traveling, text, voice, chapter, stopIdx, line]);
 
   const advance = useCallback(() => {
     if (phase !== "playing" || traveling) return;
@@ -204,20 +208,19 @@ export default function Campaign() {
     if (!host) return;
     const onClick = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest(".mv-reticle")) {
-        setVoice(true);
-        speak(text);
+        unlockAudio();
+        if (voice) speak(text);
+        else setVoice(true); // turning narration on reads the line
       }
     };
     host.addEventListener("click", onClick);
     return () => host.removeEventListener("click", onClick);
-  }, [text]);
+  }, [text, voice]);
 
   const toggleVoice = () => {
-    setVoice((on) => {
-      if (on) hush();
-      else speak(text);
-      return !on;
-    });
+    if (voice) hush();
+    else unlockAudio(); // let audio play once it downloads (Safari wants a tap first)
+    setVoice(!voice);
   };
 
   const ask = (q?: string) => {
