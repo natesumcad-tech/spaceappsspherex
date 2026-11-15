@@ -1,0 +1,57 @@
+/* The game-style dialogue box, shared by the Campaign and the Sky Explorer tour */
+.cp-dialog {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 8;
+  width: min(860px, calc(100vw - 32px)); padding: 14px 18px 12px; animation: cp-rise 0.45s ease both;
+}
+@keyframes cp-rise { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.cp-dialog header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cp-speaker {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 999px;
+  background: var(--accent); color: #f7efdf; font-size: 0.74rem; font-weight: 600;
+}
+.cp-where { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cp-dots { list-style: none; display: flex; gap: 5px; margin: 0 0 0 auto; padding: 0; }
+.cp-dots li { width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); border: 1.5px solid var(--faint); }
+.cp-dots li.past { background: var(--faint); }
+.cp-dots li.now { background: var(--accent); border-color: var(--accent); transform: rotate(45deg) scale(1.25); }
+.cp-text {
+  all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer; margin: 10px 0 10px; min-height: 3.2em;
+  font-family: var(--font-display), system-ui, sans-serif; font-size: clamp(1.02rem, 2.2vw, 1.22rem); line-height: 1.5; color: var(--text); letter-spacing: -0.005em;
+}
+.cp-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.cp-text:disabled { cursor: progress; }
+.cp-ghost { visibility: hidden; }
+.cp-travel { color: var(--muted); font-style: italic; animation: cp-pulse 1.2s ease-in-out infinite; }
+@keyframes cp-pulse { 50% { opacity: 0.45; } }
+.cp-dialog footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+.cp-tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.cp-tool, .cp-q {
+  font: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer; border-radius: 8px; padding: 6px 10px;
+  border: 1px solid var(--border); background: #fffaf1; color: var(--ink); display: inline-flex; gap: 5px; align-items: center;
+}
+.cp-tool:hover, .cp-q:hover { border-color: #bfae93; color: var(--text); }
+.cp-tool:disabled { opacity: 0.4; cursor: default; }
+.cp-tool.on { background: var(--accent); color: #f7efdf; border-color: var(--accent); }
+.cp-asks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 10px; }
+.cp-asks > span { font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-right: 2px; }
+.cp-q { font-weight: 500; background: transparent; border-style: dashed; text-align: left; }
+.cp-next {
+  font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex: none;
+  border-radius: 10px; padding: 8px 14px; background: var(--accent); color: #f7efdf; border: 1px solid var(--accent);
+  box-shadow: 0 6px 16px rgba(57, 42, 24, 0.35);
+}
+.cp-next:disabled { opacity: 0.5; cursor: progress; }
+.cp-next:not(:disabled) { animation: cp-nudge 2.4s ease-in-out 1.5s infinite; }
+@keyframes cp-nudge { 0%, 85%, 100% { transform: none; } 92% { transform: translateY(2px); } }
+
+.cp-dialog.at-top { bottom: auto; top: 84px; }
+@media (max-width: 760px) {
+  .cp-dialog { bottom: 10px; padding: 12px 14px 10px; }
+  .cp-dialog footer { flex-direction: column; align-items: stretch; }
+  .cp-q { display: none; }
+  .cp-dots { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-dialog, .cp-next, .cp-travel { animation-duration: 0.01s !important; animation-iteration-count: 1 !important; }
+}
+a.cp-tool { text-decoration: none; }

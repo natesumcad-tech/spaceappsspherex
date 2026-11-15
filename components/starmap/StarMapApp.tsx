@@ -770,7 +770,7 @@ export default function StarMapApp() {
         </button>
       </div>
 
-      <Tutorial open={tour && !sphere && !cosmic} onClose={() => setTour(false)} />
+      <Tutorial open={tour} hidden={!!sphere || cosmic} mode={mode} inSphere={!!sphere} onClose={() => setTour(false)} />
 
       {/* Controls help */}
       <Collapsible id="map-controls" className="mv-glass mv-help" title={<span className="cl-label">Controls</span>} defaultOpen={help}>

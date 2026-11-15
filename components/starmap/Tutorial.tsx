@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { hush, speak } from "@/lib/ui/speech";
 
 /** Remembered in a cookie (and browser storage as a backup) so the tour only plays once. */
 const COOKIE = "sx_tour_done";
@@ -23,7 +24,7 @@ function markTourDone() {
   } catch {}
 }
 
-type Wait = "move" | "hover";
+type Wait = "move" | "hover" | "modes" | "sphere";
 type Step = {
   /** CSS selector of the control to spotlight (none: a card in the middle of the screen). */
   target?: string;
@@ -31,6 +32,8 @@ type Step = {
   body: string;
   /** Something to try: the step notices when you do it. */
   wait?: { kind: Wait; prompt: string };
+  /** Must be done to move on (no "Skip this step"). */
+  required?: boolean;
   place?: "center" | "top";
 };
 
@@ -48,8 +51,22 @@ const STEPS: Step[] = [
   {
     target: "visible-landmark",
     title: "Landmarks",
-    body: "Diamonds mark landmarks, and planets wear their names. Hover one for a summary; click it to fly there, then choose View in 360° to step inside.",
+    body: "Diamonds mark landmarks, and planets wear their names. Hover one for a summary card.",
     wait: { kind: "hover", prompt: "Try it: hover over a diamond" },
+  },
+  {
+    target: ".mv-top-row .mv-seg",
+    title: "2D and 3D",
+    body: "See the sky as a flat star chart, or tilt it into a 3D view. Try both.",
+    wait: { kind: "modes", prompt: "" },
+    required: true,
+  },
+  {
+    title: "Step inside: 360° views",
+    body: "Every constellation, planet and landmark has a Street View–style 360° view. Click a name or diamond to fly there, then click it again (or choose View in 360° on its card). Zooming in close works too.",
+    wait: { kind: "sphere", prompt: "Step inside any 360° view to continue" },
+    required: true,
+    place: "top",
   },
   {
     target: ".mv-search-btn",
@@ -60,11 +77,6 @@ const STEPS: Step[] = [
     target: ".mv-ask",
     title: "Ask the sky guide",
     body: "Ask questions in plain words, like “Where does SPHEREx look for ice?”, and the guide answers and can fly the map for you.",
-  },
-  {
-    target: ".mv-top-row .mv-seg",
-    title: "2D and 3D",
-    body: "Switch between a flat star chart and a tilted 3D view.",
   },
   {
     target: ".mv-coord-form",
@@ -125,44 +137,102 @@ function findTarget(sel?: string): HTMLElement | null {
 }
 
 /**
- * First-visit walkthrough of the Sky Explorer: spotlights each control in turn, with a card that
- * explains it. Some steps ask you to try something and notice when you do.
+ * First-visit walkthrough of the Sky Explorer, in the same game-style dialogue box as the Campaign:
+ * the guide spotlights each control in turn, and some steps wait for you to try the thing.
  */
-export default function Tutorial({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function Tutorial({
+  open,
+  hidden,
+  mode,
+  inSphere,
+  onClose,
+}: {
+  open: boolean;
+  /** In a 360° view or the galaxy view: the tour waits (showing a hint inside 360°). */
+  hidden: boolean;
+  mode: "2d" | "3d";
+  inSphere: boolean;
+  onClose: () => void;
+}) {
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [did, setDid] = useState(false);
-  const card = useRef<HTMLDivElement>(null);
-  const [cardPos, setCardPos] = useState<{ left: number; top: number } | null>(null);
+  const [shown, setShown] = useState(0); // characters typed out so far
+  const [voice, setVoice] = useState(false);
+  const [modeFrom, setModeFrom] = useState<"2d" | "3d">("2d"); // the view the 2D/3D step started in
+  const [modeChanges, setModeChanges] = useState(0);
+  const lastMode = useRef(mode);
   const targetRef = useRef<HTMLElement | null>(null);
 
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
+  const text = step.body;
+  const typing = shown < text.length;
+  const locked = !!step.required && !did;
 
   const finish = useCallback(() => {
+    hush();
     markTourDone();
     setI(0);
     onClose();
   }, [onClose]);
 
   // Skip steps whose control isn't on screen (small screens hide some panels)
-  const go = useCallback((to: number) => {
-    let n = to;
-    while (n > 0 && n < STEPS.length - 1 && STEPS[n].target && STEPS[n].target !== "visible-landmark" && !findTarget(STEPS[n].target)) n += to >= i ? 1 : -1;
-    setDid(false);
-    setI(Math.max(0, Math.min(STEPS.length - 1, n)));
-  }, [i]);
-
-  useEffect(() => {
-    if (open) {
-      setI(0);
+  const go = useCallback(
+    (to: number) => {
+      let n = to;
+      while (n > 0 && n < STEPS.length - 1 && STEPS[n].target && STEPS[n].target !== "visible-landmark" && !findTarget(STEPS[n].target)) n += to >= i ? 1 : -1;
       setDid(false);
-    }
-  }, [open]);
+      setModeChanges(0);
+      setShown(0);
+      setI(Math.max(0, Math.min(STEPS.length - 1, n)));
+    },
+    [i],
+  );
+
+  /** Click / Enter: finish typing the line first, then move on (unless the step still needs doing). */
+  const advance = useCallback(() => {
+    if (typing) return setShown(text.length);
+    if (last) return finish();
+    if (!locked) go(i + 1);
+  }, [typing, text.length, last, finish, locked, go, i]);
+
+  // Type the line out
+  useEffect(() => {
+    if (!open || hidden) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return setShown(text.length);
+    const t = setInterval(() => setShown((n) => (n >= text.length ? (clearInterval(t), n) : n + 2)), 22);
+    return () => clearInterval(t);
+  }, [open, hidden, text]);
+
+  // Read aloud
+  useEffect(() => {
+    if (open && !hidden && voice) speak(`${step.title}. ${text}`);
+  }, [open, hidden, voice, step.title, text]);
+  useEffect(() => () => hush(), []);
+
+  // 2D/3D step: switch one way, then back
+  useEffect(() => {
+    setModeFrom(lastMode.current);
+  }, [i]);
+  useEffect(() => {
+    if (mode === lastMode.current) return;
+    lastMode.current = mode;
+    if (!open || hidden || STEPS[i].wait?.kind !== "modes") return;
+    setModeChanges((n) => {
+      if (n + 1 >= 2) setDid(true);
+      return n + 1;
+    });
+  }, [mode, open, hidden, i]);
+
+  // 360° step: done the moment they step inside one
+  useEffect(() => {
+    if (open && inSphere && STEPS[i].wait?.kind === "sphere") setDid(true);
+  }, [open, inSphere, i]);
 
   // Follow the spotlighted control as panels move and the map animates
   useEffect(() => {
-    if (!open) return;
+    if (!open || hidden) return;
     let raf = 0;
     targetRef.current = findTarget(step.target);
     const tick = () => {
@@ -173,31 +243,11 @@ export default function Tutorial({ open, onClose }: { open: boolean; onClose: ()
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [open, step.target, i]);
-
-  // Place the card beside the spotlight, inside the screen
-  useLayoutEffect(() => {
-    const c = card.current;
-    if (!open || !c) return;
-    const w = window.innerWidth, h = window.innerHeight, cw = c.offsetWidth, ch = c.offsetHeight, m = 14;
-    if (!rect) {
-      setCardPos({ left: (w - cw) / 2, top: step.place === "top" ? Math.min(150, h * 0.2) : (h - ch) / 2 });
-      return;
-    }
-    const clampX = (x: number) => Math.max(m, Math.min(w - cw - m, x));
-    const clampY = (y: number) => Math.max(m, Math.min(h - ch - m, y));
-    const pad = 12;
-    let pos: { left: number; top: number };
-    if (rect.bottom + pad + ch < h - m) pos = { left: clampX(rect.left + rect.width / 2 - cw / 2), top: rect.bottom + pad };
-    else if (rect.top - pad - ch > m) pos = { left: clampX(rect.left + rect.width / 2 - cw / 2), top: rect.top - pad - ch };
-    else if (rect.right + pad + cw < w - m) pos = { left: rect.right + pad, top: clampY(rect.top + rect.height / 2 - ch / 2) };
-    else pos = { left: clampX(rect.left - pad - cw), top: clampY(rect.top + rect.height / 2 - ch / 2) };
-    setCardPos((p) => (p && Math.abs(p.left - pos.left) < 0.5 && Math.abs(p.top - pos.top) < 0.5 ? p : pos));
-  }, [open, rect, i, step.place]);
+  }, [open, hidden, step.target, i]);
 
   // "Try it" steps: notice when the visitor does the thing
   useEffect(() => {
-    if (!open || !step.wait || did) return;
+    if (!open || hidden || !step.wait || did || (step.wait.kind !== "move" && step.wait.kind !== "hover")) return;
     const stage = document.querySelector<HTMLElement>(".mv-stage");
     let moved = 0;
     const ok = () => setDid(true);
@@ -226,89 +276,121 @@ export default function Tutorial({ open, onClose }: { open: boolean; onClose: ()
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerover", onOver);
     };
-  }, [open, step.wait, did]);
+  }, [open, hidden, step.wait, did]);
 
   // Done it: give them a moment to see it worked, then move on
   useEffect(() => {
-    if (!did || !open) return;
+    if (!did || !open || hidden) return; // back on the map first (after a 360° view)
     const t = setTimeout(() => go(i + 1), 1300);
     return () => clearTimeout(t);
-  }, [did, open, go, i]);
+  }, [did, open, hidden, go, i]);
 
-  // Esc skips the tour, arrows step through it
+  // Keyboard: Enter / → continue, ← back, Esc skips the tour
   useEffect(() => {
-    if (!open) return;
+    if (!open || hidden) return; // Esc inside a 360° view leaves the view, not the tour
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
+      if ((e.target as HTMLElement)?.closest?.("input, textarea, select, button, a")) return;
       if (e.key === "Escape") finish();
-      else if (e.key === "ArrowRight" && !step.wait) go(i + 1);
+      else if (e.key === "Enter" || e.key === "ArrowRight") advance();
       else if (e.key === "ArrowLeft") go(i - 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, finish, go, i, step.wait]);
+  }, [open, hidden, finish, advance, go, i]);
 
   if (!open) return null;
+  if (hidden)
+    return step.wait?.kind === "sphere" && inSphere ? (
+      <div className="tut-banner" role="status">
+        <b>Tour</b> You&apos;re inside a 360° view! Drag to look around, then scroll out or press Esc to return to the map.
+      </div>
+    ) : null;
+
   const pad = 8;
   const interactive = !!step.wait;
+  // The box sits at the bottom, like the Campaign's, unless the spotlight is down there
+  const w = typeof window !== "undefined" ? window.innerWidth : 1280, h = typeof window !== "undefined" ? window.innerHeight : 800;
+  const half = Math.min(430, (w - 32) / 2);
+  const atTop = !!rect && rect.bottom > h - 240 && rect.left < w / 2 + half && rect.right > w / 2 - half;
+  const other = modeFrom === "2d" ? "3D" : "2D", back = modeFrom === "2d" ? "2D" : "3D";
+  const count = STEPS.length - 2;
 
   return (
-    <div className={`tut ${interactive ? "interactive" : ""}`} role="dialog" aria-modal={!interactive} aria-labelledby="tut-title">
+    <div className={`tut ${interactive ? "interactive" : ""}`}>
       {rect ? (
-        <div
-          className="tut-spot"
-          style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }}
-          aria-hidden="true"
-        />
+        <div className="tut-spot" style={{ left: rect.left - pad, top: rect.top - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 }} aria-hidden="true" />
       ) : (
         !interactive && <div className="tut-dim" aria-hidden="true" />
       )}
-      <div
-        ref={card}
-        className={`tut-card ${step.target ? "" : "solo"}`}
-        style={cardPos ? { left: cardPos.left, top: cardPos.top } : { visibility: "hidden" }}
-        key={i}
-      >
-        <div className="tut-head">
-          <span className="tut-count">
-            {i === 0 ? "Quick tour" : last ? "All set" : `${i} of ${STEPS.length - 2}`}
+
+      <section className={`mv-glass cp-dialog tut-dialog ${atTop ? "at-top" : ""}`} role="dialog" aria-label="Sky Explorer tour" aria-live="polite">
+        <header>
+          <span className="cp-speaker">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" fill="currentColor" />
+              <path d="M3 12a9 9 0 0 1 18 0M6.5 12a5.5 5.5 0 0 1 11 0" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+            Sky guide
           </span>
+          <span className="cp-where">
+            {i === 0 ? "Quick tour" : last ? "Tour complete" : `Tour · ${i} of ${count}`} · {step.title}
+          </span>
+          <ol className="cp-dots" aria-hidden="true">
+            {STEPS.slice(1, -1).map((_, k) => (
+              <li key={k} className={k + 1 < i || last ? "past" : k + 1 === i ? "now" : ""} />
+            ))}
+          </ol>
           {!last && (
             <button className="tut-skip" onClick={finish}>
               Skip tour
             </button>
           )}
-        </div>
-        <h2 id="tut-title">{step.title}</h2>
-        <p>{step.body}</p>
-        {step.wait && <p className={`tut-try ${did ? "done" : ""}`}>{did ? "Nice! That's it." : step.wait.prompt}</p>}
-        <div className="tut-actions">
-          {i > 0 && !last && (
-            <button className="mv-secondary" onClick={() => go(i - 1)}>
-              Back
+        </header>
+
+        <button className="cp-text" onClick={advance} aria-label={typing ? "Show the whole line" : "Continue"}>
+          {text.slice(0, shown)}
+          <span className="cp-ghost" aria-hidden="true">
+            {text.slice(shown)}
+          </span>
+        </button>
+
+        {step.wait?.kind === "modes" ? (
+          <ul className={`tut-checks ${did ? "done" : ""}`}>
+            <li className={modeChanges >= 1 ? "ok" : ""}>Switch to {other}</li>
+            <li className={modeChanges >= 2 ? "ok" : ""}>Switch back to {back}</li>
+          </ul>
+        ) : (
+          step.wait && <p className={`tut-try ${did ? "done" : ""}`}>{did ? "Nice! That's it." : step.wait.prompt}</p>
+        )}
+
+        <footer>
+          <div className="cp-tools">
+            <button className="cp-tool" onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous step">
+              ◂
             </button>
-          )}
-          {last ? (
-            <>
-              <Link className="mv-secondary" href="/campaign" onClick={markTourDone}>
-                Open the Campaign
+            <button
+              className={`cp-tool ${voice ? "on" : ""}`}
+              onClick={() => setVoice((on) => (on && hush(), !on))}
+              aria-pressed={voice}
+              title="Read aloud"
+            >
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+                {voice && <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
+              </svg>
+              {voice ? "Listening" : "Listen"}
+            </button>
+            {last && (
+              <Link className="cp-tool" href="/campaign" onClick={markTourDone}>
+                Open the Campaign ▸
               </Link>
-              <button className="mv-primary" onClick={finish} autoFocus>
-                Start exploring
-              </button>
-            </>
-          ) : (
-            <button className="mv-primary" onClick={() => go(i + 1)} autoFocus>
-              {i === 0 ? "Show me around" : step.wait && !did ? "Skip this step" : "Next"}
-            </button>
-          )}
-        </div>
-        <ol className="tut-dots" aria-hidden="true">
-          {STEPS.slice(1, -1).map((_, k) => (
-            <li key={k} className={k + 1 < i ? "past" : k + 1 === i ? "now" : ""} />
-          ))}
-        </ol>
-      </div>
+            )}
+          </div>
+          <button className="cp-next" onClick={advance} disabled={!typing && locked}>
+            {typing ? "Skip ▸▸" : i === 0 ? "Show me around ▸" : last ? "Start exploring ✓" : locked ? "Try it to continue" : step.wait && !did ? "Skip this step ▸" : "Next ▸"}
+          </button>
+        </footer>
+      </section>
     </div>
   );
 }

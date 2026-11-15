@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import StarMapApp from "@/components/starmap/StarMapApp";
 import "../explore/explore.css";
 import "./map.css";
+import "@/components/ui/dialogue.css";
 
 export const metadata: Metadata = {
   title: "Sky Explorer | Planet X & SPHEREx",

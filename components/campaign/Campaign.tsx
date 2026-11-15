@@ -7,6 +7,7 @@ import Assistant, { type AssistantAction } from "@/components/starmap/Assistant"
 import type { SkyData } from "@/lib/explorer/astro";
 import type { StarMapViewer } from "@/lib/starmap/viewer";
 import { CHAPTERS, COMING_SOON, type CampaignStop, type Chapter } from "@/lib/campaign/chapters";
+import { hush, speak } from "@/lib/ui/speech";
 
 const STORE = "campaign.progress.v1";
 type Progress = { chapter: string; stop: number; line: number };
@@ -24,20 +25,6 @@ const saveProgress = (p: Progress | null) => {
   } catch {}
 };
 
-/** Read a line aloud with the browser's built-in voice. */
-function speak(text: string) {
-  const ss = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-  if (!ss) return;
-  ss.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  const voices = ss.getVoices();
-  const voice =
-    voices.find((v) => v.lang.startsWith("en") && /natural|google|samantha|aria|jenny/i.test(v.name)) ?? voices.find((v) => v.lang.startsWith("en"));
-  if (voice) u.voice = voice;
-  u.rate = 1;
-  ss.speak(u);
-}
-const hush = () => typeof window !== "undefined" && window.speechSynthesis?.cancel();
 
 type Phase = "menu" | "playing" | "done";
 

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Campaign from "@/components/campaign/Campaign";
 import "../explore/explore.css";
 import "../map/map.css";
+import "@/components/ui/dialogue.css";
 import "./campaign.css";
 
 export const metadata: Metadata = {
