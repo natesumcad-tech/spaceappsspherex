@@ -508,7 +508,7 @@ export default function StarMapApp() {
     }
     for (const c of sky.constellations)
       out.push({ id: c.id, name: c.names.en, kind: "Constellation", sub: c.id, alt: [c.id, ...Object.values(c.names)] });
-    for (const id of ["sun", "mercury", "venus", "moon", "mars", "jupiter", "saturn", "uranus", "neptune"]) {
+    for (const id of ["sun", "mercury", "venus", "earth", "moon", "mars", "jupiter", "saturn", "uranus", "neptune"]) {
       const lm = byId(id);
       if (lm) out.push({ id, name: lm.title, kind: "Planet", sub: lm.subtitle, alt: [] });
     }

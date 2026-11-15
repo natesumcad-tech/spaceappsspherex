@@ -359,6 +359,30 @@ export const SECTIONS = ["Near Earth", "Constellations", "Solar System", "Stars"
 /** Planets and the Sun beyond the 14-stop tour, opened from the map. */
 export const EXTRA_LANDMARKS: Landmark[] = [
   {
+    id: "earth",
+    section: "Solar System",
+    kind: "planet",
+    title: "Earth",
+    subtitle: "Our home planet · third from the Sun",
+    description:
+      "The only world known to have life: a rocky planet wrapped in a thin layer of air, with about 71% of its surface covered by water. Drag to circle it, scroll to move closer or farther, and find the Moon and SPHEREx nearby.",
+    facts: [
+      ["Diameter", "12,742 km"],
+      ["Distance from the Sun", "≈ 150 million km"],
+      ["One day", "≈ 24 hours"],
+      ["Moons", "1"],
+    ],
+    spherex: "SPHEREx circles Earth about 700 km up, over the poles, once every ~99 minutes, mapping the sky from above the air.",
+    look: [0, 0],
+    fov: 60,
+    planet: "earth",
+    hotspots: [
+      { title: "Atmosphere", at: { anchor: "limb" }, body: "That thin blue glow is all the air we have. About 90% of it lies within 16 km of the ground." },
+      { title: "Clouds", at: { anchor: "clouds" }, body: "Clouds cover about two-thirds of Earth at any moment. They reflect sunlight and help set the planet's temperature." },
+      { title: "The Sun", at: { anchor: "sun" }, body: "Sunlight takes about 8 minutes and 20 seconds to reach Earth." },
+    ],
+  },
+  {
     id: "sun",
     section: "Solar System",
     kind: "star",

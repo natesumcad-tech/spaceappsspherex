@@ -211,9 +211,9 @@ export default function Tutorial({
     if (!open || hidden) return; // Esc inside a 360° view leaves the view, not the tour
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.("input, textarea, select, button, a")) return;
-      if (e.key === "Escape") finish();
+      if (e.key === "Escape" && i === 0) finish(); // once they've started, the tour can't be skipped
       else if (e.key === "Enter" || e.key === "ArrowRight") advance();
-      else if (e.key === "ArrowLeft") go(i - 1);
+      else if (e.key === "ArrowLeft" && i > 1) go(i - 1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -261,9 +261,9 @@ export default function Tutorial({
               <li key={k} className={k + 1 < i || last ? "past" : k + 1 === i ? "now" : ""} />
             ))}
           </ol>
-          {!last && (
+          {i === 0 && (
             <button className="tut-skip" onClick={finish}>
-              Skip tour
+              Skip tutorial
             </button>
           )}
         </header>
@@ -286,7 +286,7 @@ export default function Tutorial({
 
         <footer>
           <div className="cp-tools">
-            <button className="cp-tool" onClick={() => go(i - 1)} disabled={i === 0} aria-label="Previous step">
+            <button className="cp-tool" onClick={() => go(i - 1)} disabled={i <= 1} aria-label="Previous step">
               ◂
             </button>
             <button

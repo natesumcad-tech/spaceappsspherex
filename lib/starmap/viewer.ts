@@ -67,7 +67,17 @@ const PLANET_STOPS: Record<string, string> = {
   Saturn: "saturn",
   Uranus: "uranus",
   Neptune: "neptune",
+  Earth: "earth",
 };
+
+/**
+ * Earth can't appear in its own sky, so the map shows it where you'd see it from the Sun:
+ * exactly opposite the Sun (it drifts around the sky over the year, like the planets).
+ */
+function withEarth(list: ReturnType<typeof planetPositions>) {
+  const sun = list.find((p) => p.name === "Sun");
+  return sun ? [...list, { name: "Earth", ra: (sun.ra + 180) % 360, dec: -sun.dec, color: "#6fa8dc" }] : list;
+}
 
 type TileEntry = { mesh: THREE.Mesh; tex: THREE.DataTexture | null; px: number; version: string; used: number; L: number; retryAt?: number };
 type Tween = { start: number; ms: number; step: (t: number) => void; done?: () => void };
@@ -511,7 +521,7 @@ export class StarMapViewer {
       this.makeEnterable(el, starStop(this.sky, s), x, y, 10);
     }
     if (this.planetsOn)
-      for (const p of planetPositions(this.years + 2000)) {
+      for (const p of withEarth(planetPositions(this.years + 2000))) {
         const [x, y] = proj(p.ra, p.dec);
         const el = this.addOverlay("planet", p.name, x, y, {});
         el.style.setProperty("--pc", p.color);
@@ -797,7 +807,7 @@ export class StarMapViewer {
 
   /** Map position of a planet right now (for flying to it before stepping inside). */
   planetXY(name: string) {
-    const p = planetPositions(this.years + 2000).find((q) => q.name.toLowerCase() === name);
+    const p = withEarth(planetPositions(this.years + 2000)).find((q) => q.name.toLowerCase() === name);
     return p ? this.project(p.ra, p.dec) : null;
   }
 

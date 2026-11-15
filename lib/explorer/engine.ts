@@ -400,6 +400,7 @@ export class SkyEngine {
       const rel = this.cam.position.clone().sub(this.pivot);
       this.orbit = { az: Math.atan2(rel.x, rel.z), el: Math.asin(THREE.MathUtils.clamp(rel.y / (rel.length() || 1), -1, 1)), r: THREE.MathUtils.clamp(rel.length(), this.rRange.min, this.rRange.max) };
     }
+    if (lm.kind === "planet" && lm.planet === "earth" && this.pivot) this.navMode = "orbit"; // start circling the globe
     this.navKey = "";
     this.fg.updateMatrixWorld(true);
     lm.hotspots?.forEach((h) => this.addHotspot(h));
@@ -709,15 +710,57 @@ export class SkyEngine {
     this.addSun(sunDir);
     this.addFgLabel(lm.title, () => tilt.position.clone().add(new THREE.Vector3(0, 1.25, 0)));
 
+    if (lm.planet === "earth") this.decorateEarth(tilt, desired);
+
     if (lm.planet === "moon") {
-      // Earth hanging in the lunar sky (enlarged so you can find it). Click it to go back to Earth orbit.
+      // Earth hanging in the lunar sky (enlarged so you can find it). Click it to fly around the whole Earth.
       const earthDir = desired.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), 40 * DEG).add(new THREE.Vector3(0, 0.3, 0)).normalize();
       const earth = this.planetMesh("earth", 0.12);
       earth.position.copy(earthDir.multiplyScalar(5));
       this.fg.add(earth);
       this.spinners.push({ obj: earth, speed: 0.2 });
-      this.addFgLabel("Earth", earth.position.clone().add(new THREE.Vector3(0, 0.22, 0)), "spherex-orbit");
+      this.addFgLabel("Earth", earth.position.clone().add(new THREE.Vector3(0, 0.22, 0)), "earth");
     }
+  }
+
+  /** The whole Earth: clouds, a glowing atmosphere, the Moon, and SPHEREx circling in low orbit. */
+  private decorateEarth(tilt: THREE.Group, desired: THREE.Vector3) {
+    const clouds = new THREE.Mesh(new THREE.SphereGeometry(1.006, 128, 96), new THREE.MeshStandardMaterial({ map: cloudTexture(1024), transparent: true, depthWrite: false }));
+    const atmo = new THREE.Mesh(
+      new THREE.SphereGeometry(1.035, 128, 96),
+      new THREE.ShaderMaterial({ vertexShader: STAR_VERT, fragmentShader: ATMO_FRAG, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    tilt.add(clouds, atmo);
+    this.spinners.push({ obj: clouds, speed: 0.04 });
+    this.occluders[this.occluders.length - 1].radius = 1.03;
+
+    // SPHEREx: a tiny bright dot on a polar orbit (drawn well above scale so you can see it)
+    const orbitPlane = new THREE.Group();
+    orbitPlane.rotation.z = Math.PI / 2;
+    tilt.add(orbitPlane);
+    const craft = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff2d6 }));
+    craft.position.set(1.16, 0, 0);
+    orbitPlane.add(craft, this.glowSprite("#ffe9c2", 0.16, craft.position));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.16, 0.0025, 6, 160), new THREE.MeshBasicMaterial({ color: 0xf7efdf, transparent: true, opacity: 0.35 }));
+    ring.rotation.x = Math.PI / 2;
+    orbitPlane.add(ring);
+    this.spinners.push({ obj: orbitPlane, speed: 0.35 });
+    this.addFgLabel("SPHEREx", () => craft.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.1, 0)), "spherex-orbit");
+
+    // The Moon, off to one side (much closer than in reality, so it fits in the view)
+    const right = new THREE.Vector3().crossVectors(desired, new THREE.Vector3(0, 1, 0)).normalize();
+    const moon = this.planetMesh("moon", 0.27);
+    moon.position.copy(tilt.position).add(right.multiplyScalar(-3.4)).add(new THREE.Vector3(0, 0.9, 0)).add(desired.clone().multiplyScalar(1.5));
+    this.fg.add(moon);
+    this.occluders.push({ center: moon.position.clone(), radius: 0.27 });
+    this.spinners.push({ obj: moon, speed: 0.02 });
+    this.addFgLabel("The Moon", moon.position.clone().add(new THREE.Vector3(0, 0.42, 0)), "moon");
+
+    // Hotspot anchors on the side facing you
+    const toCam = tilt.position.clone().negate().normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    this.anchors.limb = () => tilt.position.clone().add(toCam.clone().multiplyScalar(0.55).add(up.clone().multiplyScalar(0.85)).normalize().multiplyScalar(1.035));
+    this.anchors.clouds = () => tilt.position.clone().add(toCam.clone().add(new THREE.Vector3().crossVectors(toCam, up).multiplyScalar(0.5)).normalize().multiplyScalar(1.01));
   }
 
   private buildStarView(lm: Landmark, desired: THREE.Vector3, right: THREE.Vector3) {
