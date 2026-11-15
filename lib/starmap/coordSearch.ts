@@ -5,6 +5,7 @@ export interface ParsedCoord {
 
 export interface BenchmarkTarget {
   name: string;
+  note: string;
   coordText: string;
   ra: number;
   dec: number;
@@ -75,9 +76,9 @@ export function parseRaDec(raw: string): { ok: true; coord: ParsedCoord } | { ok
 }
 
 export const BENCHMARK_TARGETS: BenchmarkTarget[] = [
-  { name: "Barnard's Star", coordText: "17h 57m 48.5s, +04° 41' 36\"", ra: 269.452083, dec: 4.693333, fov: 1.5 },
-  { name: "Epsilon Indi B", coordText: "22h 04m 10.5s, -56° 46' 58\"", ra: 331.04375, dec: -56.782778, fov: 1.5 },
-  { name: "WISE 0855", coordText: "08h 55m 10.8s, -07° 14' 43\"", ra: 133.795, dec: -7.245278, fov: 1.5 },
-  { name: "RW Aurigae", coordText: "05h 07m 49.5s, +30° 24' 05\"", ra: 76.95625, dec: 30.401389, fov: 1.5 },
-  { name: "R Draconis", coordText: "16h 32m 31.9s, +66° 45' 18\"", ra: 248.132917, dec: 66.755, fov: 1.5 },
+  { name: "Barnard's Star", note: "high proper motion", coordText: "17h 57m 48.5s, +04° 41' 36\"", ra: 269.452083, dec: 4.693333, fov: 1.5 },
+  { name: "Epsilon Indi B", note: "nearby brown dwarf motion", coordText: "22h 04m 10.5s, -56° 46' 58\"", ra: 331.04375, dec: -56.782778, fov: 1.5 },
+  { name: "WISE 0855", note: "coldest known brown dwarf", coordText: "08h 55m 10.8s, -07° 14' 43\"", ra: 133.795, dec: -7.245278, fov: 1.5 },
+  { name: "RW Aurigae", note: "variable young star", coordText: "05h 07m 49.5s, +30° 24' 05\"", ra: 76.95625, dec: 30.401389, fov: 1.5 },
+  { name: "R Draconis", note: "long-period variable star", coordText: "16h 32m 31.9s, +66° 45' 18\"", ra: 248.132917, dec: 66.755, fov: 1.5 },
 ];

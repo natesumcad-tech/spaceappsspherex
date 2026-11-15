@@ -15,6 +15,7 @@ interface CoordSearchBarProps {
   hasMarker: boolean;
   onJump: (ra: number, dec: number, fov?: number, label?: string) => void;
   onClearMarker: () => void;
+  onShareLink: () => Promise<void> | void;
 }
 
 export default function CoordSearchBar({
@@ -23,9 +24,11 @@ export default function CoordSearchBar({
   hasMarker,
   onJump,
   onClearMarker,
+  onShareLink,
 }: CoordSearchBarProps) {
   const [query, setQuery] = useState("");
   const [openPresets, setOpenPresets] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const trimmed = query.trim();
   const parsed = trimmed ? parseRaDec(trimmed) : null;
@@ -71,6 +74,18 @@ export default function CoordSearchBar({
         >
           Targets ▾
         </button>
+        <button
+          type="button"
+          className="mv-coord-btn"
+          onClick={async () => {
+            await onShareLink();
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+          }}
+          title="Copy shareable URL with RA, Dec, band, and zoom"
+        >
+          {copied ? "Copied!" : "Share a link"}
+        </button>
         {hasMarker && (
           <button
             type="button"
@@ -113,7 +128,9 @@ export default function CoordSearchBar({
                 className="mv-coord-pill"
                 onClick={() => selectPreset(t)}
               >
-                <span className="mv-coord-pill-name">{t.name}</span>
+                <span className="mv-coord-pill-name">
+                  {t.name} <small className="mv-coord-pill-note">· {t.note}</small>
+                </span>
                 <span className="mv-coord-pill-pos">{t.coordText}</span>
               </button>
             ))}

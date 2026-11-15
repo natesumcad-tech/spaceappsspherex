@@ -726,3 +726,78 @@
   border-radius: 4px;
   border: 1px solid rgba(125, 211, 252, 0.35);
 }
+
+.mv-coord-pill-note {
+  color: rgba(125, 211, 252, 0.85);
+  font-weight: 400;
+}
+
+/* ── 6-Month Blink / Time-Series Player & FOV ── */
+.mv-blink-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+  background: rgba(10, 14, 24, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 7px 10px;
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+  z-index: 19;
+}
+.mv-blink-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mv-blink-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.65);
+  margin-right: 4px;
+}
+.mv-blink-pass {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: #7dd3fc;
+  margin-left: auto;
+}
+.mv-blink-passes,
+.mv-blink-compare {
+  display: flex;
+  gap: 4px;
+}
+.mv-blink-compare {
+  margin-left: auto;
+}
+.mv-blink-step {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.78);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.mv-blink-step.active {
+  background: rgba(125, 211, 252, 0.22);
+  border-color: rgba(125, 211, 252, 0.55);
+  color: #e0f2fe;
+}
+.mv-blink-fov {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+}
+.mv-blink-fov input[type="range"] {
+  flex: 1;
+  accent-color: #7dd3fc;
+}

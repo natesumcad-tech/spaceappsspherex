@@ -16,6 +16,7 @@ import { byId } from "@/lib/explorer/landmarks";
 import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import Assistant, { type AssistantAction } from "./Assistant";
 import CoordSearchBar from "./CoordSearchBar";
+import BlinkPlayer, { type CompareMode } from "./BlinkPlayer";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v1";
@@ -64,6 +65,9 @@ export default function StarMapApp() {
   const [travel, setTravel] = useState<string | null>(null);
   const [centerCoord, setCenterCoord] = useState({ ra: 0, dec: 0 });
   const [hasMarker, setHasMarker] = useState(false);
+  const [fovDeg, setFovDeg] = useState(10);
+  const [compareMode, setCompareMode] = useState<CompareMode>("normal");
+  const [passIndex, setPassIndex] = useState(0);
   const [help, setHelp] = useState(true);
   const [sphere, setSphere] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -170,6 +174,7 @@ export default function StarMapApp() {
             if (readoutRef.current) {
               const ra = (((-v.x % 360) + 360) % 360);
               setCenterCoord({ ra, dec: v.y });
+              setFovDeg(Math.max(0.3, Math.min(60, v.radius * 2)));
               readoutRef.current.innerHTML =
                 `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
                 `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
@@ -427,6 +432,50 @@ export default function StarMapApp() {
             url.searchParams.delete("dec");
             url.searchParams.delete("fov");
             window.history.replaceState(null, "", url);
+          }}
+          onShareLink={async () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set("ra", centerCoord.ra.toFixed(4));
+            url.searchParams.set("dec", centerCoord.dec.toFixed(4));
+            url.searchParams.set("fov", fovDeg.toFixed(2));
+            url.searchParams.set("band", settings.layer);
+            window.history.replaceState(null, "", url);
+            try {
+              await navigator.clipboard.writeText(url.toString());
+            } catch {
+              /* ignore clipboard errors */
+            }
+          }}
+        />
+        <BlinkPlayer
+          fov={fovDeg}
+          onFovChange={(nextFov) => {
+            setFovDeg(nextFov);
+            const v = viewerRef.current;
+            if (!v) return;
+            const [x, y] = v.project(centerCoord.ra, centerCoord.dec);
+            const dEnd = Math.max(0.5, (nextFov / 2) / Math.tan((40 / 2) * (Math.PI / 180)));
+            v.flyTo(x, y, dEnd, false);
+          }}
+          compareMode={compareMode}
+          onCompareModeChange={(mode) => {
+            setCompareMode(mode);
+            if (stageRef.current) {
+              stageRef.current.style.filter =
+                mode === "subtract"
+                  ? "invert(1) contrast(1.45) hue-rotate(180deg)"
+                  : mode === "add"
+                  ? "brightness(1.28) contrast(1.18)"
+                  : "";
+            }
+          }}
+          passIndex={passIndex}
+          onPassChange={(idx) => {
+            setPassIndex(idx);
+            if (stageRef.current && compareMode === "normal") {
+              const b = [1, 1.08, 0.94, 1.12][idx] ?? 1;
+              stageRef.current.style.filter = `brightness(${b})`;
+            }
           }}
         />
         <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
