@@ -152,13 +152,13 @@ function toTexture(canvas: HTMLCanvasElement) {
   return tex;
 }
 
-export function planetTexture(kind: PlanetKind, width = 1024) {
+export function planetTexture(kind: PlanetKind, width = 2048) {
   const key = `${kind}:${width}`;
   if (!cache.has(key)) cache.set(key, toTexture(paintEquirect(width, PAINTERS[kind])));
   return cache.get(key)!;
 }
 
-export function cloudTexture(width = 1024) {
+export function cloudTexture(width = 2048) {
   const key = `clouds:${width}`;
   if (!cache.has(key)) {
     const c = paintEquirect(width, (x, y, z) => {
