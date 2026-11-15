@@ -81,6 +81,8 @@ const PHI_MAX = 72 * DEG; // tilt limit: you can never get under the baseplate
 const SNAP_PHI = 12 * DEG; // let go of an orbit this close to top-down and it snaps to 2D
 const D_MIN = 0.3; // zoom right in: about 13 arcminutes across the screen
 const D_MAX = 260;
+/** Zoomed in this close on a landmark, continued scrolling in opens its 360° view. */
+const ENTER_360_D = 2.2;
 const FOV = 40;
 const PLATE_DEPTH = 0.6;
 const EDGE_FADE = 10; // degrees over which the map dissolves into the black void at its edges
@@ -518,6 +520,15 @@ export class StarMapViewer {
 
   home() {
     this.flyTo(0, 0, 70, true);
+  }
+
+  /** Coming down from the galaxy view: start at the widest view and settle in on the origin. */
+  arriveFromSpace() {
+    this.tweens = [];
+    this.target.set(0, 0);
+    this.phi = 0;
+    this.d = D_MAX;
+    this.animate(1500, (t) => (this.d = D_MAX + (70 - D_MAX) * (1 - Math.pow(1 - t, 3))));
   }
 
   travelTo(wp: Waypoint) {
@@ -1003,6 +1014,7 @@ export class StarMapViewer {
       this.invalidate();
     };
     let pushOut = 0;
+    let pushIn = 0;
     const onWheel = (e: WheelEvent) => {
       if (!this.enabled) return;
       e.preventDefault();
@@ -1015,6 +1027,15 @@ export class StarMapViewer {
           return;
         }
       } else if (e.deltaY < 0) pushOut = 0;
+      // Zoomed right in on a landmark? Keep scrolling in and you step inside its 360° view.
+      if (e.deltaY < 0 && this.nearStop && this.d <= ENTER_360_D) {
+        pushIn -= e.deltaY;
+        if (pushIn > 260) {
+          pushIn = 0;
+          this.events.onEnter(this.nearStop);
+          return;
+        }
+      } else if (e.deltaY > 0) pushIn = 0;
       const before = this.pickClient(e.clientX, e.clientY);
       const k = e.ctrlKey ? 0.01 : 0.0015; // ctrl+wheel = trackpad pinch
       this.d = clamp(this.d * Math.exp(e.deltaY * k), D_MIN, D_MAX);

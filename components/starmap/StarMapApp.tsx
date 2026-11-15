@@ -94,7 +94,7 @@ export default function StarMapApp() {
     setGalaxy(null);
     cosmicRef.current?.setActive(false);
     viewerRef.current?.setEnabled(true);
-    if (goHome) viewerRef.current?.home();
+    if (goHome) viewerRef.current?.arriveFromSpace();
   }, []);
   const goCosmic = useCallback(() => {
     if (cosmicOn.current || !cosmicRef.current) return;
@@ -505,7 +505,36 @@ export default function StarMapApp() {
 
       {/* Top-left: title & 2D/3D */}
       <div className="mv-top-left">
-        <SiteTabs active="explorer" />
+        <div className="mv-top-row">
+          <SiteTabs active="explorer" />
+        <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
+          <button
+            role="tab"
+            aria-selected={!sphere && !cosmic && mode === "2d"}
+            onClick={() => {
+              exitSphere();
+              leaveCosmic(false);
+              viewerRef.current?.set2D(true);
+            }}
+          >
+            2D
+          </button>
+          <button
+            role="tab"
+            aria-selected={!sphere && !cosmic && mode === "3d"}
+            onClick={() => {
+              exitSphere();
+              leaveCosmic(false);
+              viewerRef.current?.set2D(false);
+            }}
+          >
+            3D
+          </button>
+        </div>
+        <button className={`mv-glass mv-ask ${askOpen ? "on" : ""}`} onClick={() => setAskOpen((o) => !o)} aria-expanded={askOpen} title="Ask the sky guide (/)">
+          ✦ Ask
+        </button>
+        </div>
         <CoordSearchBar
           centerRa={centerCoord.ra}
           centerDec={centerCoord.dec}
@@ -578,33 +607,6 @@ export default function StarMapApp() {
             }
           }}
         />
-        <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
-          <button
-            role="tab"
-            aria-selected={!sphere && !cosmic && mode === "2d"}
-            onClick={() => {
-              exitSphere();
-              leaveCosmic(false);
-              viewerRef.current?.set2D(true);
-            }}
-          >
-            2D
-          </button>
-          <button
-            role="tab"
-            aria-selected={!sphere && !cosmic && mode === "3d"}
-            onClick={() => {
-              exitSphere();
-              leaveCosmic(false);
-              viewerRef.current?.set2D(false);
-            }}
-          >
-            3D
-          </button>
-        </div>
-        <button className={`mv-glass mv-ask ${askOpen ? "on" : ""}`} onClick={() => setAskOpen((o) => !o)} aria-expanded={askOpen} title="Ask the sky guide (/)">
-          ✦ Ask
-        </button>
       </div>
 
       {/* Top-right: actions, minimap, readout */}
@@ -664,7 +666,7 @@ export default function StarMapApp() {
             <li><b>Orbit</b> <kbd>Shift</kbd> + middle-drag · right-drag · <kbd>Q</kbd><kbd>E</kbd> <kbd>R</kbd><kbd>F</kbd></li>
             <li><b>Zoom</b> scroll · <kbd>Z</kbd><kbd>X</kbd></li>
             <li><b>2D / 3D</b> <kbd>T</kbd> · tilt near flat to snap to 2D</li>
-            <li><b>360° view</b> click any diamond, planet, star or constellation name to fly there, then click it again</li>
+            <li><b>360° view</b> click any diamond, planet, star or constellation name to fly there, then click it again (or keep zooming in)</li>
             <li><b>Waypoint</b> <kbd>Shift</kbd>+<kbd>G</kbd> · <b>Home</b> <kbd>H</kbd></li>
           </ul>
         )}
