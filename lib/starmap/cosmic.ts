@@ -358,7 +358,7 @@ export class CosmicView {
   }
 
   /** Opening cutscene: hold on the Milky Way, then glide into the Sun (the sky map takes over at the end). */
-  playIntro(holdMs = 2400, diveMs = 6500) {
+  playIntro(holdMs = 1000, diveMs = 3200) {
     this.introOn = true;
     this.introTimer = setTimeout(() => {
       this.introTimer = null;
