@@ -131,6 +131,7 @@ export class StarMapViewer {
   private dirty = true;
   private tweens: Tween[] = [];
   private keys = new Set<string>();
+  private keyVel = { x: 0, y: 0 };
   private drag: { mode: "pan" | "orbit"; x: number; y: number; anchor: THREE.Vector2 | null; id: number } | null = null;
   private touches = new Map<number, { x: number; y: number }>();
   private pinch = { dist: 0, mid: 0 };
@@ -1241,24 +1242,43 @@ export class StarMapViewer {
   }
 
   private applyKeys(dt: number) {
-    if (!this.keys.size) return false;
+    const safeDt = Math.min(0.033, dt);
     const has = (...k: string[]) => k.some((x) => this.keys.has(x));
     const st = Math.sin(this.theta), ct = Math.cos(this.theta);
-    const speed = this.d * 0.9 * dt;
+    const speed = this.d * 0.85;
     let mx = 0, my = 0;
     if (has("w", "arrowup")) my += 1;
     if (has("s", "arrowdown")) my -= 1;
     if (has("d", "arrowright")) mx += 1;
     if (has("a", "arrowleft")) mx -= 1;
-    // screen-right on the map = (cos θ, sin θ), screen-up = (−sin θ, cos θ)
-    if (mx || my) this.setTarget(this.target.x + (mx * ct - my * st) * speed, this.target.y + (mx * st + my * ct) * speed);
-    if (has("q")) this.theta += 1.2 * dt;
-    if (has("e")) this.theta -= 1.2 * dt;
-    if (has("r")) this.phi = clamp(this.phi + 0.9 * dt, 0, PHI_MAX);
-    if (has("f")) this.phi = clamp(this.phi - 0.9 * dt, 0, PHI_MAX);
-    if (has("z", "=", "+")) this.d = clamp(this.d * Math.exp(-1.6 * dt), D_MIN, D_MAX);
-    if (has("x", "-")) this.d = clamp(this.d * Math.exp(1.6 * dt), D_MIN, D_MAX);
-    return true;
+    if (mx && my) {
+      const inv = 1 / Math.SQRT2;
+      mx *= inv;
+      my *= inv;
+    }
+
+    const goalVx = (mx * ct - my * st) * speed;
+    const goalVy = (mx * st + my * ct) * speed;
+    const blend = 1 - Math.exp(-14 * safeDt);
+    this.keyVel.x += (goalVx - this.keyVel.x) * blend;
+    this.keyVel.y += (goalVy - this.keyVel.y) * blend;
+
+    const moving = Math.hypot(this.keyVel.x, this.keyVel.y) > 0.002 * this.d;
+    if (moving) {
+      this.setTarget(this.target.x + this.keyVel.x * safeDt, this.target.y + this.keyVel.y * safeDt);
+    } else {
+      this.keyVel.x = 0;
+      this.keyVel.y = 0;
+    }
+
+    let rotated = false;
+    if (has("q")) { this.theta += 1.2 * safeDt; rotated = true; }
+    if (has("e")) { this.theta -= 1.2 * safeDt; rotated = true; }
+    if (has("r")) { this.phi = clamp(this.phi + 0.9 * safeDt, 0, PHI_MAX); rotated = true; }
+    if (has("f")) { this.phi = clamp(this.phi - 0.9 * safeDt, 0, PHI_MAX); rotated = true; }
+    if (has("z", "=", "+")) { this.d = clamp(this.d * Math.exp(-1.6 * safeDt), D_MIN, D_MAX); rotated = true; }
+    if (has("x", "-")) { this.d = clamp(this.d * Math.exp(1.6 * safeDt), D_MIN, D_MAX); rotated = true; }
+    return moving || rotated || this.keys.size > 0;
   }
 
   // ───────────────────────── Frame loop (on demand) ─────────────────────────
