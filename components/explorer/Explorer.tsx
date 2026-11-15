@@ -20,12 +20,14 @@ const LANGS = [
  * The 360° sphere view, shown inside the Star Map page. The parent owns which stop is open
  * (`stopId`) and is told when the viewer wants another stop or wants to go back to the map.
  */
-export default function SphereView({ stopId, onStop, onExit }: { stopId: string; onStop: (id: string) => void; onExit: () => void }) {
+export default function SphereView({ stopId, onStop, onExit, onAsk }: { onAsk?: (name: string) => void; stopId: string; onStop: (id: string) => void; onExit: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<SkyEngine | null>(null);
   const shown = useRef<string | null>(null);
+  const onAskRef = useRef(onAsk);
+  onAskRef.current = onAsk;
   const onStopRef = useRef(onStop);
   onStopRef.current = onStop;
   const onExitRef = useRef(onExit);
@@ -69,7 +71,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
           fetch("/data/sky.json").then((r) => r.json() as Promise<SkyData>),
         ]);
         if (cancelled) return;
-        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onNavigate: (id) => onStopRef.current(id), onNav: setNav, onExit: () => onExitRef.current() });
+        engine = new SkyEngine(canvasRef.current!, labelsRef.current!, fadeRef.current!, { onAsk: (name) => onAskRef.current?.(name), onNavigate: (id) => onStopRef.current(id), onNav: setNav, onExit: () => onExitRef.current() });
         engineRef.current = engine;
         engine.init(data);
         setReady(true);
@@ -304,6 +306,7 @@ export default function SphereView({ stopId, onStop, onExit }: { stopId: string;
                   <button onClick={() => onStop(next.id)}>{next.title} →</button>
                 </div>
               )}
+              {onAsk && <button className="xp-back" onClick={() => onAsk(current.title)}>Ask about {current.title}</button>}
               <button className="xp-back" onClick={onExit}>
                 Back to the map (Esc)
               </button>

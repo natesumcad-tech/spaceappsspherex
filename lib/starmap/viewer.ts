@@ -37,7 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /** What's being hovered on the map; the summary card pops out of it. */
-export type MapHover = { wp?: Waypoint; planet?: string; stop?: string; x: number; y: number };
+export type MapHover = { wp?: Waypoint; planet?: string; object?: string; stop?: string; x: number; y: number };
 
 export type View = { x: number; y: number; d: number; phi: number; theta: number; radius: number; mode: "2d" | "3d"; tiles: number; loading: number };
 
@@ -139,7 +139,7 @@ export class StarMapViewer {
   private cursor: THREE.Vector2 | null = null;
   private warpT = 0;
   private stars: { a: number; r: number; v: number; c: string }[] = [];
-  private reticlePos: { x: number; y: number } | null = null;
+  private reticlePos: { ra: number; dec: number } | null = null;
   private reticle = document.createElement("div");
   private visibleTiles = 0;
   private wantedTileKeys = new Set<string>();
@@ -505,9 +505,9 @@ export class StarMapViewer {
     }
     for (const s of this.sky.named) {
       const [ra, dec, mag] = this.sky.stars[s.i];
-      if (mag > 1.6) continue;
+
       const [x, y] = proj(ra, dec);
-      const el = this.addOverlay("star", s.names.en, x, y, { maxD: 70 });
+      const el = this.addOverlay("star", s.names.en, x, y, { maxD: mag > 1.6 ? 22 : 70 });
       this.makeEnterable(el, starStop(this.sky, s), x, y, 10);
     }
     if (this.planetsOn)
@@ -518,8 +518,7 @@ export class StarMapViewer {
         const stop = PLANET_STOPS[p.name];
         if (stop) {
           this.makeEnterable(el, stop, x, y, 10);
-          el.addEventListener("pointerenter", () => this.hover({ planet: p.name, stop, x, y }, el.offsetWidth));
-          el.addEventListener("pointerleave", () => this.events.onHover(null));
+
         }
       }
     this.placeWaypoints();
@@ -544,16 +543,29 @@ export class StarMapViewer {
     const o = this.overlays[this.overlays.length - 1];
     o.stop = stop;
     el.classList.add("link");
-    el.title = "Click to fly here, then click again to view in 360°";
+    el.title = "Click to travel · hover or focus when zoomed in to ask about this object";
+    const object = el.textContent ?? "this object";
+    const prompt = () => {
+      if (this.d <= NEAR_D) this.hover({ object, stop, x, y }, el.offsetWidth);
+    };
+    el.addEventListener("pointerenter", prompt);
+    el.addEventListener("focus", prompt);
+    el.addEventListener("pointerleave", () => this.events.onHover(null));
+    el.addEventListener("blur", () => this.events.onHover(null));
+    el.addEventListener("pointerdown", e => e.stopPropagation());
     el.insertAdjacentHTML("beforeend", `<em class="mv-360">View in 360°</em>`);
     el.addEventListener("click", () => (el.classList.contains("near") ? this.events.onEnter(stop) : this.flyTo(x, y, flyD, false)));
   }
 
   private addOverlay(kind: Overlay["kind"], text: string, x: number, y: number, o: { maxD?: number; minD?: number }) {
-    const el = document.createElement("div");
-    el.className = `mv-ov mv-${kind}`;
-    if (kind === "planet") el.innerHTML = `<i></i><span></span>`;
-    (kind === "planet" ? el.querySelector("span")! : el).textContent = text;
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = `mv-ov mv-${kind} mv-object`;
+    el.setAttribute("aria-label", `${text}: travel, explore or ask a question`);
+    el.appendChild(document.createElement("i"));
+    const caption = document.createElement("span");
+    caption.textContent = text;
+    el.appendChild(caption);
     el.style.display = "none";
     this.overlayLayer.appendChild(el);
     this.overlays.push({ el, x, y, kind, ...o });
@@ -711,10 +723,18 @@ export class StarMapViewer {
 
   /** Place a subtle target reticle at J2000 (ra, dec) in degrees. */
   setTargetMarker(ra: number, dec: number, label?: string) {
-    const [x, y] = this.project(ra, dec);
-    this.reticlePos = { x, y };
+    this.reticlePos = { ra, dec };
     this.reticle.className = "mv-reticle";
-    this.reticle.innerHTML = `<span class="mv-reticle-ring"></span>${label ? `<span class="mv-reticle-label">${label}</span>` : ""}`;
+    this.reticle.replaceChildren();
+    const diamond = document.createElement("span");
+    diamond.className = "mv-reticle-ring";
+    const caption = document.createElement("span");
+    caption.className = "mv-reticle-label";
+    caption.textContent = "Destination";
+    this.reticle.append(diamond, caption);
+    this.reticle.title = `${label ?? "Destination"} · J2000 RA ${ra.toFixed(8)}°, Dec ${dec.toFixed(8)}°`;
+    this.reticle.setAttribute("role", "img");
+    this.reticle.setAttribute("aria-label", this.reticle.title);
     if (!this.reticle.parentElement) this.pivot.parentElement?.appendChild(this.reticle);
     this.dirty = true;
   }
@@ -727,6 +747,7 @@ export class StarMapViewer {
 
   /** Fast travel with a hyperspace effect: pull back, streak across, drop in. */
   flyTo(x: number, y: number, dEnd: number, flat: boolean) {
+    this.tweens = []; // A newer destination replaces any earlier camera flight or pull-out.
     const from = { x: this.target.x, y: this.target.y, d: this.d, phi: this.phi };
     const dist = Math.hypot(x - from.x, y - from.y);
     const ms = 900 + Math.min(900, dist * 5);
@@ -738,7 +759,12 @@ export class StarMapViewer {
       this.d = from.d + (dEnd - from.d) * e + lift * Math.sin(Math.PI * e);
       if (flat) this.phi = from.phi * (1 - e);
       this.warpT = Math.sin(Math.PI * t);
-    }, () => (this.warpT = 0));
+    }, () => {
+      this.target.set(x, y);
+      this.d = dEnd;
+      if (flat) this.phi = 0;
+      this.warpT = 0;
+    });
   }
 
   private animate(ms: number, step: (t: number) => void, done?: () => void) {
@@ -1076,7 +1102,8 @@ export class StarMapViewer {
 
     // Target reticle marker for coordinate search
     if (this.reticlePos) {
-      v.set(this.reticlePos.x, 0, -this.reticlePos.y).project(this.camera);
+      const [markerX, markerY] = this.project(this.reticlePos.ra, this.reticlePos.dec);
+      v.set(markerX, 0, -markerY).project(this.camera);
       const on = v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       this.reticle.style.display = on ? "block" : "none";
       if (on) {

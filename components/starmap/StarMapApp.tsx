@@ -79,6 +79,11 @@ export default function StarMapApp() {
   sphereRef.current = sphere;
   const skyRef = useRef<SkyData | null>(null);
   const [askOpen, setAskOpen] = useState(false);
+  const [assistantDraft, setAssistantDraft] = useState<{ id: number; text: string } | null>(null);
+  const askAbout = (name: string) => {
+    setAssistantDraft(previous => ({ id: (previous?.id ?? 0) + 1, text: `Tell me about ${name}. What can SPHEREx help us learn about it?` }));
+    setAskOpen(true);
+  };
 
   // ── Zoomed out: the galaxies (CosmicView). The tool opens here; dive into the Sun to reach the sky map ──
   const cosmicStageRef = useRef<HTMLDivElement>(null);
@@ -221,16 +226,16 @@ export default function StarMapApp() {
             viewRef.current = v;
             minimapRef.current?.draw(v);
             if (readoutRef.current) {
-              const ra = (((-v.x % 360) + 360) % 360);
+              const [ra, dec] = viewer?.toRadec(v.x, v.y) ?? [0, 0];
               const now = performance.now();
               if (now - lastHudSync.current > 150) {
                 lastHudSync.current = now;
-                setCenterCoord({ ra, dec: v.y });
+                setCenterCoord({ ra, dec });
                 setFovDeg(Math.max(0.3, Math.min(60, v.radius * 2)));
               }
               readoutRef.current.innerHTML =
-                `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
-                `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
+                `<span><b>Center x</b> ${fmt(v.x)}°</span><span><b>Center y</b> ${fmt(v.y)}°</span>` +
+                `<span><b>J2000 RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(dec)}°</span>` +
                 `<span><b>View</b> ${v.radius * 2 < 2 ? `${fmt(v.radius * 120, 0)}′` : `${fmt(v.radius * 2, 0)}°`}</span><span><b>Tilt</b> ${fmt((v.phi * 180) / Math.PI, 0)}°</span>`;
             }
             if (loadingRef.current) {
@@ -364,16 +369,20 @@ export default function StarMapApp() {
       .slice(0, 12)
       .map((o) => o.w.title);
     return {
+      map_xy: { x: +v.x.toFixed(4), y: +v.y.toFixed(4), description: "Current epoch map degrees; not J2000 RA/Dec" },
       map_center: { ra_deg: +ra.toFixed(2), dec_deg: +dec.toFixed(2) },
       field_of_view_deg: +(v.radius * 2).toFixed(1),
       view: sphereRef.current ? "360° view" : v.mode,
       in_360_view_of: sphereRef.current ? byId(sphereRef.current)?.title : null,
       timeline: EPOCHS[e].label,
       imagery: st.layer === "2mass" ? "2MASS" : st.band >= 0 ? `SPHEREx ${SPHEREX_WL[st.band].toFixed(2)} µm` : "SPHEREx color",
-      hovering: hv?.wp?.title ?? hv?.planet ?? null,
+      hovering: hv?.wp?.title ?? hv?.object ?? hv?.planet ?? null,
       places_in_view: inView,
     };
   };
+
+  const navigationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (navigationTimer.current) clearTimeout(navigationTimer.current); }, []);
 
   const runAction = (a: AssistantAction): string | null => {
     const viewer = viewerRef.current, sky = skyRef.current;
@@ -382,6 +391,10 @@ export default function StarMapApp() {
     const open = !!a.args.open_360;
     if (cosmicOn.current && a.name !== "set_timeline" && a.name !== "set_imagery") leaveCosmic(false);
     const go = (stop: string | null, x: number, y: number, d: number, label: string) => {
+      if (navigationTimer.current) clearTimeout(navigationTimer.current);
+      const [ra, dec] = viewer.toRadec(x, y);
+      viewer.setTargetMarker(ra, dec, label);
+      setHasMarker(true);
       if (open && stop) {
         enterSphere(stop);
         return `◎ Opened ${label} in 360°`;
@@ -389,7 +402,7 @@ export default function StarMapApp() {
       const fly = () => viewer.flyTo(x, y, d, false);
       if (sphereRef.current) {
         exitSphere();
-        setTimeout(fly, 450);
+        navigationTimer.current = setTimeout(fly, 1700);
       } else fly();
       return `✈ Flew to ${label}`;
     };
@@ -419,11 +432,21 @@ export default function StarMapApp() {
         const [x, y] = viewer.project(ra, dec);
         return go(starStop(sky, s), x, y, 10, s.names.en);
       }
+      case "show_map_position": {
+        const x = Number(a.args.x), y = Number(a.args.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > 180 || Math.abs(y) > 90) return "Map x must be between -180° and 180°, and y between -90° and 90°.";
+        const [ra, dec] = viewer.toRadec(x, y);
+        viewer.setTargetMarker(ra, dec, String(a.args.label ?? "Requested map position"));
+        setHasMarker(true);
+        return go(null, x, y, 0.3 / (2 * Math.tan(20 * Math.PI / 180)), String(a.args.label ?? "that map position"));
+      }
       case "show_sky_position": {
         const ra = Number(a.args.ra_deg), dec = Number(a.args.dec_deg);
         if (!Number.isFinite(ra) || !Number.isFinite(dec) || Math.abs(dec) > 90) return null;
         const [x, y] = viewer.project(((ra % 360) + 360) % 360, dec);
-        return go(null, x, y, 12, String(a.args.label ?? "that spot"));
+        viewer.setTargetMarker(((ra % 360) + 360) % 360, dec, String(a.args.label ?? "Requested sky position"));
+        setHasMarker(true);
+        return go(null, x, y, 0.3 / (2 * Math.tan(20 * Math.PI / 180)), String(a.args.label ?? "that spot"));
       }
       case "set_timeline": {
         const i = EPOCHS.findIndex((e) => e.label === a.args.epoch);
@@ -710,7 +733,7 @@ export default function StarMapApp() {
         </div>
         <Collapsible id="map-overview" className="mv-glass mv-minicard" title={<span className="cl-label">Overview</span>} summary={layerById(settings.layer).name}>
           <Minimap ref={minimapRef} onMove={(x, y) => viewerRef.current?.setTarget(x, y)} />
-          <div ref={readoutRef} className="mv-readout" />
+          <div ref={readoutRef} className="mv-readout" title="These are view-center coordinates. Scrolling zooms toward your cursor, which can shift the center. Share J2000 RA/Dec for a fixed sky position." />
           <ImageryControl settings={settings} set={set} />
         </Collapsible>
         <div ref={loadingRef} className="mv-glass mv-loadpill" aria-live="polite" />
@@ -753,7 +776,7 @@ export default function StarMapApp() {
         createPortal(
           <div
             className="mv-pop"
-            key={hover.wp?.id ?? hover.planet}
+            key={hover.wp?.id ?? hover.stop ?? hover.planet}
             onPointerEnter={() => {
               overCard.current = true;
               if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -780,6 +803,7 @@ export default function StarMapApp() {
                 onTravel={() => viewerRef.current?.flyTo(hover.x, hover.y, 10, false)}
               />
             )}
+            <button className="mv-primary" onClick={() => askAbout(hover.wp?.title ?? hover.object ?? hover.planet ?? "this object")}>Ask about {hover.wp?.title ?? hover.object ?? hover.planet ?? "this object"}</button>
           </div>,
           viewerRef.current.cardHost,
         )}
@@ -819,13 +843,13 @@ export default function StarMapApp() {
 
       {travel && !sphere && <div className="mv-travel">Traveling to {travel}…</div>}
 
-      <Assistant open={askOpen} onClose={() => setAskOpen(false)} getContext={assistantContext} runAction={runAction} />
+      <Assistant draft={assistantDraft} open={askOpen} onClose={() => setAskOpen(false)} getContext={assistantContext} runAction={runAction} />
 
       {/* The 360° sphere opens right here, over the map */}
       {sphere && (
         <>
           <div className={`mv-sphere ${closing ? "closing" : ""}`} onAnimationEnd={(e) => e.animationName === "mv-sphere-out" && finishExit()}>
-            <SphereView stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
+            <SphereView onAsk={askAbout} stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
           </div>
         </>
       )}
