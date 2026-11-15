@@ -67,6 +67,7 @@ export default function StarMapApp() {
   const [centerCoord, setCenterCoord] = useState({ ra: 0, dec: 0 });
   const [hasMarker, setHasMarker] = useState(false);
   const [fovDeg, setFovDeg] = useState(10);
+  const lastHudSync = useRef(0);
   const [compareMode, setCompareMode] = useState<CompareMode>("normal");
   const [passIndex, setPassIndex] = useState(0);
   const [help, setHelp] = useState(true);
@@ -203,8 +204,12 @@ export default function StarMapApp() {
             minimapRef.current?.draw(v);
             if (readoutRef.current) {
               const ra = (((-v.x % 360) + 360) % 360);
-              setCenterCoord({ ra, dec: v.y });
-              setFovDeg(Math.max(0.3, Math.min(60, v.radius * 2)));
+              const now = performance.now();
+              if (now - lastHudSync.current > 150) {
+                lastHudSync.current = now;
+                setCenterCoord({ ra, dec: v.y });
+                setFovDeg(Math.max(0.3, Math.min(60, v.radius * 2)));
+              }
               readoutRef.current.innerHTML =
                 `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
                 `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
