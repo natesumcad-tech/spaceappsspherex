@@ -84,6 +84,7 @@ export default function StarMapApp() {
   const cosmicRef = useRef<CosmicView | null>(null);
   const cosmicHudRef = useRef<HTMLDivElement>(null);
   const [cosmic, setCosmic] = useState(true);
+  const [intro, setIntro] = useState(false);
   const cosmicOn = useRef(true);
   const [galaxy, setGalaxy] = useState<(Pick<Galaxy, "name" | "kind" | "size" | "dist" | "description"> & { wp?: string }) | null>(null);
 
@@ -91,6 +92,7 @@ export default function StarMapApp() {
     if (!cosmicOn.current) return;
     cosmicOn.current = false;
     setCosmic(false);
+    setIntro(false);
     setGalaxy(null);
     cosmicRef.current?.setActive(false);
     viewerRef.current?.setEnabled(true);
@@ -235,6 +237,7 @@ export default function StarMapApp() {
         const cv = new CosmicView(cosmicStageRef.current!, cosmicLabelsRef.current!, sky, {
           onEnterSky: () => leaveCosmic(true),
           onSelect: (g) => setGalaxy(g ? { ...g } : null),
+          onIntroEnd: () => setIntro(false),
           onView: (v) => {
             const el = cosmicHudRef.current;
             if (!el) return;
@@ -266,7 +269,9 @@ export default function StarMapApp() {
           }, 200);
         } else {
           viewer.setEnabled(false);
-          cv.setActive(true); // first visit: start zoomed out, among the galaxies
+          cv.setActive(true); // first visit: open on the Milky Way, then glide into the Sun and onto the sky map
+          cv.playIntro();
+          setIntro(true);
         }
       } catch (e) {
         console.error(e);
@@ -456,7 +461,12 @@ export default function StarMapApp() {
       </div>
       {cosmic && ready && (
         <>
-          <div className="mv-glass cv-hud">
+          {intro && (
+            <button className="mv-glass cv-skip" onClick={() => cosmicRef.current?.skipIntro()}>
+              Skip intro →
+            </button>
+          )}
+          <div className={`mv-glass cv-hud ${intro ? "intro" : ""}`}>
             <div ref={cosmicHudRef} className="cv-scale" />
             <p>Drag to turn · scroll to zoom · click a galaxy. Zoom into the Sun to see its constellations.</p>
             <button className="mv-primary" onClick={() => cosmicRef.current?.dive()}>
@@ -492,7 +502,7 @@ export default function StarMapApp() {
                   </button>
                 )}
                 <button className="mv-secondary" onClick={() => cosmicRef.current?.flyHome()}>
-                  Back to the Sun
+                  Back to the Milky Way
                 </button>
               </div>
             </aside>
