@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import SiteTabs from "@/components/SiteTabs";
+import "./infrared-isolation.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { SkyData } from "@/lib/explorer/astro";
 import { EPOCHS, NOW_INDEX, PASTELS, PRESET_WAYPOINTS, epochYear, planetsValid, type Waypoint } from "@/lib/starmap/data";
@@ -14,6 +16,8 @@ import { byId } from "@/lib/explorer/landmarks";
 import { constellationStop, starStop, waypointStop } from "@/lib/explorer/dynamic";
 import Assistant, { type AssistantAction } from "./Assistant";
 import type { CosmicView, Galaxy } from "@/lib/starmap/cosmic";
+import CoordSearchBar from "./CoordSearchBar";
+import BlinkPlayer, { type CompareMode } from "./BlinkPlayer";
 
 const STORE_WP = "starmap.waypoints.v1";
 const STORE_SETTINGS = "starmap.settings.v1";
@@ -60,6 +64,11 @@ export default function StarMapApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [adding, setAdding] = useState<{ x: number; y: number } | null>(null);
   const [travel, setTravel] = useState<string | null>(null);
+  const [centerCoord, setCenterCoord] = useState({ ra: 0, dec: 0 });
+  const [hasMarker, setHasMarker] = useState(false);
+  const [fovDeg, setFovDeg] = useState(10);
+  const [compareMode, setCompareMode] = useState<CompareMode>("normal");
+  const [passIndex, setPassIndex] = useState(0);
   const [help, setHelp] = useState(true);
   const [sphere, setSphere] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -192,6 +201,8 @@ export default function StarMapApp() {
             minimapRef.current?.draw(v);
             if (readoutRef.current) {
               const ra = (((-v.x % 360) + 360) % 360);
+              setCenterCoord({ ra, dec: v.y });
+              setFovDeg(Math.max(0.3, Math.min(60, v.radius * 2)));
               readoutRef.current.innerHTML =
                 `<span><b>x</b> ${fmt(v.x)}°</span><span><b>y</b> ${fmt(v.y)}°</span>` +
                 `<span><b>RA</b> ${raHMS(ra)}</span><span><b>Dec</b> ${fmt(v.y)}°</span>` +
@@ -236,10 +247,23 @@ export default function StarMapApp() {
         // Old /explore links and shared ?stop= links open that sphere straight away
         // Make sure views for waypoints exist before following a shared link to one
         [...PRESET_WAYPOINTS, ...load<Waypoint[]>(STORE_WP, [])].forEach(waypointStop);
-        const stop = new URL(window.location.href).searchParams.get("stop");
+        const urlParams = new URL(window.location.href).searchParams;
+        const stop = urlParams.get("stop");
+        const raQ = Number(urlParams.get("ra"));
+        const decQ = Number(urlParams.get("dec"));
+        const fovQ = Number(urlParams.get("fov")) || 1.5;
         if (stop && byId(stop)) {
           leaveCosmic(false); // shared links go straight to their 360° view
           setTimeout(() => enterRef.current(stop), 300);
+        } else if (urlParams.has("ra") && urlParams.has("dec") && Number.isFinite(raQ) && Number.isFinite(decQ)) {
+          leaveCosmic(false); // coordinate links go straight to that spot on the sky map
+          const [tx, ty] = viewer.project(raQ, decQ);
+          const dEnd = Math.max(0.5, (fovQ / 2) / Math.tan((40 / 2) * (Math.PI / 180)));
+          setTimeout(() => {
+            viewer?.flyTo(tx, ty, dEnd, false);
+            viewer?.setTargetMarker(raQ, decQ);
+            setHasMarker(true);
+          }, 200);
         } else {
           viewer.setEnabled(false);
           cv.setActive(true); // first visit: start zoomed out, among the galaxies
@@ -481,13 +505,79 @@ export default function StarMapApp() {
 
       {/* Top-left: title & 2D/3D */}
       <div className="mv-top-left">
-        <Link href="/" className="mv-glass mv-icon" aria-label="Back to home">
-          ←
-        </Link>
-        <div className="mv-glass mv-title">
-          <strong>Sky Explorer</strong>
-          <span>Planet X & SPHEREx</span>
-        </div>
+        <SiteTabs active="explorer" />
+        <CoordSearchBar
+          centerRa={centerCoord.ra}
+          centerDec={centerCoord.dec}
+          hasMarker={hasMarker}
+          onJump={(ra, dec, fov = 1.5, label) => {
+            const v = viewerRef.current;
+            if (!v) return;
+            const [x, y] = v.project(ra, dec);
+            const dEnd = Math.max(0.5, (fov / 2) / Math.tan((40 / 2) * (Math.PI / 180)));
+            v.flyTo(x, y, dEnd, false);
+            v.setTargetMarker(ra, dec, label);
+            setHasMarker(true);
+            const url = new URL(window.location.href);
+            url.searchParams.set("ra", ra.toFixed(4));
+            url.searchParams.set("dec", dec.toFixed(4));
+            url.searchParams.set("fov", String(fov));
+            window.history.replaceState(null, "", url);
+          }}
+          onClearMarker={() => {
+            viewerRef.current?.clearTargetMarker();
+            setHasMarker(false);
+            const url = new URL(window.location.href);
+            url.searchParams.delete("ra");
+            url.searchParams.delete("dec");
+            url.searchParams.delete("fov");
+            window.history.replaceState(null, "", url);
+          }}
+          onShareLink={async () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set("ra", centerCoord.ra.toFixed(4));
+            url.searchParams.set("dec", centerCoord.dec.toFixed(4));
+            url.searchParams.set("fov", fovDeg.toFixed(2));
+            url.searchParams.set("band", settings.layer);
+            window.history.replaceState(null, "", url);
+            try {
+              await navigator.clipboard.writeText(url.toString());
+            } catch {
+              /* ignore clipboard errors */
+            }
+          }}
+        />
+        <BlinkPlayer
+          fov={fovDeg}
+          onFovChange={(nextFov) => {
+            setFovDeg(nextFov);
+            const v = viewerRef.current;
+            if (!v) return;
+            const [x, y] = v.project(centerCoord.ra, centerCoord.dec);
+            const dEnd = Math.max(0.5, (nextFov / 2) / Math.tan((40 / 2) * (Math.PI / 180)));
+            v.flyTo(x, y, dEnd, false);
+          }}
+          compareMode={compareMode}
+          onCompareModeChange={(mode) => {
+            setCompareMode(mode);
+            if (stageRef.current) {
+              stageRef.current.style.filter =
+                mode === "subtract"
+                  ? "invert(1) contrast(1.45) hue-rotate(180deg)"
+                  : mode === "add"
+                  ? "brightness(1.28) contrast(1.18)"
+                  : "";
+            }
+          }}
+          passIndex={passIndex}
+          onPassChange={(idx) => {
+            setPassIndex(idx);
+            if (stageRef.current && compareMode === "normal") {
+              const b = [1, 1.08, 0.94, 1.12][idx] ?? 1;
+              stageRef.current.style.filter = `brightness(${b})`;
+            }
+          }}
+        />
         <div className="mv-glass mv-seg" role="tablist" aria-label="View mode">
           <button
             role="tab"
@@ -861,47 +951,81 @@ function ImageryControl({ settings, set }: { settings: Settings; set: (k: keyof 
   const mode = settings.layer === "2mass" ? "2mass" : settings.band >= 0 ? "band" : "color";
   const [band, setBand] = useState(settings.band >= 0 ? settings.band : 46);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const available = SPHEREX_WL.map((_, i) => i).filter((i) => !BLANK_FRAMES.has(i));
+  const cancelPending = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
   useEffect(() => {
     if (settings.band >= 0) setBand(settings.band);
   }, [settings.band]);
-  const commit = (b: number) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => set("band", b), 250); // wait until the slider settles
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const isolate = (b: number, deferred = false) => {
+    cancelPending();
+    setBand(b);
+    const apply = () => {
+      set("layer", "spherex");
+      set("overlays", []);
+      set("band", b);
+      timer.current = null;
+    };
+    if (deferred) timer.current = setTimeout(apply, 180);
+    else apply();
   };
+  const switchMode = (layer: Settings["layer"], b: number) => {
+    cancelPending();
+    set("layer", layer);
+    set("band", b);
+  };
+  const stepBand = (direction: number) => {
+    const index = available.indexOf(band);
+    const next = available[Math.max(0, Math.min(available.length - 1, index + direction))];
+    isolate(next);
+  };
+
   return (
     <div className="mv-imagery">
       <div className="mv-imagery-seg" role="radiogroup" aria-label="Map imagery">
-        <button role="radio" aria-checked={mode === "color"} onClick={() => { set("layer", "spherex"); set("band", -1); }}>
-          SPHEREx color
-        </button>
-        <button role="radio" aria-checked={mode === "band"} onClick={() => { set("layer", "spherex"); set("band", band); }}>
-          One wavelength
-        </button>
-        <button role="radio" aria-checked={mode === "2mass"} onClick={() => set("layer", "2mass")}>
-          2MASS
-        </button>
+        <button role="radio" aria-checked={mode === "color"} onClick={() => switchMode("spherex", -1)}>SPHEREx color</button>
+        <button role="radio" aria-checked={mode === "band"} onClick={() => isolate(band)}>Isolate infrared</button>
+        <button role="radio" aria-checked={mode === "2mass"} onClick={() => switchMode("2mass", -1)}>2MASS</button>
+      </div>
+      <div className="mv-ir-presets" role="group" aria-label="Isolate an infrared layer">
+        {[12, 46, 62].map((frame) => (
+          <button key={frame} type="button" aria-pressed={mode === "band" && settings.band === frame && settings.overlays.length === 0}
+            onClick={() => isolate(frame)} title={`Isolate ${SPHEREX_WL[frame].toFixed(3)} micrometers`}>
+            {SPHEREX_WL[frame].toFixed(1)} µm
+          </button>
+        ))}
       </div>
       {mode === "band" && (
-        <label className="mv-band">
-          <span>
-            <b>{SPHEREX_WL[band].toFixed(2)} µm</b> · band {Math.floor(band / 17) + 1}, channel {(band % 17) + 1}
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={101}
-            value={band}
-            onChange={(e) => {
-              let b = +e.target.value;
-              if (BLANK_FRAMES.has(b)) b = b === 50 ? 49 : 52; // the two dichroic channels are empty in DR1
-              setBand(b);
-              commit(b);
-            }}
-            aria-label="SPHEREx wavelength"
-          />
-        </label>
+        <div className="mv-ir-isolation">
+          <p className="mv-ir-status" aria-live="polite">
+            {settings.overlays.length ? "Overlay blend active" : "Infrared layer isolated"} · {SPHEREX_WL[settings.band].toFixed(3)} µm
+          </p>
+          <label className="mv-band">
+            <span><b>{SPHEREX_WL[band].toFixed(3)} µm</b> · channel {band + 1} of 102</span>
+            <input type="range" min={0} max={available.length - 1} value={Math.max(0, available.indexOf(band))}
+              onChange={(e) => isolate(available[Number(e.target.value)], true)} aria-label="SPHEREx wavelength"
+              aria-valuetext={`${SPHEREX_WL[band].toFixed(3)} micrometers, channel ${band + 1}`} />
+          </label>
+          <label className="mv-ir-select">Choose a wavelength
+            <select value={band} onChange={(e) => isolate(Number(e.target.value))}>
+              {SPHEREX_WL.map((w, i) => <option key={i} value={i} disabled={BLANK_FRAMES.has(i)}>
+                {w.toFixed(3)} µm · channel {i + 1}{BLANK_FRAMES.has(i) ? " — no DR1 data" : ""}
+              </option>)}
+            </select>
+          </label>
+          <div className="mv-ir-steps">
+            <button type="button" disabled={band === available[0]} onClick={() => stepBand(-1)}>← Previous</button>
+            <button type="button" disabled={band === available[available.length - 1]} onClick={() => stepBand(1)}>Next →</button>
+          </div>
+          {settings.overlays.length > 0 && <button type="button" className="mv-ir-clear" onClick={() => isolate(band)}>Remove overlays and isolate</button>}
+          <p className="mv-imagery-note">One wavelength only; survey overlays are removed. Display colors are artificial. Channels 51–52 have no DR1 data.</p>
+        </div>
       )}
-      {mode === "color" && <p className="mv-imagery-note">Blue 1.0 µm · green 2.2 µm · red 3.3 µm (glowing dust)</p>}
+      {mode === "color" && <p className="mv-imagery-note">Blue 1.0 µm · green 2.2 µm · red 3.3 µm. Use the presets above to isolate one layer.</p>}
     </div>
   );
 }

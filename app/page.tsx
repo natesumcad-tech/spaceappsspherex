@@ -1,16 +1,11 @@
+import PageTransition from "@/components/PageTransition";
 import Image from "next/image";
 import Link from "next/link";
+import SiteTabs from "@/components/SiteTabs";
+import ScrollReveal from "@/components/ScrollReveal";
 import SpectrumExplorer from "@/components/SpectrumExplorer";
 import { site, project, team, mission, resources } from "@/content/site";
 import "./home.css";
-
-const NAV = [
-  ["/map", "Star Map"],
-  ["#how", "How it works"],
-  ["#spectrum", "Spectrum"],
-  ["#mission", "Mission"],
-  ["#team", "Team"],
-];
 
 // 102 bars: one for each SPHEREx band, shaped like a gentle spectrum
 const BARS = Array.from({ length: 102 }, (_, i) => {
@@ -21,23 +16,19 @@ const BARS = Array.from({ length: 102 }, (_, i) => {
 
 export default function Home() {
   return (
+    <PageTransition>
     <div className="home">
+      <ScrollReveal />
       {/* ── Hero ── */}
       <header className="h-hero">
         <div className="h-sky" aria-hidden="true" />
-        <nav className="h-nav">
+        <div className="h-nav">
           <Link href="/" className="h-logo">
             <span className="h-logo-mark" aria-hidden="true" />
             {site.teamName}
           </Link>
-          <div className="h-links">
-            {NAV.map(([href, label]) => (
-              <a key={href} href={href}>
-                {label}
-              </a>
-            ))}
-          </div>
-        </nav>
+          <SiteTabs active="home" />
+        </div>
 
         <div className="h-hero-copy">
           <p className="h-kicker">NASA Space Apps · Planet X & SPHEREx</p>
@@ -49,7 +40,7 @@ export default function Home() {
             bands, rewind the sky 14,000 years, and open 360° views of stars, planets, galaxies and all 88 constellations.
           </p>
           <div className="h-ctas">
-            <Link href="/map" className="h-btn">
+            <Link transitionTypes={["site-navigation"]} href="/map" className="h-btn">
               <span aria-hidden="true">◎</span> Open the Sky Explorer
             </Link>
             <a href="#how" className="h-btn-ghost">
@@ -68,7 +59,7 @@ export default function Home() {
               <span />
               <span />
               <span />
-              <div className="h-url">spaceappsspherex.vercel.app/map</div>
+              <div className="h-url">nasaspaceappsbigbang.vercel.app/map</div>
             </div>
             <Image
               src="/shots/explorer-saturn.jpg"
@@ -132,12 +123,12 @@ export default function Home() {
             Maps, tilt into 3D, and hyperspace-jump between waypoints.
           </p>
           <div className="h-panel">
-            <Link href="/map" className="h-panel-window" aria-label="Open the Star Map">
+            <Link transitionTypes={["site-navigation"]} href="/map" className="h-panel-window" aria-label="Open the Star Map">
               <div className="h-chrome light">
                 <span />
                 <span />
                 <span />
-                <div className="h-url">spaceappsspherex.vercel.app/map</div>
+                <div className="h-url">nasaspaceappsbigbang.vercel.app/map</div>
               </div>
               <Image
                 src="/shots/starmap-2d.jpg"
@@ -299,7 +290,7 @@ export default function Home() {
           <h2>
             Open the <em>Sky Explorer</em>
           </h2>
-          <Link href="/map" className="h-btn">
+          <Link transitionTypes={["site-navigation"]} href="/map" className="h-btn">
             <span aria-hidden="true">◎</span> Start at the origin
           </Link>
         </section>
@@ -307,7 +298,7 @@ export default function Home() {
 
       <footer className="h-footer">
         <span>
-          Built for the {site.event} by {site.teamName}.
+          Built for the {site.event} by Big Bang.
         </span>
         <span>
           <a href={site.teamPageUrl} target="_blank" rel="noreferrer">
@@ -323,5 +314,6 @@ export default function Home() {
         </span>
       </footer>
     </div>
+    </PageTransition>
   );
 }

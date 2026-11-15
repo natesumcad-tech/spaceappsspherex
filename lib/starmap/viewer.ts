@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { discardDetailedTile } from "../explorer/zoom-policy";
 import type { SkyData } from "@/lib/explorer/astro";
 import { DEG, MAP_H, MAP_W, planetPositions, projector, unprojector } from "./coords";
 import { SPHEREX_RGB, layerById, makeLoader, renderTile, type TileRequest } from "./hips";
@@ -135,7 +136,10 @@ export class StarMapViewer {
   private cursor: THREE.Vector2 | null = null;
   private warpT = 0;
   private stars: { a: number; r: number; v: number; c: string }[] = [];
+  private reticlePos: { x: number; y: number } | null = null;
+  private reticle = document.createElement("div");
   private visibleTiles = 0;
+  private wantedTileKeys = new Set<string>();
 
   constructor(
     private container: HTMLElement,
@@ -240,7 +244,7 @@ export class StarMapViewer {
       return;
     }
     if (this.inflight.get(job.key) === job.version) this.inflight.delete(job.key);
-    if (!px || job.version !== this.version) {
+    if (!px || job.version !== this.version || !this.wantedTileKeys.has(job.key)) {
       this.invalidate();
       return;
     }
@@ -522,6 +526,22 @@ export class StarMapViewer {
     this.flyTo(x, y, 14, false);
   }
 
+  /** Place a subtle target reticle at J2000 (ra, dec) in degrees. */
+  setTargetMarker(ra: number, dec: number, label?: string) {
+    const [x, y] = this.project(ra, dec);
+    this.reticlePos = { x, y };
+    this.reticle.className = "mv-reticle";
+    this.reticle.innerHTML = `<span class="mv-reticle-ring"></span>${label ? `<span class="mv-reticle-label">${label}</span>` : ""}`;
+    if (!this.reticle.parentElement) this.pivot.parentElement?.appendChild(this.reticle);
+    this.dirty = true;
+  }
+
+  clearTargetMarker() {
+    this.reticlePos = null;
+    this.reticle.style.display = "none";
+    this.dirty = true;
+  }
+
   /** Fast travel with a hyperspace effect: pull back, streak across, drop in. */
   flyTo(x: number, y: number, dEnd: number, flat: boolean) {
     const from = { x: this.target.x, y: this.target.y, d: this.d, phi: this.phi };
@@ -664,6 +684,10 @@ export class StarMapViewer {
       threshold *= 1.5; // too many tiles: drop detail rather than frame rate
     }
 
+    this.wantedTileKeys = new Set(wanted.flatMap((t) => [
+      `${t.L}/${t.i}/${t.j}`, `0/${t.i >> t.L}/${t.j >> t.L}`,
+    ]));
+    const maxWantedLevel = Math.max(0, ...wanted.map((t) => t.L));
     const now = performance.now();
     const show = new Set<string>();
     this.queue.clear();
@@ -718,6 +742,14 @@ export class StarMapViewer {
       if (vis) e.used = now;
     }
     this.visibleTiles = show.size;
+    // The quadtree has already returned to the distance-appropriate normal detail.
+    // Release unused close-up textures now, even when the cache is below its cap.
+    for (const [key, entry] of this.tiles) {
+      if (discardDetailedTile(entry.L, maxWantedLevel, show.has(key))) {
+        this.disposeTile(entry);
+        this.tiles.delete(key);
+      }
+    }
     this.evict(show);
     return false; // tiles arrive asynchronously and request their own frame
   }
@@ -858,6 +890,16 @@ export class StarMapViewer {
       this.pivot.style.display = "block";
       this.pivot.style.transform = `translate(${((v.x * 0.5 + 0.5) * w).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
     } else this.pivot.style.display = "none";
+
+    // Target reticle marker for coordinate search
+    if (this.reticlePos) {
+      v.set(this.reticlePos.x, 0, -this.reticlePos.y).project(this.camera);
+      const on = v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+      this.reticle.style.display = on ? "block" : "none";
+      if (on) {
+        this.reticle.style.transform = `translate(${((v.x * 0.5 + 0.5) * w).toFixed(1)}px, ${((-v.y * 0.5 + 0.5) * h).toFixed(1)}px)`;
+      }
+    } else this.reticle.style.display = "none";
   }
 
   // ───────────────────────── Hyperspace ─────────────────────────
