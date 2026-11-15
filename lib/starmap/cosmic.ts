@@ -149,6 +149,7 @@ export class CosmicView {
   private targetName = "Sun";
   /** Following the home framing (galaxy centre far out, the Sun up close). */
   private home = true;
+  private homeTmp = new THREE.Vector3();
   private az = 2.4;
   private el = 0.7;
   /** Opening view: the whole Milky Way fills the screen. */
@@ -361,6 +362,12 @@ export class CosmicView {
 
   zoomBy(f: number) {
     this.tween = null;
+    if (f < 1 && this.targetName !== "Sun") {
+      // Zooming in always heads home: the view eases back onto the Sun, then the sky map takes over
+      this.events.onSelect(null);
+      this.targetName = "Sun";
+      this.home = true;
+    }
     this.dist = THREE.MathUtils.clamp(this.dist * f, this.targetName === "Sun" ? ENTER_SKY * 0.7 : D_MIN, D_MAX);
   }
 
@@ -432,7 +439,7 @@ export class CosmicView {
       // move through distance logarithmically, so zooms across millions of light-years feel even
       this.dist = Math.exp(Math.log(this.tween.from.d) + (Math.log(this.tween.to.d) - Math.log(this.tween.from.d)) * e);
       if (k >= 1) this.tween = null;
-    } else if (this.home) homeTarget(this.dist, this.target);
+    } else if (this.home) this.target.lerp(homeTarget(this.dist, this.homeTmp), 0.14); // eased, so leaving a selection never jumps
     const ce = Math.cos(this.el);
     this.cam.position.set(Math.sin(this.az) * ce, Math.sin(this.el), Math.cos(this.az) * ce).multiplyScalar(this.dist).add(this.target);
     this.cam.lookAt(this.target);
@@ -477,7 +484,7 @@ export class CosmicView {
     }
     this.events.onView({ dist: this.dist, scale: this.scaleName(), targetName: this.targetName });
 
-    if (!this.entered && this.targetName === "Sun" && this.dist < ENTER_SKY) {
+    if (!this.entered && this.targetName === "Sun" && this.dist < ENTER_SKY && this.target.length() < ENTER_SKY) {
       this.entered = true;
       this.events.onEnterSky();
     }

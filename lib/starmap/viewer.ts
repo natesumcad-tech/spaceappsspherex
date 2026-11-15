@@ -672,6 +672,14 @@ export class StarMapViewer {
   }
 
   /** Coming down from the galaxy view: start at the widest view and settle in on the origin. */
+  /** Leaving a 360° view: start right on top of the spot, then pull back out to see its neighborhood. */
+  pullOut(toD = 14, ms = 1700) {
+    this.tweens = [];
+    const from = clamp(Math.min(this.d, 1.1), D_MIN, D_MAX), to = Math.max(toD, from);
+    this.d = from;
+    this.animate(ms, (t) => (this.d = Math.exp(Math.log(from) + (Math.log(to) - Math.log(from)) * (1 - Math.pow(1 - t, 3)))));
+  }
+
   arriveFromSpace() {
     this.tweens = [];
     this.target.set(0, 0);

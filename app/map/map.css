@@ -375,7 +375,32 @@
 .mv.in-sphere .mv-addcard { visibility: hidden; }
 .mv.in-sphere .mv-top-left { z-index: 50; }
 .mv-sphere { position: fixed; inset: 0; z-index: 40; animation: mv-sphere-in 0.45s ease both; }
-.mv-sphere.closing { opacity: 0; transition: opacity 0.35s ease; }
+/* Leaving a 360° view: the sphere irises shut into its spot while the map pulls back out around it */
+.mv-sphere.closing { pointer-events: none; animation: mv-sphere-out 0.95s cubic-bezier(0.55, 0, 0.3, 1) both; }
+@keyframes mv-sphere-out {
+  0% { clip-path: circle(75vmax at 50% 50%); filter: brightness(1); }
+  100% { clip-path: circle(0vmax at 50% 50%); filter: brightness(1.6); }
+}
+/* the view inside recedes as the iris closes, so it feels like pulling back out of the bubble */
+.mv-sphere.closing > * { animation: mv-sphere-recede 0.95s cubic-bezier(0.55, 0, 0.3, 1) both; }
+@keyframes mv-sphere-recede { to { transform: scale(0.45); } }
+.mv-iris {
+  position: fixed; left: 50%; top: 50%; z-index: 41; pointer-events: none;
+  width: 150vmax; height: 150vmax; border-radius: 50%;
+  border: 2px solid rgba(247, 239, 223, 0.85);
+  box-shadow: 0 0 40px rgba(247, 239, 223, 0.45), inset 0 0 40px rgba(247, 239, 223, 0.3);
+  animation: mv-iris 0.95s cubic-bezier(0.55, 0, 0.3, 1) both;
+}
+@keyframes mv-iris {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0); opacity: 0.2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mv-sphere.closing, .mv-sphere.closing > * { animation: none; }
+  .mv-sphere.closing { opacity: 0; transition: opacity 0.3s ease; }
+  .mv-iris { display: none; }
+}
 @keyframes mv-sphere-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* Arrived: the diamond grows, glows and offers the 360° view (Street View style) */

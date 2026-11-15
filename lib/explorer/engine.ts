@@ -1148,6 +1148,7 @@ export class SkyEngine {
     c.addEventListener("pointerup", up);
     c.addEventListener("pointercancel", up);
     c.addEventListener("wheel", wheel, { passive: false });
+    this.labelLayer.addEventListener("wheel", wheel, { passive: false }); // labels sit over the canvas: scrolling on them still zooms
     window.addEventListener("keydown", keydown);
     window.addEventListener("keyup", keyup);
     window.addEventListener("blur", blur);
@@ -1157,6 +1158,7 @@ export class SkyEngine {
       c.removeEventListener("pointerup", up);
       c.removeEventListener("pointercancel", up);
       c.removeEventListener("wheel", wheel);
+      this.labelLayer.removeEventListener("wheel", wheel);
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("keyup", keyup);
       window.removeEventListener("blur", blur);

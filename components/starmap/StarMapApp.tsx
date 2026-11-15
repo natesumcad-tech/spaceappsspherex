@@ -130,12 +130,15 @@ export default function StarMapApp() {
     return at ? v.project(at.ra, at.dec) : null;
   }, []);
 
+  const overCard = useRef(false);
   /** Step inside a sphere: dive into its spot on the map, then the 360° view fades in. */
   const enterSphere = useCallback(
     async (stop: string) => {
       const v = viewerRef.current;
       if (!v || !byId(stop)) return;
       setHover(null);
+      overCard.current = false;
+      v.clearCard();
       setAdding(null);
       const at = stopXY(stop);
       if (sphereRef.current) {
@@ -154,18 +157,31 @@ export default function StarMapApp() {
   enterRef.current = enterSphere;
 
   /** Back to the map, right where that sphere sits. */
-  const exitSphere = useCallback(() => {
-    if (!sphereRef.current) return;
-    setClosing(true);
-    setTimeout(() => {
-      setSphere(null);
-      setClosing(false);
-      setUrl(null);
-      viewerRef.current?.setEnabled(true);
-      const d = viewRef.current?.d ?? 14;
-      if (d < 14) viewerRef.current?.zoomBy(14 / d); // ease back out to see the neighborhood
-    }, 350);
+  const quietUntil = useRef(0); // no hover cards while the exit cutscene plays
+  const leaving = useRef(false);
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The cutscene's iris has closed: drop the 360° view for good. */
+  const finishExit = useCallback(() => {
+    if (!leaving.current) return;
+    if (finishTimer.current) clearTimeout(finishTimer.current);
+    finishTimer.current = null;
+    setSphere(null);
+    setClosing(false);
+    leaving.current = false;
   }, []);
+  const exitSphere = useCallback(() => {
+    if (!sphereRef.current || leaving.current) return;
+    leaving.current = true;
+    // Cutscene: the 360° view irises shut into its spot while the map pulls back out around it
+    const quick = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setClosing(true);
+    setUrl(null);
+    quietUntil.current = performance.now() + (quick ? 500 : 1800);
+    viewerRef.current?.setEnabled(true);
+    viewerRef.current?.pullOut(14, quick ? 400 : 1700);
+    if (finishTimer.current) clearTimeout(finishTimer.current);
+    finishTimer.current = setTimeout(finishExit, quick ? 350 : 1600); // fallback if the animation never reports
+  }, [finishExit]);
 
 
   // Load settings & custom waypoints saved in this browser
@@ -175,8 +191,8 @@ export default function StarMapApp() {
     if (window.innerWidth < 800) setHelp(false);
   }, []);
 
-  const overCard = useRef(false);
   const hoverWp = useCallback((h: MapHover | null) => {
+    if (h && performance.now() < quietUntil.current) return;
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (!h && overCard.current) return; // still reading the card
     if (h) setHover(h);
@@ -496,7 +512,7 @@ export default function StarMapApp() {
   const ep = EPOCHS[epoch];
 
   return (
-    <div className={`mv ${sphere ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
+    <div className={`mv ${sphere && !closing ? "in-sphere" : ""} ${cosmic ? "in-cosmic" : ""}`}>
       <div ref={stageRef} className="mv-stage">
         <div ref={overlayRef} className="mv-overlay" />
       </div>
@@ -806,9 +822,12 @@ export default function StarMapApp() {
 
       {/* The 360° sphere opens right here, over the map */}
       {sphere && (
-        <div className={`mv-sphere ${closing ? "closing" : ""}`}>
-          <SphereView stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
-        </div>
+        <>
+          <div className={`mv-sphere ${closing ? "closing" : ""}`} onAnimationEnd={(e) => e.animationName === "mv-sphere-out" && finishExit()}>
+            <SphereView stopId={sphere} onStop={enterSphere} onExit={exitSphere} />
+          </div>
+          {closing && <div className="mv-iris" aria-hidden="true" />}
+        </>
       )}
 
       {/* Settings window */}
@@ -877,16 +896,14 @@ function WaypointDetails({
         </div>
       </dl>
       <div className="mv-wp-actions">
-        {near ? (
-          <button className="mv-primary" onClick={() => onStep(waypointStop(wp))}>
-            View in 360° ↗
-          </button>
-        ) : (
-          <button className="mv-primary" onClick={() => viewer?.travelTo(wp)}>
+        <button className="mv-primary" onClick={() => onStep(waypointStop(wp))}>
+          View in 360° ↗
+        </button>
+        {!near && (
+          <button className="mv-secondary" onClick={() => viewer?.travelTo(wp)}>
             Travel here
           </button>
         )}
-        {!near && <span className="mv-hint360">then click the diamond again for 360°</span>}
         {wp.custom && (
           <button className="mv-secondary" onClick={() => onDelete(wp.id)}>
             Delete
@@ -921,16 +938,14 @@ function PlanetDetails({ hover, near, onStep, onTravel }: { hover: MapHover; nea
         </div>
       </dl>
       <div className="mv-wp-actions">
-        {near ? (
-          <button className="mv-primary" onClick={() => onStep(lm.id)}>
-            View in 360° ↗
-          </button>
-        ) : (
-          <button className="mv-primary" onClick={onTravel}>
+        <button className="mv-primary" onClick={() => onStep(lm.id)}>
+          View in 360° ↗
+        </button>
+        {!near && (
+          <button className="mv-secondary" onClick={onTravel}>
             Travel here
           </button>
         )}
-        {!near && <span className="mv-hint360">then click it again for 360°</span>}
       </div>
     </>
   );
