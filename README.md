@@ -1,5 +1,7 @@
 # Sky Explorer (SPHEREx)
 
+https://orbit3d.earth/
+
 An interactive 2D/3D map of the infrared sky built for the **NASA Space Apps Challenge** (Planet X & SPHEREx). Users stream live SPHEREx Data Release 1 imagery from NASA/IPAC IRSA, jump to J2000 coordinates or benchmark targets, blink 6-month passes to spot moving objects, step into 360° views of landmarks and constellations, and ask a Gemini-powered Sky Guide to navigate the map.
 
 ## How It Works
