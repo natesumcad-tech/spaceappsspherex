@@ -1,4 +1,4 @@
-# Sky Explorer (SPHEREx)
+# Orbit3d (SPHEREx)
 
 https://orbit3d.earth/
 
